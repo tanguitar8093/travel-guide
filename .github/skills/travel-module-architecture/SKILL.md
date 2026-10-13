@@ -88,7 +88,9 @@ parallel framework.
   that limitation rather than silently omitted. A scheduled item may store its
   manually requested incoming-leg travel-time estimate in minutes; clear that
   estimate whenever its predecessor, destination, date, order, or travel mode
-  changes.
+  changes. Display the user-entered `arrivalTime` as the planned arrival time;
+  derive a reference arrival time from the previous item's planned arrival plus
+  this leg's estimate, and do not persist that derived value separately.
 - `src/modules/data-management/` provides versioned JSON export and full
   replacement import for every persisted table. Keep parsing, schema and
   reference validation, and atomic replacement in the database/operation

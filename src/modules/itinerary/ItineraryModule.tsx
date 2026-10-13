@@ -71,6 +71,20 @@ function formatDate(date: string): string {
   }).format(new Date(`${date}T00:00:00Z`))
 }
 
+function addMinutesToTime(
+  time: string | undefined,
+  durationMinutes: number | undefined,
+): { time: string; dayOffset: number } | undefined {
+  if (!time || durationMinutes === undefined) return undefined
+  const [hours, minutes] = time.split(':').map(Number)
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return undefined
+  const totalMinutes = hours * 60 + minutes + durationMinutes
+  return {
+    time: `${String(Math.floor((totalMinutes % 1440) / 60)).padStart(2, '0')}:${String(totalMinutes % 60).padStart(2, '0')}`,
+    dayOffset: Math.floor(totalMinutes / 1440),
+  }
+}
+
 function getTripDates(trip: Trip): string[] {
   const dates: string[] = []
   const end = Date.parse(`${trip.endDate}T00:00:00Z`)
@@ -131,6 +145,44 @@ function ItineraryModule() {
     () => tripItems.filter((item) => item.date === selectedDate)
       .sort((left, right) => left.order - right.order),
     [tripItems, selectedDate],
+  )
+  const previousDraftItem = useMemo(() => {
+    if (!itemDraft.date) return undefined
+    const sameDateItems = tripItems
+      .filter((item) => item.date === itemDraft.date && item.id !== editingItemId)
+      .sort((left, right) => left.order - right.order)
+    if (!editingItemId) return sameDateItems[sameDateItems.length - 1]
+
+    const editedItem = tripItems.find((item) => item.id === editingItemId)
+    if (!editedItem || editedItem.date !== itemDraft.date) {
+      return sameDateItems[sameDateItems.length - 1]
+    }
+    const originalDay = tripItems
+      .filter((item) => item.date === editedItem.date)
+      .sort((left, right) => left.order - right.order)
+    const itemIndex = originalDay.findIndex((item) => item.id === editingItemId)
+    return itemIndex > 0 ? originalDay[itemIndex - 1] : undefined
+  }, [editingItemId, itemDraft.date, tripItems])
+  const editedItem = editingItemId
+    ? tripItems.find((item) => item.id === editingItemId)
+    : undefined
+  const originalPreviousItem = editedItem
+    ? tripItems
+      .filter((item) => item.date === editedItem.date)
+      .sort((left, right) => left.order - right.order)
+      .slice(0, -1)
+      .find((item) => item.order === editedItem.order - 1)
+    : undefined
+  const draftRouteMatches = Boolean(
+    editedItem &&
+    editedItem.date === itemDraft.date &&
+    editedItem.placeId === itemDraft.placeId &&
+    editedItem.transport === itemDraft.transport &&
+    originalPreviousItem?.id === previousDraftItem?.id,
+  )
+  const referenceArrival = addMinutesToTime(
+    previousDraftItem?.arrivalTime,
+    draftRouteMatches ? editedItem?.travelDurationMinutes : undefined,
   )
   const tripPlaces = useMemo(
     () => places.filter((place) => selectedTrip && place.regionIds.includes(selectedTrip.regionId)),
@@ -615,7 +667,8 @@ function ItineraryModule() {
                           <div className="itinerary-field-grid">
                             <label className="itinerary-field"><span>地點 <b>*</b></span><select value={itemDraft.placeId} onChange={(event) => setItemDraft({ ...itemDraft, placeId: event.target.value })} required disabled={saving}><option value="" disabled>選擇已收藏地點</option>{tripPlaces.map((place) => <option value={place.id} key={place.id}>{place.name}</option>)}</select></label>
                             <label className="itinerary-field"><span>日期 <b>*</b></span><input type="date" min={selectedTrip.startDate} max={selectedTrip.endDate} value={itemDraft.date} onChange={(event) => setItemDraft({ ...itemDraft, date: event.target.value })} required disabled={saving} /></label>
-                            <label className="itinerary-field"><span>抵達時間</span><input type="time" value={itemDraft.arrivalTime} onChange={(event) => setItemDraft({ ...itemDraft, arrivalTime: event.target.value })} disabled={saving} /></label>
+                            <label className="itinerary-field"><span>預計抵達時間</span><input type="time" value={itemDraft.arrivalTime} onChange={(event) => setItemDraft({ ...itemDraft, arrivalTime: event.target.value })} disabled={saving} /></label>
+                            <label className="itinerary-field"><span>參考抵達時間</span><input type="text" value={referenceArrival ? `${referenceArrival.time}${referenceArrival.dayOffset ? `（翌日 +${referenceArrival.dayOffset} 天）` : ''}` : ''} placeholder={previousDraftItem?.arrivalTime ? '請先計算路程時間' : '上一站尚未填寫預計抵達時間'} readOnly aria-readonly="true" /><small>依上一站預計抵達時間加上已計算路程時間推算，僅供參考。</small></label>
                             <label className="itinerary-field"><span>停留時間（分鐘）</span><input type="number" min="1" step="1" value={itemDraft.durationMinutes} onChange={(event) => setItemDraft({ ...itemDraft, durationMinutes: event.target.value })} placeholder="例如：90" disabled={saving} /></label>
                             <label className="itinerary-field itinerary-field-wide"><span>交通方式</span><select value={itemDraft.transport} onChange={(event) => setItemDraft({ ...itemDraft, transport: event.target.value })} disabled={interactionBusy}><option value="">選擇前往方式</option>{itemDraft.transport && !transportOptions.some((option) => option.value === itemDraft.transport) && <option value={itemDraft.transport}>舊資料：{itemDraft.transport}</option>}{transportOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select><small>此方式用於計算「上一站到這一站」的參考時間。</small></label>
                             <label className="itinerary-field itinerary-field-wide"><span>備註</span><textarea rows={3} value={itemDraft.note} onChange={(event) => setItemDraft({ ...itemDraft, note: event.target.value })} maxLength={1000} placeholder="預約資訊、想做的事…" disabled={saving} /></label>
@@ -637,6 +690,10 @@ function ItineraryModule() {
                         const previousPlace = previousItem
                           ? places.find((candidate) => candidate.id === previousItem.placeId)
                           : undefined
+                        const cardReferenceArrival = addMinutesToTime(
+                          previousItem?.arrivalTime,
+                          item.travelDurationMinutes,
+                        )
                         const transportLabel = transportOptions.find((option) => option.value === item.transport)?.label
                         const routeReady = Boolean(
                           previousItem &&
@@ -650,10 +707,17 @@ function ItineraryModule() {
                             <div className="itinerary-item-copy">
                               <strong>{place?.name ?? '地點已不存在'}</strong>
                               <div className="itinerary-item-meta">
-                                {item.arrivalTime && <span>{item.arrivalTime}</span>}
+                                {item.arrivalTime && <span>預計抵達 {item.arrivalTime}</span>}
                                 {item.durationMinutes && <span>{item.durationMinutes} 分鐘</span>}
                                 {transportLabel && <span>{transportLabel}</span>}
-                                {item.travelDurationMinutes !== undefined && <span>路程約 {item.travelDurationMinutes} 分鐘</span>}
+                                {item.travelDurationMinutes !== undefined && (
+                                  <span>
+                                    路程約 {item.travelDurationMinutes} 分鐘
+                                    {cardReferenceArrival
+                                      ? `（${cardReferenceArrival.time}${cardReferenceArrival.dayOffset ? ` 翌日 +${cardReferenceArrival.dayOffset} 天` : ''}）`
+                                      : ''}
+                                  </span>
+                                )}
                               </div>
                               {item.note && <p>{item.note}</p>}
                             </div>
