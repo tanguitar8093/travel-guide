@@ -3,9 +3,9 @@ export {
   EntityNotFoundError,
   ValidationError,
 } from './errors'
+export { LabelRepository, labels } from './label.repository'
 export {
   itineraryItems,
-  labels,
   places,
   regions,
   trips,

@@ -4,10 +4,7 @@ import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors
 import type {
   ItineraryItem,
   ItineraryItemChanges,
-  Label,
-  LabelChanges,
   NewItineraryItem,
-  NewLabel,
   NewPlace,
   NewRegion,
   NewTrip,
@@ -20,7 +17,6 @@ import type {
 } from './models'
 import {
   validateItineraryItem,
-  validateLabel,
   validatePlace,
   validateRegion,
   validateTrip,
@@ -176,108 +172,6 @@ export class PlaceRepository {
   }
 }
 
-export class LabelRepository {
-  async create(input: NewLabel): Promise<string> {
-    validateLabel(input)
-    const id = createId()
-    await database.transaction(
-      'rw',
-      database.labels,
-      async () => {
-        await this.assertParentExists(input.parentId)
-        await database.labels.add({ ...input, id })
-      },
-    )
-    return id
-  }
-
-  async update(id: string, changes: LabelChanges): Promise<void> {
-    await database.transaction(
-      'rw',
-      database.labels,
-      async () => {
-        const current = required(await database.labels.get(id), 'Label', id)
-        const next = { ...current, ...changes }
-        validateLabel(next)
-        await this.assertParentExists(next.parentId)
-        await this.assertNoParentCycle(id, next.parentId)
-        await database.labels.put(next)
-      },
-    )
-  }
-
-  async delete(id: string): Promise<void> {
-    await database.transaction(
-      'rw',
-      database.labels,
-      database.places,
-      async () => {
-        required(await database.labels.get(id), 'Label', id)
-        const [childCount, placeCount] = await Promise.all([
-          database.labels.where('parentId').equals(id).count(),
-          database.places.where('labelIds').equals(id).count(),
-        ])
-        if (childCount || placeCount) {
-          throw new EntityInUseError(
-            'Label',
-            id,
-            'remove its child labels and place assignments before deleting it.',
-          )
-        }
-        await database.labels.delete(id)
-      },
-    )
-  }
-
-  getById(id: string): Promise<Label | undefined> {
-    return database.labels.get(id)
-  }
-
-  list(): Promise<Label[]> {
-    return database.labels.orderBy('name').toArray()
-  }
-
-  async getDescendantIds(id: string): Promise<string[]> {
-    required(await database.labels.get(id), 'Label', id)
-    const labels = await database.labels.toArray()
-    const descendants: string[] = []
-    const parents = new Set([id])
-
-    while (true) {
-      const children = labels.filter(
-        (label) => label.parentId !== undefined && parents.has(label.parentId),
-      )
-      const newChildren = children.filter((label) => !parents.has(label.id))
-      if (!newChildren.length) {
-        return descendants
-      }
-      for (const child of newChildren) {
-        descendants.push(child.id)
-        parents.add(child.id)
-      }
-    }
-  }
-
-  private async assertParentExists(parentId: string | undefined): Promise<void> {
-    if (parentId !== undefined && !(await database.labels.get(parentId))) {
-      throw new EntityNotFoundError('Parent label', parentId)
-    }
-  }
-
-  private async assertNoParentCycle(id: string, parentId: string | undefined): Promise<void> {
-    const visited = new Set<string>()
-    let currentId = parentId
-
-    while (currentId !== undefined) {
-      if (currentId === id || visited.has(currentId)) {
-        throw new ValidationError('Label hierarchy must not contain a cycle.')
-      }
-      visited.add(currentId)
-      currentId = (await database.labels.get(currentId))?.parentId
-    }
-  }
-}
-
 export class TripRepository {
   async create(input: NewTrip): Promise<string> {
     validateTrip(input)
@@ -408,6 +302,5 @@ export class ItineraryItemRepository {
 
 export const regions = new RegionRepository()
 export const places = new PlaceRepository()
-export const labels = new LabelRepository()
 export const trips = new TripRepository()
 export const itineraryItems = new ItineraryItemRepository()
