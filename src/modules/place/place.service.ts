@@ -11,6 +11,12 @@ import type {
   PlaceChanges,
   Region,
 } from '../../database'
+import {
+  getGooglePlaceDetails,
+  isGooglePlacesConfigured,
+  mountPlaceAutocomplete,
+} from './google-places.service'
+import type { GooglePlaceDetails } from './google-places.service'
 
 export interface PlaceQuery {
   search?: string
@@ -26,6 +32,22 @@ export interface PlaceWorkspace {
 }
 
 export class PlaceService {
+  isGooglePlacesConfigured(): boolean {
+    return isGooglePlacesConfigured()
+  }
+
+  mountPlaceAutocomplete(
+    container: HTMLElement,
+    onSelect: (details: GooglePlaceDetails, query: string) => void,
+    onError: (error: Error) => void,
+  ): Promise<() => void> {
+    return mountPlaceAutocomplete(container, onSelect, onError)
+  }
+
+  getGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails> {
+    return getGooglePlaceDetails(placeId)
+  }
+
   async loadWorkspace(): Promise<PlaceWorkspace> {
     const [placeRecords, labelRecords, regionRecords] = await Promise.all([
       places.list(),

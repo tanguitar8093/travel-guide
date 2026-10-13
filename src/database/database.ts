@@ -18,6 +18,14 @@ export class TravelDatabase extends Dexie {
       trips: '&id, regionId, startDate, endDate',
       itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
     })
+
+    this.version(2).stores({
+      regions: '&id, name',
+      places: '&id, name, *regionIds, *labelIds, googlePlaceId',
+      labels: '&id, name, parentId',
+      trips: '&id, regionId, startDate, endDate',
+      itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
+    })
   }
 }
 

@@ -1,9 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, Region } from '../../database'
 import { RouterLink } from '../../router'
 import { routes } from '../../routes'
 import { placeController } from './place.controller'
+import type { GooglePlaceDetails } from './google-places.service'
 import './PlaceModule.css'
 
 interface PlaceDraft {
@@ -11,6 +12,7 @@ interface PlaceDraft {
   latitude: string
   longitude: string
   mapsUrl: string
+  googlePlaceId?: string
   notes: string
   regionIds: string[]
   labelIds: string[]
@@ -29,9 +31,10 @@ const emptyDraft: PlaceDraft = {
 function toDraft(place: Place): PlaceDraft {
   return {
     name: place.name,
-    latitude: String(place.latitude),
-    longitude: String(place.longitude),
+    latitude: place.latitude === undefined ? '' : String(place.latitude),
+    longitude: place.longitude === undefined ? '' : String(place.longitude),
     mapsUrl: place.mapsUrl ?? '',
+    googlePlaceId: place.googlePlaceId,
     notes: place.notes ?? '',
     regionIds: [...place.regionIds],
     labelIds: [...place.labelIds],
@@ -77,6 +80,10 @@ function PlaceModule() {
   const [regions, setRegions] = useState<Region[]>([])
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>()
   const [draft, setDraft] = useState<PlaceDraft>(emptyDraft)
+  const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails | null>(null)
+  const [googleDetailsForId, setGoogleDetailsForId] = useState<string>()
+  const [googleDetailsErrorForId, setGoogleDetailsErrorForId] = useState<string>()
+  const autocompleteContainerRef = useRef<HTMLDivElement>(null)
   const [filterText, setFilterText] = useState('')
   const [selectedFilterLabelIds, setSelectedFilterLabelIds] = useState<string[]>([])
   const [includeDescendants, setIncludeDescendants] = useState(true)
@@ -89,6 +96,14 @@ function PlaceModule() {
 
   const orderedLabels = useMemo(() => flattenLabels(labels), [labels])
   const selectedPlace = places.find((place) => place.id === selectedPlaceId)
+  const selectedGooglePlaceId = selectedPlace?.googlePlaceId
+  const visibleGoogleDetails =
+    googleDetailsForId === selectedGooglePlaceId ? googleDetails : null
+  const googleDetailsLoading = Boolean(
+    selectedGooglePlaceId &&
+    googleDetailsForId !== selectedGooglePlaceId &&
+    googleDetailsErrorForId !== selectedGooglePlaceId,
+  )
   async function reloadPlaces(preferredId = selectedPlaceId) {
     const [workspace, nextFilteredPlaces] = await Promise.all([
       placeController.loadWorkspace(),
@@ -141,6 +156,75 @@ function PlaceModule() {
   }, [])
 
   useEffect(() => {
+    if (!creating || !editing || !placeController.isGooglePlacesConfigured()) return
+    const container = autocompleteContainerRef.current
+    if (!container) return
+
+    let active = true
+    let dispose: (() => void) | undefined
+    placeController.mountPlaceAutocomplete(
+      container,
+      (details, query) => {
+        if (!active) return
+        setGoogleDetails(details)
+        setGoogleDetailsForId(details.id)
+        setGoogleDetailsErrorForId(undefined)
+        setDraft((current) => ({
+          ...current,
+          name: current.name || query,
+          googlePlaceId: details.id,
+          latitude: '',
+          longitude: '',
+          mapsUrl: '',
+        }))
+        setError('')
+      },
+      (cause) => {
+        if (active) setError(cause.message)
+      },
+    )
+      .then((unmount) => {
+        if (active) dispose = unmount
+        else unmount()
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setError(cause instanceof Error ? cause.message : 'Google Places 搜尋無法啟動。')
+        }
+      })
+
+    return () => {
+      active = false
+      dispose?.()
+      container.replaceChildren()
+    }
+  }, [creating, editing])
+
+  useEffect(() => {
+    if (!selectedGooglePlaceId) return
+
+    let active = true
+    placeController.getGooglePlaceDetails(selectedGooglePlaceId)
+      .then((details) => {
+        if (active) {
+          setGoogleDetails(details)
+          setGoogleDetailsForId(selectedGooglePlaceId)
+          setGoogleDetailsErrorForId(undefined)
+        }
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setGoogleDetailsErrorForId(selectedGooglePlaceId)
+          setError(cause instanceof Error ? cause.message : '讀取 Google 地點資料失敗。')
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedGooglePlaceId])
+
+  useEffect(() => {
     let active = true
     placeController.search({
       search: filterText,
@@ -172,6 +256,9 @@ function PlaceModule() {
     setCreating(false)
     setError('')
     setNotice('')
+    setGoogleDetails(null)
+    setGoogleDetailsForId(undefined)
+    setGoogleDetailsErrorForId(undefined)
   }
 
   function startCreate() {
@@ -179,6 +266,9 @@ function PlaceModule() {
     setEditing(true)
     setSelectedPlaceId(undefined)
     setDraft(emptyDraft)
+    setGoogleDetails(null)
+    setGoogleDetailsForId(undefined)
+    setGoogleDetailsErrorForId(undefined)
     setFilterText('')
     setSelectedFilterLabelIds([])
     setError('')
@@ -191,6 +281,9 @@ function PlaceModule() {
     setEditing(true)
     setCreating(false)
     setError('')
+    setGoogleDetails(null)
+    setGoogleDetailsForId(undefined)
+    setGoogleDetailsErrorForId(undefined)
     setNotice('')
   }
 
@@ -200,6 +293,9 @@ function PlaceModule() {
     setError('')
     if (selectedPlace) setDraft(toDraft(selectedPlace))
     else setDraft(emptyDraft)
+    setGoogleDetails(null)
+    setGoogleDetailsForId(undefined)
+    setGoogleDetailsErrorForId(undefined)
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -209,9 +305,14 @@ function PlaceModule() {
     setNotice('')
     const input: NewPlace = {
       name: draft.name.trim(),
-      latitude: Number(draft.latitude),
-      longitude: Number(draft.longitude),
+      ...(draft.latitude.trim() && draft.longitude.trim()
+        ? {
+            latitude: Number(draft.latitude),
+            longitude: Number(draft.longitude),
+          }
+        : {}),
       ...(draft.mapsUrl.trim() ? { mapsUrl: draft.mapsUrl.trim() } : {}),
+      ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
       ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
       regionIds: draft.regionIds,
       labelIds: draft.labelIds,
@@ -412,7 +513,11 @@ function PlaceModule() {
                         <span className="place-list-avatar">{getPlaceInitial(place.name)}</span>
                         <span className="place-list-copy">
                           <strong>{place.name}</strong>
-                          <span>{place.latitude.toFixed(4)}, {place.longitude.toFixed(4)}</span>
+                          <span>
+                            {place.latitude !== undefined && place.longitude !== undefined
+                              ? `${place.latitude.toFixed(4)}, ${place.longitude.toFixed(4)}`
+                              : 'Google Maps 地點'}
+                          </span>
                           <span className="place-list-tags">
                             {placeLabels.slice(0, 3).map((label) => (
                               <i key={label.id} style={{ backgroundColor: label.color }} title={label.name} />
@@ -444,8 +549,44 @@ function PlaceModule() {
                   </div>
 
                   <div className="place-form-grid">
+                    {creating && (
+                      <div className="google-place-search place-name-field">
+                        <span className="search-field-label">Google Maps 搜尋</span>
+                        {placeController.isGooglePlacesConfigured() ? (
+                          <>
+                            <div className="google-autocomplete" ref={autocompleteContainerRef} />
+                            <small>選擇結果後，資料庫只保存 place_id；地點名稱請填寫你自己的名稱。</small>
+                            {googleDetails && (
+                              <div className="google-selection">
+                                <strong>{googleDetails.displayName}</strong>
+                                {googleDetails.formattedAddress && <span>{googleDetails.formattedAddress}</span>}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setGoogleDetails(null)
+                                    setDraft((current) => ({
+                                      ...current,
+                                      googlePlaceId: undefined,
+                                    }))
+                                  }}
+                                >
+                                  清除搜尋選擇
+                                </button>
+                              </div>
+                            )}
+                            <div className="google-attribution">Powered by Google Maps</div>
+                          </>
+                        ) : (
+                          <div className="google-key-help">
+                            <strong>尚未設定 Google Places</strong>
+                            <span>在專案根目錄建立 .env.local，加入 VITE_GOOGLE_MAPS_API_KEY=你的新金鑰，並重啟開發伺服器。</span>
+                            <span>Google Cloud 需啟用 Places API (New) 與 Maps JavaScript API。</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <label className="form-field place-name-field">
-                      <span>地點名稱 <b>*</b></span>
+                      <span>地點名稱（自行命名） <b>*</b></span>
                       <input
                         autoFocus={creating}
                         value={draft.name}
@@ -459,7 +600,7 @@ function PlaceModule() {
 
                     <div className="coordinate-fields">
                       <label className="form-field">
-                        <span>緯度 <b>*</b></span>
+                        <span>緯度 {!draft.googlePlaceId && <b>*</b>}</span>
                         <input
                           type="number"
                           inputMode="decimal"
@@ -469,12 +610,12 @@ function PlaceModule() {
                           value={draft.latitude}
                           onChange={(event) => setDraft({ ...draft, latitude: event.target.value })}
                           placeholder="26.2171"
-                          required
+                          required={!draft.googlePlaceId}
                           disabled={formDisabled}
                         />
                       </label>
                       <label className="form-field">
-                        <span>經度 <b>*</b></span>
+                        <span>經度 {!draft.googlePlaceId && <b>*</b>}</span>
                         <input
                           type="number"
                           inputMode="decimal"
@@ -484,23 +625,27 @@ function PlaceModule() {
                           value={draft.longitude}
                           onChange={(event) => setDraft({ ...draft, longitude: event.target.value })}
                           placeholder="127.7195"
-                          required
+                          required={!draft.googlePlaceId}
                           disabled={formDisabled}
                         />
                       </label>
                     </div>
 
-                    <label className="form-field place-url-field">
-                      <span>Google Maps 網址</span>
-                      <input
-                        type="url"
-                        value={draft.mapsUrl}
-                        onChange={(event) => setDraft({ ...draft, mapsUrl: event.target.value })}
-                        placeholder="https://maps.google.com/..."
-                        disabled={formDisabled}
-                      />
-                      <small>貼上 Google 地圖分享連結，座標仍以緯度和經度欄位為準。</small>
-                    </label>
+                    {!draft.googlePlaceId ? (
+                      <label className="form-field place-url-field">
+                        <span>自訂地圖網址（選填）</span>
+                        <input
+                          type="url"
+                          value={draft.mapsUrl}
+                          onChange={(event) => setDraft({ ...draft, mapsUrl: event.target.value })}
+                          placeholder="https://maps.google.com/..."
+                          disabled={formDisabled}
+                        />
+                        <small>適用於手動輸入座標的地點；可貼 Google Maps 分享連結或其他地圖網址，方便之後直接開啟。</small>
+                      </label>
+                    ) : (
+                      <p className="place-url-note">已連結 Google 地點，地圖連結會即時取得，無需另外填寫。</p>
+                    )}
 
                     <fieldset className="place-choice-field">
                       <legend>所屬區域</legend>
@@ -584,19 +729,52 @@ function PlaceModule() {
                     </button>
                   </div>
 
-                  <div className="place-map-card">
-                    <div className="map-grid" aria-hidden="true" />
-                    <div className="map-pin">⌖</div>
-                    <div className="map-coordinate">
-                      <strong>{selectedPlace.latitude.toFixed(5)}, {selectedPlace.longitude.toFixed(5)}</strong>
-                      <span>地點座標</span>
-                    </div>
-                    {selectedPlace.mapsUrl && (
-                      <a className="maps-link" href={selectedPlace.mapsUrl} target="_blank" rel="noreferrer">
+                  {selectedPlace.googlePlaceId && (
+                    <section className="google-place-summary">
+                      <div className="google-live-heading">Google Maps 地點 <span>Powered by Google Maps</span></div>
+                      {googleDetailsLoading ? (
+                        <p>正在向 Google 讀取最新地點資訊…</p>
+                      ) : visibleGoogleDetails ? (
+                        <>
+                          {visibleGoogleDetails.displayName && <strong>{visibleGoogleDetails.displayName}</strong>}
+                          {visibleGoogleDetails.formattedAddress && <p>{visibleGoogleDetails.formattedAddress}</p>}
+                        </>
+                      ) : (
+                        <p>暫時無法載入即時資料；place_id 仍已保存，請確認網路與 API 設定。</p>
+                      )}
+                      <a
+                        className="maps-link"
+                        href={
+                          visibleGoogleDetails?.googleMapsUri ??
+                          `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedPlace.name)}&query_place_id=${encodeURIComponent(selectedPlace.googlePlaceId)}`
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
                         在 Google Maps 開啟 ↗
                       </a>
-                    )}
-                  </div>
+                    </section>
+                  )}
+
+                  {!selectedPlace.googlePlaceId && (
+                    <div className="place-map-card">
+                      <div className="map-grid" aria-hidden="true" />
+                      <div className="map-pin">⌖</div>
+                      <div className="map-coordinate">
+                        <strong>
+                          {selectedPlace.latitude !== undefined && selectedPlace.longitude !== undefined
+                            ? `${selectedPlace.latitude.toFixed(5)}, ${selectedPlace.longitude.toFixed(5)}`
+                            : '座標未提供'}
+                        </strong>
+                        <span>地點座標</span>
+                      </div>
+                      {selectedPlace.mapsUrl && (
+                        <a className="maps-link" href={selectedPlace.mapsUrl} target="_blank" rel="noreferrer">
+                          開啟地圖連結 ↗
+                        </a>
+                      )}
+                    </div>
+                  )}
 
                   <div className="place-info-grid">
                     <section className="place-info-section">

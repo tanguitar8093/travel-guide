@@ -55,7 +55,17 @@ export function validateRegion(region: Omit<Region, 'id'>): void {
 
 export function validatePlace(place: Omit<Place, 'id'>): void {
   requireText(place.name, 'Place name')
-  requireCoordinate(place.latitude, place.longitude)
+  if (place.googlePlaceId !== undefined) {
+    requireText(place.googlePlaceId, 'Google Place ID')
+  }
+  if (place.latitude !== undefined || place.longitude !== undefined) {
+    if (place.latitude === undefined || place.longitude === undefined) {
+      throw new ValidationError('Latitude and longitude must be provided together.')
+    }
+    requireCoordinate(place.latitude, place.longitude)
+  } else if (place.googlePlaceId === undefined) {
+    throw new ValidationError('Coordinates are required unless a Google Place is selected.')
+  }
   requireIds(place.regionIds, 'regionIds')
   requireIds(place.labelIds, 'labelIds')
 

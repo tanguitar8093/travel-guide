@@ -11,9 +11,10 @@ export interface Region {
 export interface Place {
   id: string
   name: string
-  latitude: number
-  longitude: number
+  latitude?: number
+  longitude?: number
   mapsUrl?: string
+  googlePlaceId?: string
   notes?: string
   regionIds: string[]
   labelIds: string[]

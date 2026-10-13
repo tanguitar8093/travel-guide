@@ -29,6 +29,22 @@ export class PlaceController {
     return this.service.delete(id)
   }
 
+  isGooglePlacesConfigured() {
+    return this.service.isGooglePlacesConfigured()
+  }
+
+  mountPlaceAutocomplete(
+    container: HTMLElement,
+    onSelect: Parameters<PlaceService['mountPlaceAutocomplete']>[1],
+    onError: Parameters<PlaceService['mountPlaceAutocomplete']>[2],
+  ) {
+    return this.service.mountPlaceAutocomplete(container, onSelect, onError)
+  }
+
+  getGooglePlaceDetails(placeId: string) {
+    return this.service.getGooglePlaceDetails(placeId)
+  }
+
   search(query?: PlaceQuery) {
     return this.service.search(query)
   }

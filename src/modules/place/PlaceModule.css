@@ -865,6 +865,147 @@
   grid-column: 1 / -1;
 }
 
+.place-url-note {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #9da69f;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.google-place-search {
+  display: grid;
+  gap: 7px;
+}
+
+.search-field-label {
+  color: #69736c;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.google-autocomplete {
+  min-height: 40px;
+  display: flex;
+  align-items: stretch;
+  padding: 2px;
+  border: 1px solid #e7ebe7;
+  border-radius: 6px;
+  background: white;
+}
+
+.google-autocomplete gmp-place-autocomplete {
+  width: 100%;
+  --gmp-mat-color-on-surface: #626d65;
+  --gmp-mat-color-on-surface-variant: #87938a;
+  --gmp-mat-color-surface: #fff;
+  --gmp-mat-color-primary: #648a74;
+}
+
+.google-place-search > small {
+  color: #929c94;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.google-selection {
+  display: grid;
+  gap: 4px;
+  padding: 8px 9px;
+  border: 1px solid #dfe9df;
+  border-radius: 5px;
+  color: #5d6c61;
+  background: #f7faf7;
+  font-size: 10px;
+}
+
+.google-selection > span {
+  color: #87938a;
+  font-size: 9px;
+}
+
+.google-selection button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: #62816b;
+  background: transparent;
+  font-size: 9px;
+  cursor: pointer;
+}
+
+.google-attribution {
+  color: #8a948d;
+  font-size: 9px;
+  text-align: right;
+}
+
+.google-key-help {
+  display: grid;
+  gap: 5px;
+  padding: 10px;
+  border: 1px solid #e8ece8;
+  border-radius: 6px;
+  color: #758078;
+  background: #f8faf8;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.google-key-help strong {
+  color: #5b6e60;
+  font-size: 10px;
+}
+
+.google-place-summary {
+  display: grid;
+  gap: 6px;
+  min-height: 146px;
+  align-content: center;
+  margin: 19px 0;
+  padding: 10px 11px;
+  border: 1px solid #e7ece7;
+  border-radius: 6px;
+  color: #637067;
+  background: #fafcfa;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.google-live-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: #68796c;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.google-live-heading span {
+  color: #9aa39c;
+  font-size: 8px;
+  font-weight: 400;
+}
+
+.google-place-summary > strong {
+  color: #4f5e53;
+  font-size: 10px;
+}
+
+.google-place-summary p {
+  margin: 0;
+  color: #859087;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.google-place-summary .maps-link {
+  position: static;
+  justify-self: start;
+  margin-top: 3px;
+}
+
 .coordinate-fields {
   grid-column: 1 / -1;
   display: grid;
