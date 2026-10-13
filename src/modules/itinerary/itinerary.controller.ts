@@ -41,6 +41,10 @@ export class ItineraryController {
     return this.service.updateItem(id, changes)
   }
 
+  calculateTravelDuration(itemId: string) {
+    return this.service.calculateTravelDuration(itemId)
+  }
+
   deleteItem(id: string) {
     return this.service.deleteItem(id)
   }

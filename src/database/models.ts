@@ -42,6 +42,7 @@ export interface ItineraryItem {
   arrivalTime?: string
   durationMinutes?: number
   transport?: string
+  travelDurationMinutes?: number
   note?: string
   order: number
 }

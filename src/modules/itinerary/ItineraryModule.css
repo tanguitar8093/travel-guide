@@ -116,6 +116,7 @@
 .itinerary-item-actions { display: flex; gap: 4px; }
 .itinerary-item-actions button { min-height: 26px; padding: 0 6px; border: 1px solid #e8ece8; border-radius: 4px; color: #768178; background: white; font-size: 9px; cursor: pointer; }
 .itinerary-item-actions button:disabled { opacity: .4; cursor: not-allowed; }
+.itinerary-item-actions .itinerary-calculate-route { border-color: #dce8de; color: #52745a; background: #f5f8f5; }
 .itinerary-day-empty,.itinerary-empty-detail { min-height: 270px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .itinerary-day-empty > span,.itinerary-empty-detail > span { color: #77927e; font-size: 34px; }
 .itinerary-day-empty strong,.itinerary-empty-detail h2 { margin: 13px 0 5px; color: #4f5c52; font-size: 14px; }

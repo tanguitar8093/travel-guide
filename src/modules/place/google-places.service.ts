@@ -32,6 +32,13 @@ export interface GoogleMapHandle {
   destroy(): void
 }
 
+export type GoogleTravelMode =
+  | 'DRIVING'
+  | 'TRANSIT'
+  | 'WALKING'
+  | 'BICYCLING'
+  | 'TWO_WHEELER'
+
 interface GooglePlace {
   id?: string
   displayName?: string
@@ -58,6 +65,22 @@ interface PlaceAutocompleteElement extends HTMLElement {
 
 interface GooglePlacesLibrary {
   PlaceAutocompleteElement: new (options?: { placeholder?: string }) => PlaceAutocompleteElement
+  Place?: new (options: { id: string }) => GooglePlace
+}
+
+interface GoogleRoute {
+  durationMillis?: number
+}
+
+interface GoogleRoutesLibrary {
+  Route: {
+    computeRoutes(request: {
+      origin: GooglePlace
+      destination: GooglePlace
+      travelMode: GoogleTravelMode
+      fields: string[]
+    }): Promise<{ routes?: GoogleRoute[] }>
+  }
 }
 
 interface GoogleMapInstance {
@@ -98,6 +121,7 @@ interface GoogleLibraryImporter {
   (library: 'places'): Promise<GooglePlacesLibrary>
   (library: 'maps'): Promise<GoogleMapsLibrary>
   (library: 'marker'): Promise<GoogleMarkerLibrary>
+  (library: 'routes'): Promise<GoogleRoutesLibrary>
 }
 
 interface GoogleMapsWindow extends Window {
@@ -231,9 +255,7 @@ export async function mountPlaceAutocomplete(
 
 export async function getGooglePlaceDetails(placeId: string): Promise<GooglePlaceDetails> {
   const library = await loadPlacesLibrary()
-  const Place = (library as GooglePlacesLibrary & {
-    Place: new (options: { id: string }) => GooglePlace
-  }).Place
+  const Place = library.Place
   if (!Place) {
     throw new Error('Google Places Details 無法使用，請確認 Places API (New) 已啟用。')
   }
@@ -243,6 +265,35 @@ export async function getGooglePlaceDetails(placeId: string): Promise<GooglePlac
     fields: ['id', 'displayName', 'formattedAddress', 'location', 'viewport', 'googleMapsURI'],
   })
   return toDetails(place)
+}
+
+export async function getGoogleRouteDurationMinutes(
+  originPlaceId: string,
+  destinationPlaceId: string,
+  travelMode: GoogleTravelMode,
+): Promise<number> {
+  const placesLibrary = await loadPlacesLibrary()
+  const Place = placesLibrary.Place
+  if (!Place) {
+    throw new Error('Google Places Details 無法使用，請確認 Places API (New) 已啟用。')
+  }
+  const mapsWindow = window as GoogleMapsWindow
+  const importLibrary = mapsWindow.google?.maps?.importLibrary
+  if (!importLibrary) {
+    throw new Error('Google Maps JavaScript API 尚未就緒，無法計算路線。')
+  }
+  const routesLibrary = await importLibrary('routes')
+  const result = await routesLibrary.Route.computeRoutes({
+    origin: new Place({ id: originPlaceId }),
+    destination: new Place({ id: destinationPlaceId }),
+    travelMode,
+    fields: ['durationMillis'],
+  })
+  const durationMillis = result.routes?.[0]?.durationMillis
+  if (durationMillis === undefined || !Number.isFinite(durationMillis) || durationMillis < 0) {
+    throw new Error('Google Maps 找不到這兩個地點之間可用的路線時間。')
+  }
+  return Math.ceil(durationMillis / 60_000)
 }
 
 export async function mountGoogleMap(

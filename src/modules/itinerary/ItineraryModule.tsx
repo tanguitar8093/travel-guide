@@ -25,6 +25,14 @@ interface ItemDraft {
   note: string
 }
 
+const transportOptions = [
+  { value: 'DRIVING', label: '開車' },
+  { value: 'TRANSIT', label: '大眾運輸' },
+  { value: 'WALKING', label: '步行' },
+  { value: 'BICYCLING', label: '單車' },
+  { value: 'TWO_WHEELER', label: '機車／二輪車' },
+]
+
 const emptyTripDraft: TripDraft = { name: '', regionId: '', startDate: '', endDate: '' }
 
 function localDateString(date = new Date()): string {
@@ -94,6 +102,7 @@ function ItineraryModule() {
   const [addingItem, setAddingItem] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [calculatingItemId, setCalculatingItemId] = useState<string>()
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [mapData, setMapData] = useState<ItineraryMapData>()
@@ -458,6 +467,22 @@ function ItineraryModule() {
     }
   }
 
+  async function handleCalculateTravelDuration(item: ItineraryItem) {
+    if (!selectedTripId) return
+    setCalculatingItemId(item.id)
+    setError('')
+    setNotice('')
+    try {
+      const minutes = await itineraryController.calculateTravelDuration(item.id)
+      setItems(await itineraryController.listItems(selectedTripId))
+      setNotice(`已計算並儲存路程時間：約 ${minutes} 分鐘。`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '計算路程時間失敗。')
+    } finally {
+      setCalculatingItemId(undefined)
+    }
+  }
+
   async function moveItem(item: ItineraryItem, direction: -1 | 1) {
     const index = dayItems.findIndex((candidate) => candidate.id === item.id)
     const targetIndex = index + direction
@@ -478,6 +503,7 @@ function ItineraryModule() {
 
   const activeItemId = editingItemId
   const itemFormVisible = addingItem || activeItemId !== undefined
+  const interactionBusy = saving || calculatingItemId !== undefined
 
   return (
     <div className="itinerary-app-shell">
@@ -590,7 +616,7 @@ function ItineraryModule() {
                             <label className="itinerary-field"><span>日期 <b>*</b></span><input type="date" min={selectedTrip.startDate} max={selectedTrip.endDate} value={itemDraft.date} onChange={(event) => setItemDraft({ ...itemDraft, date: event.target.value })} required disabled={saving} /></label>
                             <label className="itinerary-field"><span>抵達時間</span><input type="time" value={itemDraft.arrivalTime} onChange={(event) => setItemDraft({ ...itemDraft, arrivalTime: event.target.value })} disabled={saving} /></label>
                             <label className="itinerary-field"><span>停留時間（分鐘）</span><input type="number" min="1" step="1" value={itemDraft.durationMinutes} onChange={(event) => setItemDraft({ ...itemDraft, durationMinutes: event.target.value })} placeholder="例如：90" disabled={saving} /></label>
-                            <label className="itinerary-field itinerary-field-wide"><span>交通方式</span><input value={itemDraft.transport} onChange={(event) => setItemDraft({ ...itemDraft, transport: event.target.value })} maxLength={100} placeholder="例如：步行、地鐵" disabled={saving} /></label>
+                            <label className="itinerary-field itinerary-field-wide"><span>交通方式</span><select value={itemDraft.transport} onChange={(event) => setItemDraft({ ...itemDraft, transport: event.target.value })} disabled={interactionBusy}><option value="">選擇前往方式</option>{itemDraft.transport && !transportOptions.some((option) => option.value === itemDraft.transport) && <option value={itemDraft.transport}>舊資料：{itemDraft.transport}</option>}{transportOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select><small>此方式用於計算「上一站到這一站」的參考時間。</small></label>
                             <label className="itinerary-field itinerary-field-wide"><span>備註</span><textarea rows={3} value={itemDraft.note} onChange={(event) => setItemDraft({ ...itemDraft, note: event.target.value })} maxLength={1000} placeholder="預約資訊、想做的事…" disabled={saving} /></label>
                           </div>
                           <div className="itinerary-form-actions"><button type="button" className="itinerary-secondary" disabled={saving} onClick={cancelItemEdit}>取消</button><button type="submit" className="itinerary-primary" disabled={saving || !itemDraft.placeId}>{saving ? '儲存中…' : addingItem ? '加入行程' : '儲存項目'}</button></div>
@@ -601,11 +627,22 @@ function ItineraryModule() {
                     </form>
                   )}
 
-                  <div className="itinerary-items-heading"><div><h3>當日安排</h3><span>{dayItems.length} 個地點</span></div><button type="button" className="itinerary-add-button" disabled={saving || itemFormVisible} onClick={startAddItem}>＋ 加入地點</button></div>
+                  <div className="itinerary-items-heading"><div><h3>當日安排</h3><span>{dayItems.length} 個地點</span></div><button type="button" className="itinerary-add-button" disabled={interactionBusy || itemFormVisible} onClick={startAddItem}>＋ 加入地點</button></div>
                   {dayItems.length ? (
                     <ol className="itinerary-item-list">
                       {dayItems.map((item, index) => {
                         const place = places.find((candidate) => candidate.id === item.placeId)
+                        const previousItem = dayItems[index - 1]
+                        const previousPlace = previousItem
+                          ? places.find((candidate) => candidate.id === previousItem.placeId)
+                          : undefined
+                        const transportLabel = transportOptions.find((option) => option.value === item.transport)?.label
+                        const routeReady = Boolean(
+                          previousItem &&
+                          transportLabel &&
+                          previousPlace?.googlePlaceId &&
+                          place?.googlePlaceId,
+                        )
                         return (
                           <li className="itinerary-item-row" key={item.id}>
                             <span className="itinerary-order">{String(index + 1).padStart(2, '0')}</span>
@@ -614,15 +651,17 @@ function ItineraryModule() {
                               <div className="itinerary-item-meta">
                                 {item.arrivalTime && <span>{item.arrivalTime}</span>}
                                 {item.durationMinutes && <span>{item.durationMinutes} 分鐘</span>}
-                                {item.transport && <span>{item.transport}</span>}
+                                {transportLabel && <span>{transportLabel}</span>}
+                                {item.travelDurationMinutes !== undefined && <span>路程約 {item.travelDurationMinutes} 分鐘</span>}
                               </div>
                               {item.note && <p>{item.note}</p>}
                             </div>
                             <div className="itinerary-item-actions">
-                              <button type="button" aria-label="往前移" disabled={saving || index === 0} onClick={() => void moveItem(item, -1)}>↑</button>
-                              <button type="button" aria-label="往後移" disabled={saving || index === dayItems.length - 1} onClick={() => void moveItem(item, 1)}>↓</button>
-                              <button type="button" aria-label="編輯項目" disabled={saving} onClick={() => startEditItem(item)}>編輯</button>
-                              <button type="button" aria-label="移除項目" disabled={saving} onClick={() => void handleDeleteItem(item)}>移除</button>
+                              <button type="button" aria-label="往前移" disabled={interactionBusy || index === 0} onClick={() => void moveItem(item, -1)}>↑</button>
+                              <button type="button" aria-label="往後移" disabled={interactionBusy || index === dayItems.length - 1} onClick={() => void moveItem(item, 1)}>↓</button>
+                              {previousItem && <button type="button" className="itinerary-calculate-route" disabled={interactionBusy || !routeReady} title={!item.transport ? '先編輯此地點並選擇交通方式' : !routeReady ? '兩個地點都需要 Google Maps 搜尋結果' : undefined} onClick={() => void handleCalculateTravelDuration(item)}>{calculatingItemId === item.id ? '計算中…' : item.travelDurationMinutes !== undefined ? '重算時間' : '計算時間'}</button>}
+                              <button type="button" aria-label="編輯項目" disabled={interactionBusy} onClick={() => startEditItem(item)}>編輯</button>
+                              <button type="button" aria-label="移除項目" disabled={interactionBusy} onClick={() => void handleDeleteItem(item)}>移除</button>
                             </div>
                           </li>
                         )

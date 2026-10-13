@@ -121,6 +121,7 @@ export class PlaceRepository {
       database.places,
       database.regions,
       database.labels,
+      database.itineraryItems,
       async () => {
         const current = required(await database.places.get(id), 'Place', id)
         const next = { ...current, ...changes }
@@ -128,6 +129,25 @@ export class PlaceRepository {
         await requireRegions(next.regionIds)
         await requireLabels(next.labelIds)
         await database.places.put(next)
+
+        if (current.googlePlaceId !== next.googlePlaceId) {
+          const scheduledItems = await database.itineraryItems.where('placeId').equals(id).toArray()
+          const staleEstimateIds = new Set(scheduledItems.map((item) => item.id))
+          for (const item of scheduledItems) {
+            const dayItems = await database.itineraryItems
+              .where('[tripId+date+order]')
+              .between(
+                [item.tripId, item.date, Dexie.minKey],
+                [item.tripId, item.date, Dexie.maxKey],
+              )
+              .toArray()
+            const nextItem = dayItems.find((candidate) => candidate.order === item.order + 1)
+            if (nextItem) staleEstimateIds.add(nextItem.id)
+          }
+          for (const itemId of staleEstimateIds) {
+            await database.itineraryItems.update(itemId, { travelDurationMinutes: undefined })
+          }
+        }
       },
     )
   }
@@ -292,17 +312,62 @@ export class ItineraryItemRepository {
       database.places,
       async () => {
         const current = required(await database.itineraryItems.get(id), 'Itinerary item', id)
-        const next = { ...current, ...changes }
+        const routeChanged =
+          changes.placeId !== undefined && changes.placeId !== current.placeId ||
+          Object.hasOwn(changes, 'transport') && changes.transport !== current.transport ||
+          changes.date !== undefined && changes.date !== current.date ||
+          changes.order !== undefined && changes.order !== current.order
+        const affectedDates = new Set([current.date])
+        if (changes.date) affectedDates.add(changes.date)
+        const beforeByDate = new Map<string, ItineraryItem[]>()
+        if (routeChanged) {
+          for (const date of affectedDates) {
+            beforeByDate.set(date, await this.findByTripAndDate(current.tripId, date))
+          }
+        }
+
+        const next = {
+          ...current,
+          ...changes,
+          ...(routeChanged ? { travelDurationMinutes: undefined } : {}),
+        }
         validateItineraryItem(next)
         await this.assertReferences(next)
         await database.itineraryItems.put(next)
+
+        if (routeChanged) {
+          for (const date of affectedDates) {
+            const beforeItems = beforeByDate.get(date) ?? []
+            const afterItems = await this.findByTripAndDate(current.tripId, date)
+            const beforeIndex = beforeItems.findIndex((item) => item.id === id)
+            const afterIndex = afterItems.findIndex((item) => item.id === id)
+            const affectedIds = new Set<string>()
+            if (beforeIndex >= 0 && beforeItems[beforeIndex + 1]) {
+              affectedIds.add(beforeItems[beforeIndex + 1].id)
+            }
+            if (afterIndex >= 0 && afterItems[afterIndex + 1]) {
+              affectedIds.add(afterItems[afterIndex + 1].id)
+            }
+            for (const affectedId of affectedIds) {
+              await database.itineraryItems.update(affectedId, { travelDurationMinutes: undefined })
+            }
+          }
+        }
       },
     )
   }
 
   async delete(id: string): Promise<void> {
-    required(await database.itineraryItems.get(id), 'Itinerary item', id)
-    await database.itineraryItems.delete(id)
+    await database.transaction('rw', database.itineraryItems, async () => {
+      const current = required(await database.itineraryItems.get(id), 'Itinerary item', id)
+      const dayItems = await this.findByTripAndDate(current.tripId, current.date)
+      const index = dayItems.findIndex((item) => item.id === id)
+      const successor = dayItems[index + 1]
+      await database.itineraryItems.delete(id)
+      if (successor) {
+        await database.itineraryItems.update(successor.id, { travelDurationMinutes: undefined })
+      }
+    })
   }
 
   getById(id: string): Promise<ItineraryItem | undefined> {
@@ -336,13 +401,35 @@ export class ItineraryItemRepository {
         throw new ValidationError('The reordered itinerary items do not match this trip day.')
       }
 
+      const previousById = new Map<string, string | undefined>()
+      const nextPreviousById = new Map<string, string | undefined>()
+      for (let index = 0; index < currentItems.length; index += 1) {
+        previousById.set(currentItems[index].id, currentItems[index - 1]?.placeId)
+      }
+      const nextItems = orderedIds.map((id) => {
+        const item = currentItems.find((candidate) => candidate.id === id)
+        if (!item) {
+          throw new EntityNotFoundError('Itinerary item', id)
+        }
+        return item
+      })
+      for (let index = 0; index < nextItems.length; index += 1) {
+        nextPreviousById.set(nextItems[index].id, nextItems[index - 1]?.placeId)
+      }
+
       await database.itineraryItems.bulkPut(
         orderedIds.map((id, order) => {
           const item = currentItems.find((candidate) => candidate.id === id)
           if (!item) {
             throw new EntityNotFoundError('Itinerary item', id)
           }
-          return { ...item, order }
+          return {
+            ...item,
+            order,
+            ...(previousById.get(id) !== nextPreviousById.get(id)
+              ? { travelDurationMinutes: undefined }
+              : {}),
+          }
         }),
       )
     })

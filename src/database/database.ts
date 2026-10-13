@@ -50,6 +50,14 @@ export class TravelDatabase extends Dexie {
           delete legacyPlace.longitude
         }),
       )
+
+    this.version(4).stores({
+      regions: '&id, name',
+      places: '&id, name, *regionIds, *labelIds, googlePlaceId',
+      labels: '&id, name, parentId',
+      trips: '&id, regionId, startDate, endDate',
+      itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
+    })
   }
 }
 

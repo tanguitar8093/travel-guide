@@ -85,7 +85,10 @@ parallel framework.
   place scheduled on the selected day. Resolve Google place locations at
   runtime from `place_id`; do not persist provider coordinates. Places stored
   only with a custom map URL may not be resolvable and should be listed with
-  that limitation rather than silently omitted.
+  that limitation rather than silently omitted. A scheduled item may store its
+  manually requested incoming-leg travel-time estimate in minutes; clear that
+  estimate whenever its predecessor, destination, date, order, or travel mode
+  changes.
 - `src/database/models.ts` already defines `Region`, `Trip`, and
   `ItineraryItem`. Existing trip/item repositories and validation are in
   `src/database/repositories.ts` and `src/database/validation.ts`; inspect and

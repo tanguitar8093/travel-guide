@@ -29,7 +29,7 @@ flowchart LR
         PLACE["Place<br/>id, name<br/>googlePlaceId?, mapsUrl?<br/>regionIds[], labelIds[], notes?"]
         LABEL["Label<br/>id, name, color<br/>parentId?"]
         TRIP["Trip<br/>id, regionId, name<br/>startDate, endDate"]
-        ITEM["ItineraryItem<br/>id, tripId, placeId<br/>date, arrivalTime?, durationMinutes?<br/>transport?, note?, order"]
+        ITEM["ItineraryItem<br/>id, tripId, placeId<br/>date, arrivalTime?, durationMinutes?<br/>transport?, travelDurationMinutes?<br/>note?, order"]
 
         REGION -->|"1 : 0..*"| PLACE
         REGION -->|"1 : 0..*"| TRIP

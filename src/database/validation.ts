@@ -130,6 +130,11 @@ export function validateItineraryItem(item: Omit<ItineraryItem, 'id'>): void {
     throw new ValidationError('Duration must be a positive number of minutes.')
   }
 
+  if (item.travelDurationMinutes !== undefined &&
+      (!Number.isInteger(item.travelDurationMinutes) || item.travelDurationMinutes < 0)) {
+    throw new ValidationError('Travel duration must be a non-negative number of minutes.')
+  }
+
   if (item.transport !== undefined && typeof item.transport !== 'string') {
     throw new ValidationError('Transport must be text.')
   }
