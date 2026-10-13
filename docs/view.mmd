@@ -1,0 +1,50 @@
+flowchart LR
+    subgraph FEATURE["功能模組（景點、標籤、行程、地圖）"]
+        UI["UI / React"]
+        LOGIC["功能邏輯<br/>組合多筆資料操作、處理領域規則"]
+    end
+
+    subgraph CONTRACT["資料庫模組：穩定的資料契約"]
+        TYPES["TypeScript 資料型別<br/>Region · Place · Label · Trip · ItineraryItem"]
+        VALIDATION["執行期驗證<br/>檢查欄位、格式與必要限制"]
+        REPO["Repository 介面<br/>非同步 CRUD 與領域查詢<br/>回報明確錯誤"]
+        MIGRATION["資料版本與遷移<br/>IndexedDB schema version"]
+    end
+
+    subgraph ADAPTER["儲存實作"]
+        IDB_REPO["IndexedDB Repository<br/>交易、索引、約束"]
+        IDB[("IndexedDB<br/>本機持久化")]
+    end
+
+    UI --> LOGIC
+    LOGIC --> REPO
+    TYPES -.定義輸入與輸出.-> REPO
+    REPO --> VALIDATION
+    VALIDATION --> IDB_REPO
+    IDB_REPO --> IDB
+    MIGRATION --> IDB
+
+    subgraph MODEL["領域資料模型（ID 使用穩定字串）"]
+        REGION["Region<br/>id, name<br/>center: lat/lng, zoom"]
+        PLACE["Place<br/>id, regionId?, name<br/>latitude, longitude, mapsUrl?<br/>labelIds[], notes?"]
+        LABEL["Label<br/>id, name, color<br/>parentId?"]
+        TRIP["Trip<br/>id, regionId, name<br/>startDate, endDate"]
+        ITEM["ItineraryItem<br/>id, tripId, placeId<br/>date, arrivalTime?, durationMinutes?<br/>transport?, note?, order"]
+
+        REGION -->|"1 : 0..*"| PLACE
+        REGION -->|"1 : 0..*"| TRIP
+        LABEL -->|"parentId：階層，可為空"| LABEL
+        LABEL -. "labelIds：景點可套用多個標籤" .-> PLACE
+        TRIP -->|"1 : 0..*"| ITEM
+        PLACE -->|"1 : 0..*"| ITEM
+    end
+
+    REPO -. "讀寫符合此模型的資料" .-> MODEL
+
+    subgraph EXTRAS["邊界與可選能力"]
+        JSONIO["JSON 匯入 / 匯出（可選）<br/>獨立於一般資料讀寫<br/>匯入時先驗證與處理版本"]
+        LOCAL["本機即時保存<br/>不代表跨裝置同步"]
+    end
+
+    IDB -.-> LOCAL
+    VALIDATION -. "匯入資料時重用" .-> JSONIO

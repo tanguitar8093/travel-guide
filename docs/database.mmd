@@ -1,0 +1,43 @@
+flowchart TB
+    CLIENT["其他功能模組<br/>使用資料庫模組公開的型別與操作"]
+
+    subgraph DB["Database 模組"]
+        direction TB
+
+        subgraph PUBLIC["對外公開 API"]
+            TYPES["資料型別<br/>Region · Place · Label · Trip · ItineraryItem"]
+            REPOS["Typed Repository<br/>RegionRepository<br/>PlaceRepository<br/>LabelRepository<br/>TripRepository<br/>ItineraryItemRepository"]
+        end
+
+        subgraph IMPLEMENTATION["模組內部實作"]
+            DB_INSTANCE["TravelDatabase<br/>集中定義資料表與索引<br/>開啟 / 關閉資料庫"]
+            MIGRATIONS["版本與遷移<br/>新增或調整 object store / index"]
+            VALIDATION["執行期資料驗證<br/>在建立、更新、匯入等邊界檢查"]
+            LIB["Dexie（IndexedDB wrapper）<br/>處理非同步操作、交易與索引查詢"]
+        end
+
+        STORES[("IndexedDB object stores / indexes<br/>regions: id, name<br/>places: id, *regionIds, *labelIds<br/>labels: id, parentId<br/>trips: id, regionId, startDate<br/>itineraryItems: id, tripId, placeId, date, [tripId+date+order]")]
+        REFERENCES["資料參照規則<br/>Place.regionIds[] → 多個 Region<br/>Place.labelIds[] → 多個 Label<br/>Label.parentId → 父標籤<br/>行程項目引用 Trip 與 Place<br/>刪除被引用資料時拒絕"]
+
+        REPOS --> DB_INSTANCE
+        DB_INSTANCE --> LIB
+        MIGRATIONS --> DB_INSTANCE
+        REPOS --> VALIDATION
+        LIB --> STORES
+        REPOS --> REFERENCES
+    end
+
+    CLIENT -->|"呼叫公開 Repository"| REPOS
+    CLIENT -.->|"共用資料型別"| TYPES
+
+    subgraph EXAMPLE["Repository 方法示意"]
+        PLACE_REPO["PlaceRepository<br/>create(input)<br/>update(id, changes)<br/>delete(id)<br/>getById(id)<br/>findByLabelIds(ids)"]
+        LABEL_REPO["LabelRepository<br/>create(input)<br/>update(id, changes)<br/>delete(id)<br/>getDescendantIds(id)"]
+        TRIP_REPO["TripRepository<br/>CRUD 與依日期查詢"]
+        ITEM_REPO["ItineraryItemRepository<br/>CRUD 與依旅程 / 日期 / 順序查詢"]
+    end
+
+    REPOS -. "例如" .-> PLACE_REPO
+    REPOS -. "例如" .-> LABEL_REPO
+    REPOS -. "例如" .-> TRIP_REPO
+    REPOS -. "例如" .-> ITEM_REPO
