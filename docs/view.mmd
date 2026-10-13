@@ -25,8 +25,8 @@ flowchart LR
     MIGRATION --> IDB
 
     subgraph MODEL["領域資料模型（ID 使用穩定字串）"]
-        REGION["Region<br/>id, name<br/>center: lat/lng, zoom"]
-        PLACE["Place<br/>id, regionId?, name<br/>latitude, longitude, mapsUrl?<br/>labelIds[], notes?"]
+        REGION["Region<br/>id, name<br/>googlePlaceId? or legacy center, zoom"]
+        PLACE["Place<br/>id, name<br/>googlePlaceId?, mapsUrl?<br/>regionIds[], labelIds[], notes?"]
         LABEL["Label<br/>id, name, color<br/>parentId?"]
         TRIP["Trip<br/>id, regionId, name<br/>startDate, endDate"]
         ITEM["ItineraryItem<br/>id, tripId, placeId<br/>date, arrivalTime?, durationMinutes?<br/>transport?, note?, order"]
@@ -44,7 +44,9 @@ flowchart LR
     subgraph EXTRAS["邊界與可選能力"]
         JSONIO["JSON 匯入 / 匯出（可選）<br/>獨立於一般資料讀寫<br/>匯入時先驗證與處理版本"]
         LOCAL["本機即時保存<br/>不代表跨裝置同步"]
+        MAP["行程地圖<br/>由 Google place_id 即時取得座標<br/>不持久化座標；URL-only 地點可能無法定位"]
     end
 
     IDB -.-> LOCAL
     VALIDATION -. "匯入資料時重用" .-> JSONIO
+    LOGIC -. "暫存定位資料" .-> MAP

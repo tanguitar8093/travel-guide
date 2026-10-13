@@ -29,6 +29,10 @@ export class ItineraryController {
     return this.service.listItems(tripId)
   }
 
+  loadMapData(regionId: string) {
+    return this.service.loadMapData(regionId)
+  }
+
   addItem(input: NewScheduledItem) {
     return this.service.addItem(input)
   }

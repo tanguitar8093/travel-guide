@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { ItineraryItem, NewTrip, Place, Region, Trip } from '../../database'
 import { RouterLink } from '../../router'
 import { routes } from '../../routes'
+import { mountGoogleMap } from '../place/google-places.service'
+import type { GoogleMapHandle, GoogleMapMarkerData } from '../place/google-places.service'
 import { itineraryController } from './itinerary.controller'
+import type { ItineraryMapData } from './itinerary-map.service'
 import './ItineraryModule.css'
 
 interface TripDraft {
@@ -60,6 +63,15 @@ function formatDate(date: string): string {
   }).format(new Date(`${date}T00:00:00Z`))
 }
 
+function getTripDates(trip: Trip): string[] {
+  const dates: string[] = []
+  const end = Date.parse(`${trip.endDate}T00:00:00Z`)
+  for (let current = Date.parse(`${trip.startDate}T00:00:00Z`); current <= end; current += 86_400_000) {
+    dates.push(new Date(current).toISOString().slice(0, 10))
+  }
+  return dates
+}
+
 function ItineraryModule() {
   const [trips, setTrips] = useState<Trip[]>([])
   const [regions, setRegions] = useState<Region[]>([])
@@ -84,9 +96,24 @@ function ItineraryModule() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const [mapData, setMapData] = useState<ItineraryMapData>()
+  const [mapDataRegionId, setMapDataRegionId] = useState<string>()
+  const [mapError, setMapError] = useState('')
+  const [mapErrorRegionId, setMapErrorRegionId] = useState<string>()
+  const [mountedMapRegionId, setMountedMapRegionId] = useState<string>()
+  const mapContainerRef = useRef<HTMLDivElement>(null)
+  const mapHandleRef = useRef<GoogleMapHandle | undefined>(undefined)
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId)
-  const selectedRegion = regions.find((region) => region.id === selectedTrip?.regionId)
+  const selectedRegionId = selectedTrip?.regionId
+  const selectedRegion = regions.find((region) => region.id === selectedRegionId)
+  const visibleMapData = mapDataRegionId === selectedRegion?.id ? mapData : undefined
+  const visibleMapError = mapErrorRegionId === selectedRegion?.id ? mapError : ''
+  const mapLoading = Boolean(
+    selectedRegion &&
+    mapDataRegionId !== selectedRegion.id &&
+    !visibleMapError,
+  )
   const tripItems = useMemo(
     () => items.filter((item) => item.tripId === selectedTripId),
     [items, selectedTripId],
@@ -106,6 +133,25 @@ function ItineraryModule() {
   const totalDays = selectedTrip
     ? Math.floor((Date.parse(`${selectedTrip.endDate}T00:00:00Z`) - Date.parse(`${selectedTrip.startDate}T00:00:00Z`)) / 86_400_000) + 1
     : 0
+  const tripDates = selectedTrip ? getTripDates(selectedTrip) : []
+  const scheduledPlaceSequence = useMemo(() => {
+    const sequence = new Map<string, number>()
+    dayItems.forEach((item, index) => {
+      if (!sequence.has(item.placeId)) sequence.set(item.placeId, index + 1)
+    })
+    return sequence
+  }, [dayItems])
+  const googleMapMarkers = useMemo<GoogleMapMarkerData[]>(
+    () => (visibleMapData?.markers ?? []).map((marker) => {
+      const matchingItem = dayItems.find((item) => item.placeId === marker.id)
+      return {
+        ...marker,
+        sequence: scheduledPlaceSequence.get(marker.id),
+        ...(matchingItem ? { onClick: () => startEditItem(matchingItem) } : {}),
+      }
+    }),
+    [dayItems, scheduledPlaceSequence, visibleMapData],
+  )
 
   async function refreshWorkspace(preferredTripId = selectedTripId) {
     const workspace = await itineraryController.loadWorkspace()
@@ -167,6 +213,69 @@ function ItineraryModule() {
       active = false
     }
   }, [selectedTripId])
+
+  useEffect(() => {
+    if (!selectedRegionId) return
+    const regionId = selectedRegionId
+    let active = true
+    itineraryController.loadMapData(regionId)
+      .then((nextMapData) => {
+        if (!active) return
+        setMapData(nextMapData)
+        setMapDataRegionId(regionId)
+        setMapError('')
+        setMapErrorRegionId(undefined)
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setMapData(undefined)
+          setMapDataRegionId(regionId)
+          setMapErrorRegionId(regionId)
+          setMapError(cause instanceof Error ? cause.message : '載入區域地圖資料失敗。')
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [selectedRegionId])
+
+  useEffect(() => {
+    const container = mapContainerRef.current
+    if (!container || !visibleMapData) return
+    let active = true
+    let handle: GoogleMapHandle | undefined
+    mountGoogleMap(container, {
+      center: visibleMapData.center,
+      zoom: visibleMapData.zoom,
+      ...(visibleMapData.viewport ? { viewport: visibleMapData.viewport } : {}),
+    })
+      .then((mapHandle) => {
+        if (!active) {
+          mapHandle.destroy()
+          return
+        }
+        handle = mapHandle
+        mapHandleRef.current = mapHandle
+        setMountedMapRegionId(visibleMapData.regionId)
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setMapErrorRegionId(visibleMapData.regionId)
+          setMapError(cause instanceof Error ? cause.message : 'Google 地圖無法載入。')
+        }
+      })
+    return () => {
+      active = false
+      handle?.destroy()
+      if (mapHandleRef.current === handle) mapHandleRef.current = undefined
+    }
+  }, [visibleMapData])
+
+  useEffect(() => {
+    if (mountedMapRegionId === visibleMapData?.regionId) {
+      mapHandleRef.current?.setMarkers(googleMapMarkers)
+    }
+  }, [googleMapMarkers, mountedMapRegionId, visibleMapData?.regionId])
 
   function selectTrip(trip: Trip) {
     setSelectedTripId(trip.id)
@@ -372,48 +481,56 @@ function ItineraryModule() {
 
   return (
     <div className="itinerary-app-shell">
-      <aside className="itinerary-sidebar">
-        <RouterLink className="itinerary-brand" to={routes.labels}>
-          <span className="itinerary-brand-mark">漫</span>
-          <span><strong>漫遊手帳</strong><small>TRAVEL PLANNER</small></span>
-        </RouterLink>
-        <div className="itinerary-nav-caption">工作區</div>
-        <nav className="itinerary-nav" aria-label="主要導覽">
-          <RouterLink to={routes.places}>⌖ <span>地點</span></RouterLink>
-          <RouterLink to={routes.itinerary} aria-current="page">▤ <span>行程</span></RouterLink>
-          <RouterLink to={routes.regions}>◎ <span>區域管理</span></RouterLink>
-          <RouterLink to={routes.labels}>◈ <span>標籤管理</span></RouterLink>
-        </nav>
-        <div className="itinerary-sidebar-foot">資料儲存於此瀏覽器</div>
-      </aside>
-
       <main className="itinerary-main">
-        <header className="itinerary-topbar"><span>工作區　/　行程規劃</span><span>本機資料</span></header>
+        <header className="itinerary-topbar">
+          <RouterLink className="itinerary-brand" to={routes.labels}>
+            <span className="itinerary-brand-mark">漫</span>
+            <strong>漫遊手帳</strong>
+            <small>TRAVEL PLANNER</small>
+          </RouterLink>
+          <nav className="itinerary-top-nav" aria-label="主要導覽">
+            <RouterLink to={routes.places}>地點</RouterLink>
+            <RouterLink to={routes.itinerary} aria-current="page">行程</RouterLink>
+            <RouterLink to={routes.regions}>區域管理</RouterLink>
+            <RouterLink to={routes.labels}>標籤</RouterLink>
+          </nav>
+          <span className="itinerary-local-badge">本機資料</span>
+        </header>
         <div className="itinerary-content">
           <section className="itinerary-heading">
-            <div><div className="itinerary-eyebrow">把收藏的地點排進旅行</div><h1>行程規劃</h1><p>建立旅行日期，再按天安排地點、時間與備註。</p></div>
-            <button type="button" className="itinerary-primary" onClick={startCreateTrip}>＋ 新增行程</button>
+            <div>
+              <div className="itinerary-eyebrow">{selectedRegion?.name ?? '旅行地圖'}　/　行程規劃</div>
+              <h1>{selectedTrip?.name ?? (creatingTrip ? '新增行程' : '開始規劃一趟旅行')}</h1>
+              {selectedTrip && (
+                <p>{selectedTrip.startDate} — {selectedTrip.endDate} <i /> {totalDays} 天</p>
+              )}
+            </div>
+            <div className="itinerary-heading-actions">
+              {trips.length > 1 && !editingTrip && (
+                <label className="itinerary-trip-select">
+                  <span>切換行程</span>
+                  <select value={selectedTripId ?? ''} onChange={(event) => {
+                    const trip = trips.find((candidate) => candidate.id === event.target.value)
+                    if (trip) selectTrip(trip)
+                  }}>
+                    {trips.map((trip) => <option key={trip.id} value={trip.id}>{trip.name}</option>)}
+                  </select>
+                </label>
+              )}
+              {selectedTrip && !editingTrip && (
+                <>
+                  <button type="button" className="itinerary-secondary" onClick={startEditTrip}>編輯行程</button>
+                  <button type="button" className="itinerary-delete" disabled={saving || tripItems.length > 0} title={tripItems.length ? '請先移除行程中的地點，才能刪除行程。' : undefined} onClick={() => void handleDeleteTrip()}>刪除</button>
+                </>
+              )}
+              <button type="button" className="itinerary-primary" onClick={startCreateTrip}>＋ 新增行程</button>
+            </div>
           </section>
           {error && <div className="itinerary-feedback itinerary-error" role="alert">{error}</div>}
           {notice && <div className="itinerary-feedback itinerary-success" role="status">{notice}</div>}
 
           <section className="itinerary-workspace">
-            <aside className="itinerary-trips-card">
-              <div className="itinerary-card-heading"><div><strong>我的行程</strong><small>{trips.length} 個行程</small></div></div>
-              {loading ? <p className="itinerary-empty">正在載入行程…</p> : trips.length ? trips.map((trip) => (
-                <button
-                  type="button"
-                  key={trip.id}
-                  className={`itinerary-trip-row${trip.id === selectedTripId && !creatingTrip ? ' selected' : ''}`}
-                  onClick={() => selectTrip(trip)}
-                >
-                  <span className="itinerary-trip-icon">▤</span>
-                  <span><strong>{trip.name}</strong><small>{trip.startDate} — {trip.endDate}</small></span>
-                </button>
-              )) : <p className="itinerary-empty">還沒有行程，先建立一個吧。</p>}
-            </aside>
-
-            <section className="itinerary-plan-card">
+            <aside className="itinerary-plan-card">
               {editingTrip ? (
                 <form className="itinerary-trip-form" onSubmit={(event) => void handleTripSubmit(event)}>
                   <div className="itinerary-detail-heading"><div><span>{creatingTrip ? '開始一趟新旅行' : '調整行程設定'}</span><h2>{creatingTrip ? '新增行程' : '編輯行程'}</h2></div></div>
@@ -438,16 +555,29 @@ function ItineraryModule() {
                 </form>
               ) : selectedTrip ? (
                 <>
-                  <div className="itinerary-detail-heading">
-                    <div><span>{selectedRegion?.name ?? '旅行行程'} · {totalDays} 天</span><h2>{selectedTrip.name}</h2><p>{selectedTrip.startDate} — {selectedTrip.endDate}</p></div>
-                    <div className="itinerary-header-actions">
-                      <button type="button" className="itinerary-secondary" onClick={startEditTrip}>編輯行程</button>
-                      <button type="button" className="itinerary-delete" disabled={saving || tripItems.length > 0} title={tripItems.length ? '請先移除行程中的地點，才能刪除行程。' : undefined} onClick={() => void handleDeleteTrip()}>刪除</button>
-                    </div>
+                  <div className="itinerary-plan-title">
+                    <div><span>每日行程</span><strong>第 {dayNumber} 天 <small>・{selectedRegion?.name}</small></strong></div>
+                    <span className="itinerary-day-count">{formatDate(selectedDate)} · {totalDays} 天</span>
                   </div>
-                  <div className="itinerary-day-toolbar">
-                    <div><span className="itinerary-day-label">第 {dayNumber} 天</span><strong>{formatDate(selectedDate)}</strong></div>
-                    <input aria-label="選擇行程日期" type="date" min={selectedTrip.startDate} max={selectedTrip.endDate} value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
+                  <div className="itinerary-day-strip" aria-label="選擇行程日期">
+                    {tripDates.map((date, index) => (
+                      <button
+                        type="button"
+                        key={date}
+                        className={date === selectedDate ? 'selected' : ''}
+                        aria-pressed={date === selectedDate}
+                        onClick={() => {
+                          setSelectedDate(date)
+                          setAddingItem(false)
+                          setEditingItemId(undefined)
+                          setError('')
+                          setNotice('')
+                        }}
+                      >
+                        <small>{new Intl.DateTimeFormat('zh-TW', { weekday: 'short', timeZone: 'UTC' }).format(new Date(`${date}T00:00:00Z`)) || `DAY ${index + 1}`}</small>
+                        <strong>{date.slice(8, 10)}</strong>
+                      </button>
+                    ))}
                   </div>
 
                   {itemFormVisible && (
@@ -504,8 +634,57 @@ function ItineraryModule() {
                   {!tripPlaces.length && !itemFormVisible && <p className="itinerary-region-hint">請先到地點模組，將地點加入「{selectedRegion?.name}」區域。</p>}
                 </>
               ) : (
-                <div className="itinerary-empty-detail"><span>▤</span><h2>{loading ? '正在載入行程…' : '開始規劃一趟旅行'}</h2><p>{loading ? '' : '新增行程後，即可按天安排收藏的地點。'}</p>{!loading && <button type="button" className="itinerary-primary" onClick={startCreateTrip}>＋ 新增行程</button>}</div>
+                <div className="itinerary-empty-detail"><span>▤</span><h2>{loading ? '正在載入行程…' : '開始規劃一趟旅行'}</h2><p>{loading ? '' : trips.length ? '選擇一個行程，或建立新的旅行計畫。' : '新增行程後，即可按天安排收藏的地點。'}</p>{!loading && <button type="button" className="itinerary-primary" onClick={startCreateTrip}>＋ 新增行程</button>}</div>
               )}
+            </aside>
+
+            <section className="itinerary-map-panel" aria-label="行程區域地圖">
+              <div className="itinerary-map-heading">
+                <div>
+                  <span>旅行範圍</span>
+                  <strong>{selectedRegion?.name ?? '尚未選擇區域'}</strong>
+                </div>
+                {selectedRegion && (
+                  <span className="itinerary-map-place-count">{tripPlaces.length} 個收藏地點</span>
+                )}
+              </div>
+              <div className="itinerary-map-canvas">
+                <div className="itinerary-google-map" ref={mapContainerRef} />
+                {!selectedRegion ? (
+                  <div className="itinerary-map-overlay"><strong>先選擇一個行程區域</strong><p>地圖會顯示區域範圍及收藏在此區域的地點。</p></div>
+                ) : mapLoading ? (
+                  <div className="itinerary-map-overlay"><strong>正在載入區域地圖…</strong><p>取得區域範圍與地點位置。</p></div>
+                ) : visibleMapError ? (
+                  <div className="itinerary-map-overlay itinerary-map-overlay-error"><strong>無法顯示區域地圖</strong><p>{visibleMapError}</p><RouterLink to={routes.regions}>前往區域管理</RouterLink></div>
+                ) : mountedMapRegionId !== selectedRegion.id ? (
+                  <div className="itinerary-map-overlay"><strong>正在載入 Google Maps…</strong></div>
+                ) : null}
+                {visibleMapData?.regionWarning && (
+                  <div className="itinerary-map-warning" role="status">{visibleMapData.regionWarning}</div>
+                )}
+                {visibleMapData?.unlocatedPlaces.length ? (
+                  <details className="itinerary-unlocated">
+                    <summary>有 {visibleMapData.unlocatedPlaces.length} 個地點無法定位</summary>
+                    <ul>
+                      {visibleMapData.unlocatedPlaces.map((place) => (
+                        <li key={place.id}>
+                          <span><strong>{place.name}</strong><small>{place.reason}</small></span>
+                          {place.mapsUrl && <a href={place.mapsUrl} target="_blank" rel="noreferrer">開啟地圖 ↗</a>}
+                          <RouterLink to={routes.places}>編輯</RouterLink>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : null}
+                {visibleMapData && (
+                  <div className="itinerary-map-attribution">Powered by Google Maps</div>
+                )}
+              </div>
+              <div className="itinerary-map-footer">
+                <span><i className="itinerary-map-legend-dot numbered" /> 當日行程順序</span>
+                <span><i className="itinerary-map-legend-dot" /> 區域收藏地點</span>
+                <span>{visibleMapData?.markers.length ?? 0} 個已定位</span>
+              </div>
             </section>
           </section>
         </div>

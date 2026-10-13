@@ -79,7 +79,13 @@ parallel framework.
   Repository rules prevent deleting a region that is still referenced by places
   or trips.
 - `src/modules/itinerary/` manages trips and their per-day itinerary items. It
-  composes trips, regions, and places through the existing operation APIs.
+  composes trips, regions, and places through the existing operation APIs. Its
+  workspace presents the daily itinerary beside the trip's region map, with
+  markers for all located places in that region and an ordered marker for each
+  place scheduled on the selected day. Resolve Google place locations at
+  runtime from `place_id`; do not persist provider coordinates. Places stored
+  only with a custom map URL may not be resolvable and should be listed with
+  that limitation rather than silently omitted.
 - `src/database/models.ts` already defines `Region`, `Trip`, and
   `ItineraryItem`. Existing trip/item repositories and validation are in
   `src/database/repositories.ts` and `src/database/validation.ts`; inspect and

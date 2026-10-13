@@ -9,6 +9,7 @@ import type {
   Trip,
   TripChanges,
 } from '../../database'
+import { ItineraryMapService } from './itinerary-map.service'
 
 export interface ItineraryWorkspace {
   trips: Trip[]
@@ -19,6 +20,12 @@ export interface ItineraryWorkspace {
 export type NewScheduledItem = Omit<NewItineraryItem, 'order'>
 
 export class ItineraryService {
+  private readonly mapService: ItineraryMapService
+
+  constructor(mapService = new ItineraryMapService()) {
+    this.mapService = mapService
+  }
+
   async loadWorkspace(): Promise<ItineraryWorkspace> {
     const [tripRecords, regionRecords, placeRecords] = await Promise.all([
       trips.list(),
@@ -42,6 +49,10 @@ export class ItineraryService {
 
   listItems(tripId: string): Promise<ItineraryItem[]> {
     return itineraryItems.findByTripId(tripId)
+  }
+
+  loadMapData(regionId: string) {
+    return this.mapService.loadMapData(regionId)
   }
 
   async addItem(input: NewScheduledItem): Promise<string> {

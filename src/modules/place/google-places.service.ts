@@ -2,13 +2,48 @@ export interface GooglePlaceDetails {
   id: string
   displayName?: string
   formattedAddress?: string
+  location?: GoogleMapPosition
+  viewport?: GoogleMapViewport
   googleMapsUri?: string
+}
+
+export interface GoogleMapPosition {
+  lat: number
+  lng: number
+}
+
+export interface GoogleMapViewport {
+  north: number
+  south: number
+  east: number
+  west: number
+}
+
+export interface GoogleMapMarkerData {
+  id: string
+  title: string
+  position: GoogleMapPosition
+  sequence?: number
+  onClick?: () => void
+}
+
+export interface GoogleMapHandle {
+  setMarkers(markers: GoogleMapMarkerData[]): void
+  destroy(): void
 }
 
 interface GooglePlace {
   id?: string
   displayName?: string
   formattedAddress?: string
+  location?: {
+    lat(): number
+    lng(): number
+  }
+  viewport?: {
+    getNorthEast(): { lat(): number; lng(): number }
+    getSouthWest(): { lat(): number; lng(): number }
+  }
   googleMapsURI?: string
   fetchFields(options: { fields: string[] }): Promise<void>
 }
@@ -25,11 +60,51 @@ interface GooglePlacesLibrary {
   PlaceAutocompleteElement: new (options?: { placeholder?: string }) => PlaceAutocompleteElement
 }
 
+interface GoogleMapInstance {
+  fitBounds(bounds: GoogleMapViewport): void
+}
+
+interface GoogleMapsLibrary {
+  Map: new (
+    container: HTMLElement,
+    options: {
+      center: GoogleMapPosition
+      zoom: number
+      mapId: string
+      mapTypeControl: boolean
+      streetViewControl: boolean
+      fullscreenControl: boolean
+    },
+  ) => GoogleMapInstance
+}
+
+interface GoogleAdvancedMarker {
+  map: GoogleMapInstance | null
+  addEventListener(type: 'gmp-click', listener: () => void): void
+  removeEventListener(type: 'gmp-click', listener: () => void): void
+}
+
+interface GoogleMarkerLibrary {
+  AdvancedMarkerElement: new (options: {
+    map: GoogleMapInstance
+    position: GoogleMapPosition
+    title: string
+    content: HTMLElement
+    gmpClickable: boolean
+  }) => GoogleAdvancedMarker
+}
+
+interface GoogleLibraryImporter {
+  (library: 'places'): Promise<GooglePlacesLibrary>
+  (library: 'maps'): Promise<GoogleMapsLibrary>
+  (library: 'marker'): Promise<GoogleMarkerLibrary>
+}
+
 interface GoogleMapsWindow extends Window {
   __travelPlannerGoogleMapsReady?: () => void
   google?: {
     maps?: {
-      importLibrary(library: 'places'): Promise<GooglePlacesLibrary>
+      importLibrary: GoogleLibraryImporter
     }
   }
 }
@@ -102,6 +177,19 @@ function toDetails(place: GooglePlace): GooglePlaceDetails {
     id: place.id,
     ...(place.displayName ? { displayName: place.displayName } : {}),
     ...(place.formattedAddress ? { formattedAddress: place.formattedAddress } : {}),
+    ...(place.location
+      ? { location: { lat: place.location.lat(), lng: place.location.lng() } }
+      : {}),
+    ...(place.viewport
+      ? {
+          viewport: {
+            north: place.viewport.getNorthEast().lat(),
+            east: place.viewport.getNorthEast().lng(),
+            south: place.viewport.getSouthWest().lat(),
+            west: place.viewport.getSouthWest().lng(),
+          },
+        }
+      : {}),
     ...(place.googleMapsURI ? { googleMapsUri: place.googleMapsURI } : {}),
   }
 }
@@ -125,7 +213,7 @@ export async function mountPlaceAutocomplete(
     try {
       const place = prediction.toPlace()
       await place.fetchFields({
-        fields: ['id', 'displayName', 'formattedAddress', 'googleMapsURI'],
+        fields: ['id', 'displayName', 'formattedAddress', 'location', 'viewport', 'googleMapsURI'],
       })
       onSelect(toDetails(place), query)
     } catch (cause) {
@@ -152,7 +240,79 @@ export async function getGooglePlaceDetails(placeId: string): Promise<GooglePlac
 
   const place = new Place({ id: placeId })
   await place.fetchFields({
-    fields: ['id', 'displayName', 'formattedAddress', 'googleMapsURI'],
+    fields: ['id', 'displayName', 'formattedAddress', 'location', 'viewport', 'googleMapsURI'],
   })
   return toDetails(place)
+}
+
+export async function mountGoogleMap(
+  container: HTMLElement,
+  options: {
+    center: GoogleMapPosition
+    zoom: number
+    viewport?: GoogleMapViewport
+  },
+): Promise<GoogleMapHandle> {
+  await loadPlacesLibrary()
+  const mapsWindow = window as GoogleMapsWindow
+  const importLibrary = mapsWindow.google?.maps?.importLibrary
+  if (!importLibrary) {
+    throw new Error('Google Maps JavaScript API 已載入，但 Maps Library 無法使用。')
+  }
+
+  const [mapsLibrary, markerLibrary] = await Promise.all([
+    importLibrary('maps'),
+    importLibrary('marker'),
+  ])
+  const map = new mapsLibrary.Map(container, {
+    center: options.center,
+    zoom: options.zoom,
+    mapId: 'DEMO_MAP_ID',
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: true,
+  })
+  if (options.viewport) map.fitBounds(options.viewport)
+
+  const mountedMarkers = new Map<
+    string,
+    { marker: GoogleAdvancedMarker; clickHandler?: () => void }
+  >()
+
+  return {
+    setMarkers(markers) {
+      for (const { marker, clickHandler } of mountedMarkers.values()) {
+        if (clickHandler) marker.removeEventListener('gmp-click', clickHandler)
+        marker.map = null
+      }
+      mountedMarkers.clear()
+
+      for (const markerData of markers) {
+        const content = document.createElement('div')
+        content.className = markerData.sequence === undefined
+          ? 'itinerary-map-marker'
+          : 'itinerary-map-marker itinerary-map-marker-numbered'
+        content.textContent = markerData.sequence === undefined
+          ? ''
+          : String(markerData.sequence)
+        const clickHandler = markerData.onClick
+        const marker = new markerLibrary.AdvancedMarkerElement({
+          map,
+          position: markerData.position,
+          title: markerData.title,
+          content,
+          gmpClickable: Boolean(clickHandler),
+        })
+        if (clickHandler) marker.addEventListener('gmp-click', clickHandler)
+        mountedMarkers.set(markerData.id, { marker, clickHandler })
+      }
+    },
+    destroy() {
+      for (const { marker, clickHandler } of mountedMarkers.values()) {
+        if (clickHandler) marker.removeEventListener('gmp-click', clickHandler)
+        marker.map = null
+      }
+      mountedMarkers.clear()
+    },
+  }
 }
