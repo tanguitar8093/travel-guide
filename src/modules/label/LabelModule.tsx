@@ -369,10 +369,14 @@ function LabelModule() {
             <span className="nav-icon">⌖</span>
             地點
           </RouterLink>
-          <a href="#" className="nav-item">
+          <RouterLink to={routes.itinerary} className="nav-item">
             <span className="nav-icon">▤</span>
             行程
-          </a>
+          </RouterLink>
+          <RouterLink to={routes.regions} className="nav-item">
+            <span className="nav-icon">◎</span>
+            區域管理
+          </RouterLink>
           <a href="#" className="nav-item active" aria-current="page">
             <span className="nav-icon">◈</span>
             標籤管理

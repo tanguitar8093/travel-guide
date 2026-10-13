@@ -1,0 +1,5 @@
+export { default as RegionModule } from './RegionModule'
+export { RegionController, regionController } from './region.controller'
+export { RegionService } from './region.service'
+export type { RegionWorkspace } from './region.service'
+export type { GooglePlaceDetails } from '../place/google-places.service'

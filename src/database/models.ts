@@ -1,10 +1,11 @@
 export interface Region {
   id: string
   name: string
-  center: {
+  center?: {
     latitude: number
     longitude: number
   }
+  googlePlaceId?: string
   zoom: number
 }
 

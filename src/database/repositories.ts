@@ -309,11 +309,43 @@ export class ItineraryItemRepository {
     return database.itineraryItems.get(id)
   }
 
+  findByTripId(tripId: string): Promise<ItineraryItem[]> {
+    return database.itineraryItems.where('tripId').equals(tripId).sortBy('date')
+      .then((items) => items.sort(
+        (left, right) => left.date.localeCompare(right.date) || left.order - right.order,
+      ))
+  }
+
   findByTripAndDate(tripId: string, date: string): Promise<ItineraryItem[]> {
     return database.itineraryItems
       .where('[tripId+date+order]')
       .between([tripId, date, Dexie.minKey], [tripId, date, Dexie.maxKey])
       .toArray()
+  }
+
+  async reorderForDate(tripId: string, date: string, orderedIds: string[]): Promise<void> {
+    await database.transaction('rw', database.itineraryItems, async () => {
+      const currentItems = await this.findByTripAndDate(tripId, date)
+      const currentIds = new Set(currentItems.map((item) => item.id))
+      const nextIds = new Set(orderedIds)
+      if (
+        orderedIds.length !== currentItems.length ||
+        nextIds.size !== orderedIds.length ||
+        orderedIds.some((id) => !currentIds.has(id))
+      ) {
+        throw new ValidationError('The reordered itinerary items do not match this trip day.')
+      }
+
+      await database.itineraryItems.bulkPut(
+        orderedIds.map((id, order) => {
+          const item = currentItems.find((candidate) => candidate.id === id)
+          if (!item) {
+            throw new EntityNotFoundError('Itinerary item', id)
+          }
+          return { ...item, order }
+        }),
+      )
+    })
   }
 
   private async assertReferences(item: NewItineraryItem): Promise<void> {

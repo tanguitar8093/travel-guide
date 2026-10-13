@@ -43,10 +43,17 @@ function requireIds(ids: string[], field: string): void {
 
 export function validateRegion(region: Omit<Region, 'id'>): void {
   requireText(region.name, 'Region name')
-  if (!region.center || typeof region.center !== 'object') {
-    throw new ValidationError('Region center is required.')
+  if (region.googlePlaceId !== undefined) {
+    requireText(region.googlePlaceId, 'Google Place ID')
   }
-  requireCoordinate(region.center.latitude, region.center.longitude)
+  if (region.center !== undefined) {
+    if (typeof region.center !== 'object') {
+      throw new ValidationError('Region center must be a coordinate pair.')
+    }
+    requireCoordinate(region.center.latitude, region.center.longitude)
+  } else if (region.googlePlaceId === undefined) {
+    throw new ValidationError('Select a Google Maps place for the region.')
+  }
 
   if (!Number.isFinite(region.zoom) || region.zoom < 0 || region.zoom > 22) {
     throw new ValidationError('Region zoom must be between 0 and 22.')

@@ -391,10 +391,14 @@ function PlaceModule() {
             地點
             <span className="nav-count">{places.length}</span>
           </a>
-          <a href="#" className="nav-item">
+          <RouterLink to={routes.itinerary} className="nav-item">
             <span className="nav-icon">▤</span>
             行程
-          </a>
+          </RouterLink>
+          <RouterLink to={routes.regions} className="nav-item">
+            <span className="nav-icon">◎</span>
+            區域管理
+          </RouterLink>
           <RouterLink to={routes.labels} className="nav-item">
             <span className="nav-icon">◈</span>
             標籤管理
