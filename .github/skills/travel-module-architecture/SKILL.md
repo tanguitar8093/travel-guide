@@ -89,6 +89,11 @@ parallel framework.
   manually requested incoming-leg travel-time estimate in minutes; clear that
   estimate whenever its predecessor, destination, date, order, or travel mode
   changes.
+- `src/modules/data-management/` provides versioned JSON export and full
+  replacement import for every persisted table. Keep parsing, schema and
+  reference validation, and atomic replacement in the database/operation
+  layers; never clear live data until the complete backup is validated, and
+  require explicit confirmation in the UI before replacing it.
 - `src/database/models.ts` already defines `Region`, `Trip`, and
   `ItineraryItem`. Existing trip/item repositories and validation are in
   `src/database/repositories.ts` and `src/database/validation.ts`; inspect and

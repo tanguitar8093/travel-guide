@@ -519,6 +519,7 @@ function ItineraryModule() {
             <RouterLink to={routes.itinerary} aria-current="page">行程</RouterLink>
             <RouterLink to={routes.regions}>區域管理</RouterLink>
             <RouterLink to={routes.labels}>標籤</RouterLink>
+            <RouterLink to={routes.dataManagement}>資料管理</RouterLink>
           </nav>
           <span className="itinerary-local-badge">本機資料</span>
         </header>

@@ -141,7 +141,8 @@ export class PlaceRepository {
                 [item.tripId, item.date, Dexie.maxKey],
               )
               .toArray()
-            const nextItem = dayItems.find((candidate) => candidate.order === item.order + 1)
+            const nextIndex = dayItems.findIndex((candidate) => candidate.id === item.id)
+            const nextItem = dayItems[nextIndex + 1]
             if (nextItem) staleEstimateIds.add(nextItem.id)
           }
           for (const itemId of staleEstimateIds) {

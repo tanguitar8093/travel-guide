@@ -260,6 +260,7 @@ function RegionModule() {
           <RouterLink to={routes.itinerary}>▤ <span>行程</span></RouterLink>
           <RouterLink to={routes.regions} aria-current="page">◎ <span>區域管理</span></RouterLink>
           <RouterLink to={routes.labels}>◈ <span>標籤管理</span></RouterLink>
+          <RouterLink to={routes.dataManagement}>⇅ <span>資料管理</span></RouterLink>
         </nav>
         <div className="region-sidebar-foot">資料儲存於此瀏覽器</div>
       </aside>

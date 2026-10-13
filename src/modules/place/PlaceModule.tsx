@@ -389,6 +389,10 @@ function PlaceModule() {
             <span className="nav-icon">◈</span>
             標籤管理
           </RouterLink>
+          <RouterLink to={routes.dataManagement} className="nav-item">
+            <span className="nav-icon">⇅</span>
+            資料管理
+          </RouterLink>
         </nav>
 
         <div className="sidebar-bottom">

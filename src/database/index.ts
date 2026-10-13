@@ -3,6 +3,8 @@ export {
   EntityNotFoundError,
   ValidationError,
 } from './errors'
+export { BackupRepository, backupRepository } from './backup.repository'
+export type { BackupCounts, TravelBackup } from './backup.repository'
 export { LabelRepository, labels } from './label.repository'
 export {
   itineraryItems,

@@ -382,6 +382,10 @@ function LabelModule() {
             標籤管理
             <span className="nav-count">{flatLabels.length}</span>
           </a>
+          <RouterLink to={routes.dataManagement} className="nav-item">
+            <span className="nav-icon">⇅</span>
+            資料管理
+          </RouterLink>
         </nav>
 
         <div className="sidebar-bottom">
