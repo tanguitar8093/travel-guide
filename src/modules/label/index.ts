@@ -1,3 +1,4 @@
 export { default as LabelModule } from './LabelModule'
-export { LabelController } from './label.controller'
+export { LabelController, labelController } from './label.controller'
 export { LabelService } from './label.service'
+export type { LabelTreeNode } from './label.service'

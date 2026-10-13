@@ -132,6 +132,36 @@ export class PlaceRepository {
     )
   }
 
+  async addLabel(id: string, labelId: string): Promise<void> {
+    await database.transaction(
+      'rw',
+      database.places,
+      database.labels,
+      async () => {
+        const place = required(await database.places.get(id), 'Place', id)
+        required(await database.labels.get(labelId), 'Label', labelId)
+        if (!place.labelIds.includes(labelId)) {
+          await database.places.put({
+            ...place,
+            labelIds: [...place.labelIds, labelId],
+          })
+        }
+      },
+    )
+  }
+
+  async removeLabel(id: string, labelId: string): Promise<void> {
+    await database.transaction('rw', database.places, async () => {
+      const place = required(await database.places.get(id), 'Place', id)
+      if (place.labelIds.includes(labelId)) {
+        await database.places.put({
+          ...place,
+          labelIds: place.labelIds.filter((currentId) => currentId !== labelId),
+        })
+      }
+    })
+  }
+
   async delete(id: string): Promise<void> {
     await database.transaction(
       'rw',
