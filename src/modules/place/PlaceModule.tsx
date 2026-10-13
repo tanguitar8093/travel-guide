@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, Region } from '../../database'
+import { RouterLink } from '../../router'
+import { routes } from '../../routes'
 import { placeController } from './place.controller'
 import './PlaceModule.css'
 
@@ -273,17 +275,17 @@ function PlaceModule() {
   return (
     <div className="app-shell place-app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="漫遊手帳首頁">
+        <RouterLink className="brand" to={routes.labels} aria-label="漫遊手帳首頁">
           <span className="brand-mark">漫</span>
           <span>
             <strong>漫遊手帳</strong>
             <small>TRAVEL PLANNER</small>
           </span>
-        </a>
+        </RouterLink>
 
         <div className="workspace-label">工作區</div>
         <nav className="main-nav" aria-label="主要導覽">
-          <a href="#" className="nav-item active" aria-current="page">
+          <a href={routes.places} className="nav-item active" aria-current="page">
             <span className="nav-icon">⌖</span>
             地點
             <span className="nav-count">{places.length}</span>
@@ -292,10 +294,10 @@ function PlaceModule() {
             <span className="nav-icon">▤</span>
             行程
           </a>
-          <a href="#" className="nav-item">
+          <RouterLink to={routes.labels} className="nav-item">
             <span className="nav-icon">◈</span>
             標籤管理
-          </a>
+          </RouterLink>
         </nav>
 
         <div className="sidebar-bottom">

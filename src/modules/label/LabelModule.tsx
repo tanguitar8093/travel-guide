@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, Place } from '../../database'
+import { RouterLink } from '../../router'
+import { routes } from '../../routes'
 import { labelController } from './label.controller'
 import type { LabelTreeNode } from './label.service'
 import './LabelModule.css'
@@ -353,20 +355,20 @@ function LabelModule() {
   return (
     <div className="app-shell">
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="漫遊手帳首頁">
+        <RouterLink className="brand" to={routes.labels} aria-label="漫遊手帳首頁">
           <span className="brand-mark">漫</span>
           <span>
             <strong>漫遊手帳</strong>
             <small>TRAVEL PLANNER</small>
           </span>
-        </a>
+        </RouterLink>
 
         <div className="workspace-label">工作區</div>
         <nav className="main-nav" aria-label="主要導覽">
-          <a href="#" className="nav-item">
+          <RouterLink to={routes.places} className="nav-item">
             <span className="nav-icon">⌖</span>
             地點
-          </a>
+          </RouterLink>
           <a href="#" className="nav-item">
             <span className="nav-icon">▤</span>
             行程
