@@ -1,0 +1,9 @@
+# Validation defaults
+
+- Do not run the full test and quality-check suite by default for every change.
+- Run focused checks only when they are needed to validate the changed behavior or
+  the user asks for them.
+- Run the comprehensive validation workflow only when the user explicitly asks
+  for it or invokes the `full-test-check` skill.
+- Report which checks were run and identify checks that were not run; never imply
+  that a skipped check passed.
