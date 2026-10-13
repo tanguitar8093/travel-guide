@@ -65,14 +65,6 @@ export function validatePlace(place: Omit<Place, 'id'>): void {
   if (place.googlePlaceId !== undefined) {
     requireText(place.googlePlaceId, 'Google Place ID')
   }
-  if (place.latitude !== undefined || place.longitude !== undefined) {
-    if (place.latitude === undefined || place.longitude === undefined) {
-      throw new ValidationError('Latitude and longitude must be provided together.')
-    }
-    requireCoordinate(place.latitude, place.longitude)
-  } else if (place.googlePlaceId === undefined) {
-    throw new ValidationError('Coordinates are required unless a Google Place is selected.')
-  }
   requireIds(place.regionIds, 'regionIds')
   requireIds(place.labelIds, 'labelIds')
 
@@ -92,6 +84,10 @@ export function validatePlace(place: Omit<Place, 'id'>): void {
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
       throw new ValidationError('Maps URL must use HTTP or HTTPS.')
     }
+  }
+
+  if (place.googlePlaceId === undefined && place.mapsUrl === undefined) {
+    throw new ValidationError('Select a Google Maps place or provide a map URL.')
   }
 }
 

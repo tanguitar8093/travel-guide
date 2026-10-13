@@ -1,4 +1,5 @@
 export { default as ItineraryModule } from './ItineraryModule'
+export { default as ItineraryMapMockup } from './ItineraryMapMockup'
 export { ItineraryController, itineraryController } from './itinerary.controller'
 export { ItineraryService } from './itinerary.service'
 export type { ItineraryWorkspace, NewScheduledItem } from './itinerary.service'

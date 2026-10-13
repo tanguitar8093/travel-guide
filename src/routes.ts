@@ -3,4 +3,5 @@ export const routes = {
   places: '/places',
   regions: '/regions',
   itinerary: '/itinerary',
+  itineraryMockup: '/itinerary/mockup',
 } as const

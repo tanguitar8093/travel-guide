@@ -67,7 +67,11 @@ parallel framework.
   on places. Its service assembles a label tree and queries matching places.
 - `src/modules/place/` manages places, region/label associations, and optional
   Google Places integration. Google-derived place details are fetched for
-  display; only the Google `place_id` is persisted from that provider.
+  display; only the Google `place_id` is persisted from that provider. Place
+  records do not store latitude/longitude; a non-Google place uses its
+  user-provided map URL for navigation. Database upgrades migrate legacy
+  coordinate-only places to a Google Maps search URL before removing the
+  coordinate fields.
 - `src/modules/region/` manages regions with the shared Google Places search.
   Persist the Google `place_id`, not Google-derived coordinates or descriptive
   place data; fetch the location details when needed for display. Legacy regions

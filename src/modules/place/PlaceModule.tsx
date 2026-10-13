@@ -9,8 +9,6 @@ import './PlaceModule.css'
 
 interface PlaceDraft {
   name: string
-  latitude: string
-  longitude: string
   mapsUrl: string
   googlePlaceId?: string
   notes: string
@@ -20,8 +18,6 @@ interface PlaceDraft {
 
 const emptyDraft: PlaceDraft = {
   name: '',
-  latitude: '',
-  longitude: '',
   mapsUrl: '',
   notes: '',
   regionIds: [],
@@ -31,8 +27,6 @@ const emptyDraft: PlaceDraft = {
 function toDraft(place: Place): PlaceDraft {
   return {
     name: place.name,
-    latitude: place.latitude === undefined ? '' : String(place.latitude),
-    longitude: place.longitude === undefined ? '' : String(place.longitude),
     mapsUrl: place.mapsUrl ?? '',
     googlePlaceId: place.googlePlaceId,
     notes: place.notes ?? '',
@@ -173,8 +167,6 @@ function PlaceModule() {
           ...current,
           name: current.name || query,
           googlePlaceId: details.id,
-          latitude: '',
-          longitude: '',
           mapsUrl: '',
         }))
         setError('')
@@ -305,12 +297,6 @@ function PlaceModule() {
     setNotice('')
     const input: NewPlace = {
       name: draft.name.trim(),
-      ...(draft.latitude.trim() && draft.longitude.trim()
-        ? {
-            latitude: Number(draft.latitude),
-            longitude: Number(draft.longitude),
-          }
-        : {}),
       ...(draft.mapsUrl.trim() ? { mapsUrl: draft.mapsUrl.trim() } : {}),
       ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
       ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
@@ -436,7 +422,7 @@ function PlaceModule() {
             <div>
               <div className="eyebrow">收藏並整理旅途中想去的地方</div>
               <h1>地點資料庫</h1>
-              <p>記錄座標、地圖連結和標籤，規劃行程時即可快速挑選。</p>
+              <p>搜尋並收藏想去的地點，套用標籤與區域，規劃行程時即可快速挑選。</p>
             </div>
             <button className="primary-button" type="button" onClick={startCreate}>
               <span aria-hidden="true">＋</span>
@@ -518,9 +504,7 @@ function PlaceModule() {
                         <span className="place-list-copy">
                           <strong>{place.name}</strong>
                           <span>
-                            {place.latitude !== undefined && place.longitude !== undefined
-                              ? `${place.latitude.toFixed(4)}, ${place.longitude.toFixed(4)}`
-                              : 'Google Maps 地點'}
+                            {place.googlePlaceId ? 'Google Maps 地點' : '自訂地圖連結'}
                           </span>
                           <span className="place-list-tags">
                             {placeLabels.slice(0, 3).map((label) => (
@@ -602,53 +586,21 @@ function PlaceModule() {
                       />
                     </label>
 
-                    <div className="coordinate-fields">
-                      <label className="form-field">
-                        <span>緯度 {!draft.googlePlaceId && <b>*</b>}</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="-90"
-                          max="90"
-                          step="any"
-                          value={draft.latitude}
-                          onChange={(event) => setDraft({ ...draft, latitude: event.target.value })}
-                          placeholder="26.2171"
-                          required={!draft.googlePlaceId}
-                          disabled={formDisabled}
-                        />
-                      </label>
-                      <label className="form-field">
-                        <span>經度 {!draft.googlePlaceId && <b>*</b>}</span>
-                        <input
-                          type="number"
-                          inputMode="decimal"
-                          min="-180"
-                          max="180"
-                          step="any"
-                          value={draft.longitude}
-                          onChange={(event) => setDraft({ ...draft, longitude: event.target.value })}
-                          placeholder="127.7195"
-                          required={!draft.googlePlaceId}
-                          disabled={formDisabled}
-                        />
-                      </label>
-                    </div>
-
                     {!draft.googlePlaceId ? (
                       <label className="form-field place-url-field">
-                        <span>自訂地圖網址（選填）</span>
+                        <span>地圖網址 {!draft.googlePlaceId && <b>*</b>}</span>
                         <input
                           type="url"
                           value={draft.mapsUrl}
                           onChange={(event) => setDraft({ ...draft, mapsUrl: event.target.value })}
                           placeholder="https://maps.google.com/..."
+                          required={!draft.googlePlaceId}
                           disabled={formDisabled}
                         />
-                        <small>適用於手動輸入座標的地點；可貼 Google Maps 分享連結或其他地圖網址，方便之後直接開啟。</small>
+                        <small>若未選 Google 搜尋結果，請貼上 Google Maps 分享連結或其他地圖網址。</small>
                       </label>
                     ) : (
-                      <p className="place-url-note">已連結 Google 地點，地圖連結會即時取得，無需另外填寫。</p>
+                      <p className="place-url-note">已連結 Google 地點，地圖連結會即時取得，無需另外填寫網址。</p>
                     )}
 
                     <fieldset className="place-choice-field">
@@ -762,16 +714,7 @@ function PlaceModule() {
 
                   {!selectedPlace.googlePlaceId && (
                     <div className="place-map-card">
-                      <div className="map-grid" aria-hidden="true" />
-                      <div className="map-pin">⌖</div>
-                      <div className="map-coordinate">
-                        <strong>
-                          {selectedPlace.latitude !== undefined && selectedPlace.longitude !== undefined
-                            ? `${selectedPlace.latitude.toFixed(5)}, ${selectedPlace.longitude.toFixed(5)}`
-                            : '座標未提供'}
-                        </strong>
-                        <span>地點座標</span>
-                      </div>
+                      <span>自訂地圖位置</span>
                       {selectedPlace.mapsUrl && (
                         <a className="maps-link" href={selectedPlace.mapsUrl} target="_blank" rel="noreferrer">
                           開啟地圖連結 ↗

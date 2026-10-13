@@ -2,8 +2,6 @@ export interface GooglePlaceDetails {
   id: string
   displayName?: string
   formattedAddress?: string
-  latitude?: number
-  longitude?: number
   googleMapsUri?: string
 }
 
@@ -11,10 +9,6 @@ interface GooglePlace {
   id?: string
   displayName?: string
   formattedAddress?: string
-  location?: {
-    lat(): number
-    lng(): number
-  }
   googleMapsURI?: string
   fetchFields(options: { fields: string[] }): Promise<void>
 }
@@ -108,9 +102,6 @@ function toDetails(place: GooglePlace): GooglePlaceDetails {
     id: place.id,
     ...(place.displayName ? { displayName: place.displayName } : {}),
     ...(place.formattedAddress ? { formattedAddress: place.formattedAddress } : {}),
-    ...(place.location
-      ? { latitude: place.location.lat(), longitude: place.location.lng() }
-      : {}),
     ...(place.googleMapsURI ? { googleMapsUri: place.googleMapsURI } : {}),
   }
 }
@@ -134,7 +125,7 @@ export async function mountPlaceAutocomplete(
     try {
       const place = prediction.toPlace()
       await place.fetchFields({
-        fields: ['id', 'displayName', 'formattedAddress', 'location', 'googleMapsURI'],
+        fields: ['id', 'displayName', 'formattedAddress', 'googleMapsURI'],
       })
       onSelect(toDetails(place), query)
     } catch (cause) {
@@ -161,7 +152,7 @@ export async function getGooglePlaceDetails(placeId: string): Promise<GooglePlac
 
   const place = new Place({ id: placeId })
   await place.fetchFields({
-    fields: ['id', 'displayName', 'formattedAddress', 'location', 'googleMapsURI'],
+    fields: ['id', 'displayName', 'formattedAddress', 'googleMapsURI'],
   })
   return toDetails(place)
 }

@@ -26,6 +26,30 @@ export class TravelDatabase extends Dexie {
       trips: '&id, regionId, startDate, endDate',
       itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
     })
+
+    this.version(3)
+      .stores({
+        regions: '&id, name',
+        places: '&id, name, *regionIds, *labelIds, googlePlaceId',
+        labels: '&id, name, parentId',
+        trips: '&id, regionId, startDate, endDate',
+        itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
+      })
+      .upgrade((transaction) =>
+        transaction.table('places').toCollection().modify((place) => {
+          const legacyPlace = place as Place & { latitude?: number; longitude?: number }
+          if (!legacyPlace.googlePlaceId && !legacyPlace.mapsUrl) {
+            const query =
+              Number.isFinite(legacyPlace.latitude) && Number.isFinite(legacyPlace.longitude)
+                ? `${legacyPlace.latitude},${legacyPlace.longitude}`
+                : legacyPlace.name
+            legacyPlace.mapsUrl =
+              `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+          }
+          delete legacyPlace.latitude
+          delete legacyPlace.longitude
+        }),
+      )
   }
 }
 
