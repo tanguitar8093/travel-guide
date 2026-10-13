@@ -867,6 +867,342 @@ kbd {
   color: #c2c9c3;
 }
 
+.feedback-message {
+  margin: -13px 0 16px;
+  padding: 9px 12px;
+  border: 1px solid;
+  border-radius: 6px;
+  font-size: 11px;
+}
+
+.error-message,
+.dialog-error {
+  border-color: #f0d1ca;
+  color: #a34f40;
+  background: #fff7f5;
+}
+
+.success-message {
+  border-color: #d8e8dc;
+  color: #52765c;
+  background: #f5faf6;
+}
+
+.tree-row {
+  position: relative;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.tree-row.selected {
+  color: #456b54;
+  background: #edf3ee;
+}
+
+.tree-row:hover {
+  background: #f5f8f5;
+}
+
+.tree-row.selected:hover {
+  background: #e9f1eb;
+}
+
+.tree-toggle,
+.tree-select {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-toggle {
+  flex: 0 0 12px;
+  padding: 0;
+}
+
+.tree-select {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+}
+
+.tree-action-menu {
+  position: absolute;
+  z-index: 3;
+  top: 29px;
+  right: 3px;
+  width: 142px;
+  display: grid;
+  padding: 4px;
+  border: 1px solid #e6ebe6;
+  border-radius: 7px;
+  background: white;
+  box-shadow: 0 8px 22px rgba(35, 57, 42, 0.13);
+}
+
+.tree-action-menu button {
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 4px;
+  color: #566159;
+  background: transparent;
+  font-size: 11px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.tree-action-menu button:hover {
+  background: #f3f6f3;
+}
+
+.tree-action-menu .danger-action {
+  color: #b14e42;
+}
+
+.clear-search {
+  flex: 0 0 auto;
+  padding: 0 2px;
+  border: 0;
+  color: #87938a;
+  background: transparent;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.empty-state {
+  padding: 17px 10px;
+  color: #9aa39c;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.no-selection-panel {
+  min-height: 150px;
+  display: grid;
+  place-items: center;
+}
+
+.color-picker-placeholder {
+  gap: 8px;
+  padding: 0 9px;
+  text-transform: uppercase;
+}
+
+.color-swatch {
+  padding: 0;
+  cursor: pointer;
+}
+
+.color-swatch.chosen {
+  box-shadow: 0 0 0 1px #8d9f91;
+}
+
+.custom-color-control {
+  width: 15px;
+  height: 15px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px dashed #b9c2bb;
+  border-radius: 50%;
+  color: #819086;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.custom-color-control input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.parent-select-field {
+  grid-column: 1 / -1;
+}
+
+.parent-select-field select,
+.assign-place-form select {
+  min-width: 0;
+  height: 35px;
+  padding: 0 9px;
+  border: 1px solid #e7ebe7;
+  border-radius: 5px;
+  color: #626d65;
+  background: #fff;
+  font: inherit;
+}
+
+.parent-select-field select {
+  width: 100%;
+}
+
+.save-button,
+.cancel-button,
+.assign-button {
+  cursor: pointer;
+}
+
+.save-button:disabled,
+.assign-button:disabled {
+  cursor: default;
+}
+
+.descendant-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #87938a;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.descendant-toggle input {
+  accent-color: #648a74;
+}
+
+.assign-place-form {
+  display: flex;
+  gap: 7px;
+  margin: 13px 0 8px;
+}
+
+.assign-place-form select {
+  flex: 1;
+  font-size: 10px;
+}
+
+.assign-button {
+  padding: 0 11px;
+  border: 0;
+  border-radius: 5px;
+  color: white;
+  background: #648a74;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.assign-button:disabled {
+  opacity: 0.5;
+}
+
+.place-tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.place-tag {
+  background: #f5f6f4;
+}
+
+.remove-place-label {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  color: #9d7771;
+  background: #faf2f0;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.compact-empty {
+  border-top: 1px solid #f0f2f0;
+}
+
+.more-places-note {
+  padding: 8px 0;
+  border-top: 1px solid #f0f2f0;
+  color: #8a958d;
+  font-size: 10px;
+  text-align: center;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(35, 45, 38, 0.35);
+}
+
+.label-dialog {
+  width: min(420px, 100%);
+  display: grid;
+  gap: 18px;
+  box-sizing: border-box;
+  padding: 22px;
+  box-shadow: 0 20px 60px rgba(30, 45, 34, 0.2);
+}
+
+.dialog-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.dialog-heading h2 {
+  margin: 5px 0 0;
+  color: #3c453f;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.dialog-error {
+  padding: 8px 10px;
+  border: 1px solid;
+  border-radius: 5px;
+  font-size: 10px;
+}
+
+.dialog-color-field {
+  gap: 10px;
+}
+
+.dialog-color-field .color-swatches {
+  gap: 12px;
+}
+
+.dialog-color-field .color-swatch {
+  width: 19px;
+  height: 19px;
+}
+
+.dialog-parent {
+  margin-top: -7px;
+  color: #7f8d82;
+  font-size: 11px;
+}
+
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 3px;
+}
+
+.cancel-button {
+  padding: 0 12px;
+  border: 1px solid #e3e9e3;
+  border-radius: 6px;
+  color: #68746b;
+  background: white;
+  font-size: 11px;
+}
+
 @media (max-width: 1000px) {
   .sidebar {
     width: 205px;

@@ -36,6 +36,10 @@ export class LabelController {
     return this.service.removeFromPlace(placeId, labelId)
   }
 
+  listPlaces() {
+    return this.service.listPlaces()
+  }
+
   findPlaces(labelId: string, includeDescendants = true) {
     return this.service.findPlaces(labelId, includeDescendants)
   }

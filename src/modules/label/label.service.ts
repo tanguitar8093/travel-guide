@@ -90,6 +90,10 @@ export class LabelService {
     return places.removeLabel(placeId, labelId)
   }
 
+  listPlaces(): Promise<Place[]> {
+    return places.list()
+  }
+
   async findPlaces(
     labelId: string,
     includeDescendants = true,

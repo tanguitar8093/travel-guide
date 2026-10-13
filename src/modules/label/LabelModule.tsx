@@ -1,39 +1,355 @@
+import { useEffect, useMemo, useState } from 'react'
+import type { FormEvent } from 'react'
+import type { Label, Place } from '../../database'
+import { labelController } from './label.controller'
+import type { LabelTreeNode } from './label.service'
 import './LabelModule.css'
 
-const labelGroups = [
-  {
-    name: '美食',
-    color: '#e9905a',
-    children: [
-      { name: '咖啡廳', color: '#b77a53', count: 8 },
-      { name: '在地小吃', color: '#d97768', count: 12 },
-      { name: '甜點', color: '#c4809b', count: 5 },
-    ],
-    count: 25,
-  },
-  {
-    name: '景點',
-    color: '#6e9f89',
-    children: [
-      { name: '博物館', color: '#758dab', count: 4 },
-      { name: '自然風景', color: '#6c9a79', count: 7 },
-    ],
-    count: 14,
-  },
-  {
-    name: '住宿',
-    color: '#8b80b5',
-    children: [],
-    count: 3,
-  },
+const labelColors = [
+  '#e9905a',
+  '#d97768',
+  '#c4809b',
+  '#8b80b5',
+  '#758dab',
+  '#6c9a79',
+  '#b77a53',
+  '#5f9b9b',
 ]
 
-const appliedLabels = [
-  { name: '美食', color: '#e9905a' },
-  { name: '咖啡廳', color: '#b77a53' },
-]
+interface LabelDialogState {
+  parentId?: string
+}
+
+function flattenTree(nodes: LabelTreeNode[]): LabelTreeNode[] {
+  return nodes.flatMap((node) => [node, ...flattenTree(node.children)])
+}
+
+function filterTree(
+  nodes: LabelTreeNode[],
+  query: string,
+): LabelTreeNode[] {
+  if (!query.trim()) {
+    return nodes
+  }
+
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  return nodes.reduce<LabelTreeNode[]>((matches, node) => {
+    const children = filterTree(node.children, query)
+    if (
+      node.name.toLocaleLowerCase().includes(normalizedQuery) ||
+      children.length > 0
+    ) {
+      matches.push({ ...node, children })
+    }
+    return matches
+  }, [])
+}
 
 function LabelModule() {
+  const [tree, setTree] = useState<LabelTreeNode[]>([])
+  const [allPlaces, setAllPlaces] = useState<Place[]>([])
+  const [selectedId, setSelectedId] = useState<string>()
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [search, setSearch] = useState('')
+  const [draftName, setDraftName] = useState('')
+  const [draftColor, setDraftColor] = useState(labelColors[0])
+  const [draftParentId, setDraftParentId] = useState('')
+  const [includeDescendants, setIncludeDescendants] = useState(true)
+  const [matchingPlaces, setMatchingPlaces] = useState<Place[]>([])
+  const [selectedPlaceId, setSelectedPlaceId] = useState('')
+  const [dialog, setDialog] = useState<LabelDialogState | null>(null)
+  const [dialogName, setDialogName] = useState('')
+  const [dialogColor, setDialogColor] = useState(labelColors[0])
+  const [menuLabelId, setMenuLabelId] = useState<string>()
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+
+  const flatLabels = useMemo(() => flattenTree(tree), [tree])
+  const selectedLabel = flatLabels.find((label) => label.id === selectedId)
+  const visibleTree = useMemo(() => filterTree(tree, search), [tree, search])
+  const descendantIds = useMemo(() => {
+    if (!selectedId) return new Set<string>()
+    const selected = flatLabels.find((label) => label.id === selectedId)
+    return new Set(selected ? flattenTree(selected.children).map((label) => label.id) : [])
+  }, [flatLabels, selectedId])
+  const parentChoices = flatLabels.filter(
+    (label) => label.id !== selectedId && !descendantIds.has(label.id),
+  )
+
+  async function refreshTree(preferredId = selectedId) {
+    const nextTree = await labelController.listTree()
+    const nextLabels = flattenTree(nextTree)
+    const nextSelectedLabel = nextLabels.find((label) => label.id === preferredId) ?? nextLabels[0]
+    setTree(nextTree)
+    setSelectedId(nextSelectedLabel?.id)
+    setDraftName(nextSelectedLabel?.name ?? '')
+    setDraftColor(nextSelectedLabel?.color ?? labelColors[0])
+    setDraftParentId(nextSelectedLabel?.parentId ?? '')
+    setExpandedIds(new Set(nextLabels.map((label) => label.id)))
+  }
+
+  async function refreshPlaces(labelId: string, withDescendants = includeDescendants) {
+    const results = await labelController.findPlaces(labelId, withDescendants)
+    setMatchingPlaces(results)
+  }
+
+  useEffect(() => {
+    let active = true
+    Promise.all([labelController.listTree(), labelController.listPlaces()])
+      .then(([nextTree, places]) => {
+        if (!active) return
+        const labels = flattenTree(nextTree)
+        const firstLabel = labels[0]
+        setTree(nextTree)
+        setAllPlaces(places)
+        setSelectedId(firstLabel?.id)
+        setDraftName(firstLabel?.name ?? '')
+        setDraftColor(firstLabel?.color ?? labelColors[0])
+        setDraftParentId(firstLabel?.parentId ?? '')
+        setExpandedIds(new Set(labels.map((label) => label.id)))
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setError(cause instanceof Error ? cause.message : '載入標籤資料失敗。')
+        }
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!selectedId) {
+      return
+    }
+
+    let active = true
+    labelController.findPlaces(selectedId, includeDescendants)
+      .then((results) => {
+        if (active) setMatchingPlaces(results)
+      })
+      .catch((cause: unknown) => {
+        if (active) {
+          setError(cause instanceof Error ? cause.message : '載入地點資料失敗。')
+        }
+      })
+
+    return () => {
+      active = false
+    }
+  }, [selectedId, includeDescendants])
+
+  const displayedPlaces = selectedId ? matchingPlaces : []
+
+  function openCreateDialog(parentId?: string) {
+    setDialog({ parentId })
+    setDialogName('')
+    setDialogColor(labelColors[0])
+    setError('')
+    setNotice('')
+  }
+
+  async function handleCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!dialog) return
+
+    setSaving(true)
+    setError('')
+    try {
+      const id = await labelController.create({
+        name: dialogName.trim(),
+        color: dialogColor,
+        ...(dialog.parentId ? { parentId: dialog.parentId } : {}),
+      })
+      await refreshTree(id)
+      setDialog(null)
+      setNotice('標籤已建立。')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '建立標籤失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleSave() {
+    if (!selectedLabel) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await labelController.update(selectedLabel.id, {
+        name: draftName.trim(),
+        color: draftColor,
+        ...(draftParentId ? { parentId: draftParentId } : { parentId: undefined }),
+      })
+      await refreshTree(selectedLabel.id)
+      setNotice('標籤變更已儲存。')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '儲存標籤失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete(label: Label) {
+    const confirmed = window.confirm(`確定要刪除「${label.name}」嗎？`)
+    if (!confirmed) return
+
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await labelController.delete(label.id)
+      await refreshTree()
+      setMenuLabelId(undefined)
+      setNotice(`標籤「${label.name}」已刪除。`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '刪除標籤失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleAssign(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (!selectedId || !selectedPlaceId) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await labelController.assignToPlace(selectedPlaceId, selectedId)
+      await Promise.all([
+        refreshPlaces(selectedId),
+        labelController.listPlaces().then(setAllPlaces),
+      ])
+      setNotice('標籤已套用至地點。')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '套用標籤失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleRemoveFromPlace(place: Place) {
+    if (!selectedId || !place.labelIds.includes(selectedId)) return
+    setSaving(true)
+    setError('')
+    setNotice('')
+    try {
+      await labelController.removeFromPlace(place.id, selectedId)
+      await Promise.all([
+        refreshPlaces(selectedId),
+        labelController.listPlaces().then(setAllPlaces),
+      ])
+      setNotice(`已從「${place.name}」移除此標籤。`)
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '移除地點標籤失敗。')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function renderTree(nodes: LabelTreeNode[], depth = 0) {
+    return nodes.map((node) => {
+      const expanded = search.trim() ? true : expandedIds.has(node.id)
+      return (
+        <div className="tree-group" key={node.id}>
+          <div
+            className={`tree-row ${depth === 0 ? 'parent-row' : 'child-row'}${selectedId === node.id ? ' selected' : ''}`}
+            style={{ paddingLeft: `${8 + depth * 14}px` }}
+          >
+            {node.children.length > 0 ? (
+              <button
+                className="chevron tree-toggle"
+                type="button"
+                aria-label={`${expanded ? '收合' : '展開'}${node.name}`}
+                onClick={() => toggleExpanded(node.id)}
+              >
+                {expanded ? '⌄' : '›'}
+              </button>
+            ) : (
+              <span className="chevron" />
+            )}
+            <button
+              className="tree-select"
+              type="button"
+              onClick={() => {
+                setSelectedId(node.id)
+                setDraftName(node.name)
+                setDraftColor(node.color)
+                setDraftParentId(node.parentId ?? '')
+                setError('')
+                setNotice('')
+              }}
+              aria-current={selectedId === node.id ? 'true' : undefined}
+            >
+              <span className="color-dot" style={{ backgroundColor: node.color }} />
+              <span className="tree-name">{node.name}</span>
+            </button>
+            <button
+              className="row-menu"
+              type="button"
+              aria-label={`${node.name}操作`}
+              aria-expanded={menuLabelId === node.id}
+              onClick={() => setMenuLabelId(menuLabelId === node.id ? undefined : node.id)}
+            >
+              ···
+            </button>
+            {menuLabelId === node.id && (
+              <div className="tree-action-menu">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(node.id)
+                    setDraftName(node.name)
+                    setDraftColor(node.color)
+                    setDraftParentId(node.parentId ?? '')
+                    setMenuLabelId(undefined)
+                  }}
+                >
+                  編輯標籤
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    openCreateDialog(node.id)
+                    setMenuLabelId(undefined)
+                  }}
+                >
+                  新增子標籤
+                </button>
+                <button
+                  className="danger-action"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void handleDelete(node)}
+                >
+                  刪除標籤
+                </button>
+              </div>
+            )}
+          </div>
+          {expanded && node.children.length > 0 && renderTree(node.children, depth + 1)}
+        </div>
+      )
+    })
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -58,7 +374,7 @@ function LabelModule() {
           <a href="#" className="nav-item active" aria-current="page">
             <span className="nav-icon">◈</span>
             標籤管理
-            <span className="nav-count">12</span>
+            <span className="nav-count">{flatLabels.length}</span>
           </a>
         </nav>
 
@@ -80,8 +396,10 @@ function LabelModule() {
             <strong>標籤管理</strong>
           </div>
           <div className="topbar-actions">
-            <span className="prototype-badge">介面示意</span>
-            <button className="icon-button" type="button" aria-label="說明">?</button>
+            <span className="prototype-badge">本機資料</span>
+            <button className="icon-button" type="button" aria-label="說明" title="標籤資料儲存在此瀏覽器">
+              ?
+            </button>
             <div className="user-avatar" aria-label="使用者">T</div>
           </div>
         </header>
@@ -93,11 +411,14 @@ function LabelModule() {
               <h1>標籤管理</h1>
               <p>建立分類層級，讓收藏的地點更容易整理與尋找。</p>
             </div>
-            <button className="primary-button" type="button" disabled>
+            <button className="primary-button" type="button" onClick={() => openCreateDialog()}>
               <span aria-hidden="true">＋</span>
               新增標籤
             </button>
           </section>
+
+          {error && <div className="feedback-message error-message" role="alert">{error}</div>}
+          {notice && <div className="feedback-message success-message" role="status">{notice}</div>}
 
           <div className="module-tabs" role="tablist" aria-label="標籤模組頁面">
             <button className="module-tab selected" type="button" role="tab" aria-selected="true">
@@ -109,56 +430,51 @@ function LabelModule() {
             </button>
           </div>
 
-          <section className="workspace-grid" aria-label="標籤管理介面示意">
+          <section className="workspace-grid" aria-label="標籤管理">
             <div className="panel taxonomy-panel">
               <div className="panel-heading">
                 <div>
                   <h2>標籤分類</h2>
                   <p>以階層整理標籤</p>
                 </div>
-                <button className="subtle-icon-button" type="button" aria-label="更多分類選項" disabled>
-                  ···
+                <button
+                  className="subtle-icon-button"
+                  type="button"
+                  aria-label="新增根標籤"
+                  title="新增根標籤"
+                  onClick={() => openCreateDialog()}
+                >
+                  ＋
                 </button>
               </div>
 
               <label className="search-box">
                 <span aria-hidden="true">⌕</span>
-                <input type="search" placeholder="搜尋標籤" disabled />
-                <kbd>⌘ K</kbd>
+                <input
+                  type="search"
+                  placeholder="搜尋標籤"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                />
+                {search && (
+                  <button className="clear-search" type="button" onClick={() => setSearch('')} aria-label="清除搜尋">
+                    ×
+                  </button>
+                )}
               </label>
 
               <div className="tree-list">
-                <div className="tree-section-label">所有標籤 <span>12</span></div>
-                {labelGroups.map((group) => (
-                  <div className="tree-group" key={group.name}>
-                    <div className="tree-row parent-row">
-                      <span className="chevron">⌄</span>
-                      <span className="color-dot" style={{ backgroundColor: group.color }} />
-                      <span className="tree-name">{group.name}</span>
-                      <span className="tree-count">{group.count}</span>
-                      <button className="row-menu" type="button" aria-label={`${group.name}選項`} disabled>
-                        ···
-                      </button>
-                    </div>
-                    {group.children.map((child) => (
-                      <div className="tree-row child-row" key={child.name}>
-                        <span className="tree-branch" aria-hidden="true" />
-                        <span className="color-dot" style={{ backgroundColor: child.color }} />
-                        <span className="tree-name">{child.name}</span>
-                        <span className="tree-count">{child.count}</span>
-                        <button className="row-menu" type="button" aria-label={`${child.name}選項`} disabled>
-                          ···
-                        </button>
-                      </div>
-                    ))}
-                    {group.name === '美食' && (
-                      <button className="add-child-link" type="button" disabled>
-                        <span>＋</span> 新增子標籤
-                      </button>
-                    )}
+                <div className="tree-section-label">所有標籤 <span>{flatLabels.length}</span></div>
+                {loading ? (
+                  <div className="empty-state">正在載入標籤…</div>
+                ) : visibleTree.length ? (
+                  renderTree(visibleTree)
+                ) : (
+                  <div className="empty-state">
+                    {search ? '找不到符合的標籤。' : '目前還沒有標籤，先建立一個分類吧。'}
                   </div>
-                ))}
-                <button className="add-root-link" type="button" disabled>
+                )}
+                <button className="add-root-link" type="button" onClick={() => openCreateDialog()}>
                   <span>＋</span> 新增分類
                 </button>
               </div>
@@ -170,97 +486,249 @@ function LabelModule() {
             </div>
 
             <div className="detail-column">
-              <section className="panel detail-panel">
-                <div className="panel-heading detail-heading">
-                  <div>
-                    <div className="section-kicker">標籤詳細資料</div>
-                    <h2><span className="large-color-dot" />咖啡廳</h2>
-                  </div>
-                  <button className="subtle-icon-button" type="button" aria-label="更多標籤選項" disabled>
-                    ···
-                  </button>
-                </div>
-
-                <div className="form-fields">
-                  <label className="form-field">
-                    <span>標籤名稱</span>
-                    <input value="咖啡廳" readOnly />
-                  </label>
-
-                  <div className="form-field">
-                    <span>標籤顏色</span>
-                    <div className="color-picker-placeholder">
-                      <span className="selected-color" />
-                      <span>陶土棕</span>
-                      <span className="field-chevron">⌄</span>
+              {selectedLabel ? (
+                <section className="panel detail-panel">
+                  <div className="panel-heading detail-heading">
+                    <div>
+                      <div className="section-kicker">標籤詳細資料</div>
+                      <h2><span className="large-color-dot" style={{ backgroundColor: draftColor }} />{selectedLabel.name}</h2>
                     </div>
-                    <div className="color-swatches" aria-label="可選顏色示意">
-                      {['#e9905a', '#d97768', '#c4809b', '#8b80b5', '#758dab', '#6c9a79', '#b77a53'].map((color) => (
-                        <span
-                          className={`color-swatch${color === '#b77a53' ? ' chosen' : ''}`}
-                          key={color}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
+                    <button
+                      className="subtle-icon-button"
+                      type="button"
+                      aria-label={`刪除${selectedLabel.name}`}
+                      title="刪除標籤"
+                      disabled={saving}
+                      onClick={() => void handleDelete(selectedLabel)}
+                    >
+                      ×
+                    </button>
                   </div>
 
-                  <label className="form-field">
-                    <span>上層分類</span>
-                    <div className="select-placeholder">
-                      <span><span className="mini-color-dot" />美食</span>
-                      <span className="field-chevron">⌄</span>
-                    </div>
-                    <small>調整上層分類即可移動此標籤。</small>
-                  </label>
-                </div>
+                  <div className="form-fields">
+                    <label className="form-field">
+                      <span>標籤名稱</span>
+                      <input value={draftName} onChange={(event) => setDraftName(event.target.value)} maxLength={60} />
+                    </label>
 
-                <div className="detail-actions">
-                  <span>最後更新：尚未儲存</span>
-                  <button className="save-button" type="button" disabled>儲存變更</button>
-                </div>
-              </section>
+                    <div className="form-field">
+                      <span>標籤顏色</span>
+                      <div className="color-picker-placeholder">
+                        <span className="selected-color" style={{ backgroundColor: draftColor }} />
+                        <span>{draftColor}</span>
+                      </div>
+                      <div className="color-swatches" aria-label="選擇標籤顏色">
+                        {labelColors.map((color) => (
+                          <button
+                            className={`color-swatch${color === draftColor ? ' chosen' : ''}`}
+                            key={color}
+                            type="button"
+                            aria-label={`選擇顏色 ${color}`}
+                            aria-pressed={color === draftColor}
+                            style={{ backgroundColor: color }}
+                            onClick={() => setDraftColor(color)}
+                          />
+                        ))}
+                        <label className="custom-color-control" title="自訂顏色">
+                          <span>＋</span>
+                          <input
+                            type="color"
+                            aria-label="自訂標籤顏色"
+                            value={draftColor}
+                            onChange={(event) => setDraftColor(event.target.value)}
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <label className="form-field parent-select-field">
+                      <span>上層分類</span>
+                      <select value={draftParentId} onChange={(event) => setDraftParentId(event.target.value)}>
+                        <option value="">無（根分類）</option>
+                        {parentChoices.map((label) => (
+                          <option value={label.id} key={label.id}>
+                            {'　'.repeat(labelDepth(label, flatLabels))}{label.name}
+                          </option>
+                        ))}
+                      </select>
+                      <small>調整上層分類即可移動此標籤；不能移到自己的子標籤下。</small>
+                    </label>
+                  </div>
+
+                  <div className="detail-actions">
+                    <span>資料即時儲存於本機瀏覽器</span>
+                    <button
+                      className="save-button"
+                      type="button"
+                      disabled={saving || !draftName.trim() || (
+                        draftName.trim() === selectedLabel.name &&
+                        draftColor === selectedLabel.color &&
+                        (draftParentId || undefined) === selectedLabel.parentId
+                      )}
+                      onClick={() => void handleSave()}
+                    >
+                      {saving ? '儲存中…' : '儲存變更'}
+                    </button>
+                  </div>
+                </section>
+              ) : (
+                <section className="panel no-selection-panel">
+                  <div className="empty-state">選取或新增標籤以編輯詳細資料。</div>
+                </section>
+              )}
 
               <section className="panel usage-panel">
                 <div className="usage-heading">
                   <div>
                     <h2>套用中的地點</h2>
-                    <p>這個標籤目前套用於 <strong>8 個地點</strong></p>
+                    <p>
+                      {displayedPlaces.length} 個地點
+                      {includeDescendants ? '（包含子標籤）' : '（直接套用）'}
+                    </p>
                   </div>
-                  <button className="text-button" type="button" disabled>查看全部 <span>→</span></button>
+                  <label className="descendant-toggle">
+                    <input
+                      type="checkbox"
+                      checked={includeDescendants}
+                      onChange={(event) => setIncludeDescendants(event.target.checked)}
+                    />
+                    包含子標籤
+                  </label>
                 </div>
+
+                {selectedLabel && (
+                  <form className="assign-place-form" onSubmit={(event) => void handleAssign(event)}>
+                    <select
+                      aria-label="選擇要套用標籤的地點"
+                      value={selectedPlaceId}
+                      onChange={(event) => setSelectedPlaceId(event.target.value)}
+                    >
+                      <option value="">選擇地點並套用此標籤…</option>
+                      {allPlaces
+                        .filter((place) => !place.labelIds.includes(selectedLabel.id))
+                        .map((place) => (
+                          <option value={place.id} key={place.id}>{place.name}</option>
+                        ))}
+                    </select>
+                    <button className="assign-button" type="submit" disabled={!selectedPlaceId || saving}>
+                      套用
+                    </button>
+                  </form>
+                )}
+
                 <div className="place-preview-list">
-                  <div className="place-preview">
-                    <div className="place-thumbnail coffee-thumbnail">珈</div>
-                    <div className="place-copy">
-                      <strong>巷口珈琲</strong>
-                      <span>台北・大安區</span>
+                  {displayedPlaces.slice(0, 5).map((place) => {
+                    const directlyAssigned = selectedId !== undefined && place.labelIds.includes(selectedId)
+                    const applied = flatLabels.filter((label) => place.labelIds.includes(label.id))
+                    return (
+                      <div className="place-preview" key={place.id}>
+                        <div className="place-thumbnail">{place.name.slice(0, 1)}</div>
+                        <div className="place-copy">
+                          <strong>{place.name}</strong>
+                          <span>{place.regionIds.length} 個地區</span>
+                        </div>
+                        <div className="place-tags">
+                          {applied.map((label) => (
+                            <span className="place-tag" key={label.id} style={{ color: label.color }}>
+                              {label.name}
+                            </span>
+                          ))}
+                        </div>
+                        {directlyAssigned && (
+                          <button
+                            className="remove-place-label"
+                            type="button"
+                            aria-label={`從${place.name}移除${selectedLabel?.name}`}
+                            title="移除這個標籤"
+                            disabled={saving}
+                            onClick={() => void handleRemoveFromPlace(place)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {!displayedPlaces.length && (
+                    <div className="empty-state compact-empty">
+                      {selectedLabel ? '目前沒有套用此標籤的地點。' : '選取標籤後顯示相關地點。'}
                     </div>
-                    <span className="place-tag">{appliedLabels[0].name}</span>
-                    <span className="place-tag">{appliedLabels[1].name}</span>
-                  </div>
-                  <div className="place-preview">
-                    <div className="place-thumbnail book-thumbnail">日</div>
-                    <div className="place-copy">
-                      <strong>日向咖啡</strong>
-                      <span>台北・中山區</span>
-                    </div>
-                    <span className="place-tag">{appliedLabels[0].name}</span>
-                    <span className="place-tag">{appliedLabels[1].name}</span>
-                  </div>
+                  )}
+                  {displayedPlaces.length > 5 && (
+                    <div className="more-places-note">另有 {displayedPlaces.length - 5} 個地點</div>
+                  )}
                 </div>
+
                 <div className="usage-note">
                   <span aria-hidden="true">ⓘ</span>
-                  選取父層分類時，可一併找到底下子標籤的地點。
+                  父標籤篩選可包含所有層級的子標籤地點。
                 </div>
               </section>
             </div>
           </section>
-          <footer className="page-footer">標籤管理介面草稿 <span>•</span> 資料為畫面示意，尚未連接資料庫</footer>
+          <footer className="page-footer">標籤與地點資料儲存於此瀏覽器 <span>•</span> 清除網站資料會一併移除</footer>
         </div>
       </main>
+
+      {dialog && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget && !saving) setDialog(null)
+        }}>
+          <form className="label-dialog panel" role="dialog" aria-modal="true" aria-labelledby="create-label-title" onSubmit={(event) => void handleCreate(event)}>
+            <div className="dialog-heading">
+              <div>
+                <div className="section-kicker">{dialog.parentId ? '建立階層標籤' : '建立分類標籤'}</div>
+                <h2 id="create-label-title">新增標籤</h2>
+              </div>
+              <button className="subtle-icon-button" type="button" aria-label="關閉" disabled={saving} onClick={() => setDialog(null)}>×</button>
+            </div>
+            {error && <div className="dialog-error" role="alert">{error}</div>}
+            <label className="form-field">
+              <span>標籤名稱</span>
+              <input autoFocus value={dialogName} onChange={(event) => setDialogName(event.target.value)} maxLength={60} placeholder="例如：咖啡廳" required />
+            </label>
+            <div className="form-field dialog-color-field">
+              <span>標籤顏色</span>
+              <div className="color-swatches">
+                {labelColors.map((color) => (
+                  <button
+                    className={`color-swatch${color === dialogColor ? ' chosen' : ''}`}
+                    key={color}
+                    type="button"
+                    aria-label={`選擇顏色 ${color}`}
+                    aria-pressed={color === dialogColor}
+                    style={{ backgroundColor: color }}
+                    onClick={() => setDialogColor(color)}
+                  />
+                ))}
+              </div>
+            </div>
+            {dialog.parentId && (
+              <p className="dialog-parent">
+                上層分類：{flatLabels.find((label) => label.id === dialog.parentId)?.name ?? '未知'}
+              </p>
+            )}
+            <div className="dialog-actions">
+              <button className="cancel-button" type="button" disabled={saving} onClick={() => setDialog(null)}>取消</button>
+              <button className="save-button" type="submit" disabled={saving || !dialogName.trim()}>
+                {saving ? '建立中…' : '建立標籤'}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   )
+}
+
+function labelDepth(label: Label, labels: Label[]): number {
+  let depth = 0
+  let parentId = label.parentId
+  while (parentId) {
+    depth += 1
+    parentId = labels.find((candidate) => candidate.id === parentId)?.parentId
+  }
+  return depth
 }
 
 export default LabelModule
