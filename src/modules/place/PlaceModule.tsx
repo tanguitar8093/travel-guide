@@ -91,6 +91,8 @@ function PlaceModule() {
   const orderedLabels = useMemo(() => flattenLabels(labels), [labels])
   const selectedPlace = places.find((place) => place.id === selectedPlaceId)
   const selectedGooglePlaceId = selectedPlace?.googlePlaceId
+  const draftGoogleDetails =
+    googleDetailsForId === draft.googlePlaceId ? googleDetails : null
   const visibleGoogleDetails =
     googleDetailsForId === selectedGooglePlaceId ? googleDetails : null
   const googleDetailsLoading = Boolean(
@@ -150,7 +152,7 @@ function PlaceModule() {
   }, [])
 
   useEffect(() => {
-    if (!creating || !editing || !placeController.isGooglePlacesConfigured()) return
+    if (!editing || !placeController.isGooglePlacesConfigured()) return
     const container = autocompleteContainerRef.current
     if (!container) return
 
@@ -190,7 +192,7 @@ function PlaceModule() {
       dispose?.()
       container.replaceChildren()
     }
-  }, [creating, editing])
+  }, [editing])
 
   useEffect(() => {
     if (!selectedGooglePlaceId) return
@@ -273,9 +275,6 @@ function PlaceModule() {
     setEditing(true)
     setCreating(false)
     setError('')
-    setGoogleDetails(null)
-    setGoogleDetailsForId(undefined)
-    setGoogleDetailsErrorForId(undefined)
     setNotice('')
   }
 
@@ -541,42 +540,48 @@ function PlaceModule() {
                   </div>
 
                   <div className="place-form-grid">
-                    {creating && (
-                      <div className="google-place-search place-name-field">
-                        <span className="search-field-label">Google Maps 搜尋</span>
-                        {placeController.isGooglePlacesConfigured() ? (
-                          <>
-                            <div className="google-autocomplete" ref={autocompleteContainerRef} />
-                            <small>選擇結果後，資料庫只保存 place_id；地點名稱請填寫你自己的名稱。</small>
-                            {googleDetails && (
-                              <div className="google-selection">
-                                <strong>{googleDetails.displayName}</strong>
-                                {googleDetails.formattedAddress && <span>{googleDetails.formattedAddress}</span>}
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setGoogleDetails(null)
-                                    setDraft((current) => ({
-                                      ...current,
-                                      googlePlaceId: undefined,
-                                    }))
-                                  }}
-                                >
-                                  清除搜尋選擇
-                                </button>
-                              </div>
+                    <div className="google-place-search place-name-field">
+                      <span className="search-field-label">Google Maps 搜尋</span>
+                      {placeController.isGooglePlacesConfigured() ? (
+                        <>
+                          <div className="google-autocomplete" ref={autocompleteContainerRef} />
+                          <small>選擇結果可連結或更換 Google 地點；資料庫只保存 place_id，地點名稱請填寫你自己的名稱。</small>
+                        </>
+                      ) : (
+                        <div className="google-key-help">
+                          <strong>尚未設定 Google Places</strong>
+                          <span>在專案根目錄建立 .env.local，加入 VITE_GOOGLE_MAPS_API_KEY=你的新金鑰，並重啟開發伺服器。</span>
+                          <span>Google Cloud 需啟用 Places API (New) 與 Maps JavaScript API。</span>
+                        </div>
+                      )}
+                      {draft.googlePlaceId && (
+                        <>
+                          <div className="google-selection">
+                            {draftGoogleDetails?.displayName && (
+                              <strong>{draftGoogleDetails.displayName}</strong>
                             )}
-                            <div className="google-attribution">Powered by Google Maps</div>
-                          </>
-                        ) : (
-                          <div className="google-key-help">
-                            <strong>尚未設定 Google Places</strong>
-                            <span>在專案根目錄建立 .env.local，加入 VITE_GOOGLE_MAPS_API_KEY=你的新金鑰，並重啟開發伺服器。</span>
-                            <span>Google Cloud 需啟用 Places API (New) 與 Maps JavaScript API。</span>
+                            {draftGoogleDetails?.formattedAddress ? (
+                              <span>{draftGoogleDetails.formattedAddress}</span>
+                            ) : (
+                              <span>目前已連結 Google Maps 地點。</span>
+                            )}
+                            <button
+                              type="button"
+                              disabled={saving}
+                              onClick={() => {
+                                setDraft((current) => ({
+                                  ...current,
+                                  googlePlaceId: undefined,
+                                }))
+                              }}
+                            >
+                              解除 Google 地點連結
+                            </button>
                           </div>
-                        )}
-                      </div>
-                    )}
+                          <div className="google-attribution">Powered by Google Maps</div>
+                        </>
+                      )}
+                    </div>
                     <label className="form-field place-name-field">
                       <span>地點名稱（自行命名） <b>*</b></span>
                       <input
