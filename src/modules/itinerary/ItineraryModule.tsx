@@ -1183,9 +1183,10 @@ function ItineraryModule() {
                     ＋ 加入地點
                   </button>
                 </div>
-                {dayItems.length ? (
-                  <ol className="itinerary-item-list">
-                    {dayItems.map((item, index) => {
+                <div className="itinerary-items-scroll">
+                  {dayItems.length ? (
+                    <ol className="itinerary-item-list">
+                      {dayItems.map((item, index) => {
                       const place = places.find(
                         (candidate) => candidate.id === item.placeId,
                       );
@@ -1382,30 +1383,31 @@ function ItineraryModule() {
                           </div>
                         </li>
                       );
-                    })}
-                  </ol>
-                ) : (
-                  !itemFormVisible && (
-                    <div className="itinerary-day-empty">
-                      <span>⌖</span>
-                      <strong>這一天還沒有安排</strong>
-                      <p>從已收藏且屬於此區域的地點中加入第一站。</p>
-                      <button
-                        type="button"
-                        className="itinerary-primary"
-                        disabled={!tripPlaces.length}
-                        onClick={startAddItem}
-                      >
-                        ＋ 加入地點
-                      </button>
-                    </div>
-                  )
-                )}
-                {!tripPlaces.length && !itemFormVisible && (
-                  <p className="itinerary-region-hint">
-                    請先到地點模組，將地點加入「{selectedRegion?.name}」區域。
-                  </p>
-                )}
+                      })}
+                    </ol>
+                  ) : (
+                    !itemFormVisible && (
+                      <div className="itinerary-day-empty">
+                        <span>⌖</span>
+                        <strong>這一天還沒有安排</strong>
+                        <p>從已收藏且屬於此區域的地點中加入第一站。</p>
+                        <button
+                          type="button"
+                          className="itinerary-primary"
+                          disabled={!tripPlaces.length}
+                          onClick={startAddItem}
+                        >
+                          ＋ 加入地點
+                        </button>
+                      </div>
+                    )
+                  )}
+                  {!tripPlaces.length && !itemFormVisible && (
+                    <p className="itinerary-region-hint">
+                      請先到地點模組，將地點加入「{selectedRegion?.name}」區域。
+                    </p>
+                  )}
+                </div>
               </>
             ) : (
               <div className="itinerary-empty-detail">

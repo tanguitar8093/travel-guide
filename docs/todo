@@ -1,4 +1,6 @@
-改功能完成後 不需要跑 playwright (過程有需要還是要跑)
-告訴我怎麼手段驗證即可
-不用跑 npm run build
-可跑 git diff --check, npm run lint
+1. 改功能完成後 不需要跑 playwright (過程有需要還是要跑)
+   告訴我怎麼手段驗證即可
+   不用跑 npm run build
+   可跑 git diff --check, npm run lint
+   還有不知道跑甚麼一直卡住, 避免做這類多於動作造成浪費 token
+2. 行程資訊卡的 container 應該要設最大高度, 超過就用 scroller 滑, 地圖也是, 不然資訊卡有多長 地圖就被拉多長 怪怪的, 這個看是要設一個黃金高度還是怎樣 (手機須支援 我的是 oppo find n3 摺疊機)

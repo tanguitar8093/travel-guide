@@ -48,7 +48,7 @@
 .itinerary-delete-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 17px; padding-top: 14px; border-top: 1px solid #eff1ef; }
 .itinerary-delete-dialog-actions .itinerary-delete { border-color: #f0d9d5; }
 .itinerary-delete-dialog-actions button:disabled { opacity: .55; cursor: not-allowed; }
-.itinerary-workspace { min-height: 0; flex: 1; display: grid; grid-template-columns: minmax(315px, 38%) minmax(0,1fr); gap: 13px; }
+.itinerary-workspace { min-height: min(440px,60dvh); max-height: min(70dvh,720px); flex: 1; display: grid; grid-template-columns: minmax(315px, 38%) minmax(0,1fr); grid-template-rows: minmax(0,1fr); align-items: stretch; gap: 13px; }
 .itinerary-trips-card,.itinerary-plan-card { min-width: 0; border: 1px solid #e9ece8; border-radius: 9px; background: #fff; }
 .itinerary-trips-card { align-self: start; overflow: hidden; }
 .itinerary-card-heading { padding: 17px; border-bottom: 1px solid #eff1ef; }
@@ -62,14 +62,16 @@
 .itinerary-trip-row strong { font-size: 11px; }
 .itinerary-trip-row small { margin-top: 4px; color: #9ba49d; font-size: 9px; }
 .itinerary-empty { padding: 17px; color: #9ba49d; font-size: 11px; line-height: 1.6; }
-.itinerary-plan-card { min-height: 0; display: flex; flex-direction: column; overflow: auto; padding: 0; }
+.itinerary-plan-card { min-width: 0; min-height: 0; height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; padding: 0; }
+.itinerary-plan-card:has(.itinerary-trip-form),.itinerary-plan-card:has(.itinerary-item-form) { height: auto; overflow: visible; }
 .itinerary-plan-title { display: flex; align-items: center; justify-content: space-between; padding: 16px 17px 12px; }
 .itinerary-plan-title > div { display: grid; gap: 5px; }
 .itinerary-plan-title > div > span { color: #8e9a90; font-size: 9px; }
 .itinerary-plan-title strong { color: #47554b; font-size: 13px; }
 .itinerary-plan-title strong small { color: #8b968e; font-size: 10px; font-weight: 400; }
 .itinerary-day-count { color: #98a29a; font-size: 9px; }
-.itinerary-day-strip { display: flex; gap: 6px; overflow-x: auto; padding: 0 14px 13px; border-bottom: 1px solid #eef1ee; }
+.itinerary-day-strip { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; padding: 0 14px 13px; border-bottom: 1px solid #eef1ee; }
+.itinerary-plan-title,.itinerary-day-strip,.itinerary-detail-heading,.itinerary-day-toolbar,.itinerary-items-heading { flex: 0 0 auto; }
 .itinerary-day-strip button { min-width: 48px; min-height: 46px; display: grid; align-content: center; justify-items: center; gap: 4px; border: 0; border-radius: 7px; color: #89958c; background: transparent; cursor: pointer; }
 .itinerary-day-strip button small { font-size: 8px; }
 .itinerary-day-strip button strong { font-size: 12px; font-weight: 500; }
@@ -90,6 +92,7 @@
 .itinerary-items-heading h3 { margin: 0; color: #566159; font-size: 12px; }
 .itinerary-items-heading span { color: #99a49b; font-size: 10px; }
 .itinerary-add-button { border-color: #dce8de; color: #52745a; background: #f5f8f5; }
+.itinerary-items-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .itinerary-item-list { display: grid; gap: 0; padding: 4px 16px 12px; margin: 0; list-style: none; }
 .itinerary-item-row { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 67px; padding: 8px 0; border-bottom: 1px solid #eff2ef; }
 .itinerary-order { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; color: #648a74; background: #eef4ef; font-size: 10px; font-weight: 600; }
@@ -140,7 +143,7 @@
 .itinerary-no-places { padding: 6px 0; color: #7c887f; font-size: 10px; }
 .itinerary-no-places a { display: inline-block; margin-top: 7px; color: #52745a; }
 
-.itinerary-map-panel { min-width: 0; min-height: 460px; position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e1e8e2; border-radius: 9px; background: #eaf2f0; }
+.itinerary-map-panel { min-width: 0; min-height: 0; height: 100%; box-sizing: border-box; position: relative; display: flex; flex-direction: column; overflow: hidden; border: 1px solid #e1e8e2; border-radius: 9px; background: #eaf2f0; }
 .itinerary-map-heading { min-height: 56px; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 15px; border-bottom: 1px solid #e7ece7; background: rgba(255,255,255,.97); }
 .itinerary-map-heading > div { display: grid; gap: 4px; }
 .itinerary-map-heading > div span { color: #89968c; font-size: 8px; }
@@ -177,7 +180,6 @@
   .itinerary-workspace { grid-template-columns: minmax(290px, 40%) minmax(0,1fr); gap: 10px; }
   .itinerary-item-row { grid-template-columns: 30px minmax(0,1fr); }
   .itinerary-item-actions { grid-column: 2; justify-content: end; }
-  .itinerary-map-panel { min-height: 420px; }
 }
 @media (max-width: 680px) {
   .itinerary-topbar { min-height: 56px; gap: 8px; padding: 0 10px; }
@@ -186,9 +188,11 @@
   .itinerary-heading { align-items: start; flex-direction: column; gap: 12px; }
   .itinerary-heading h1 { font-size: 22px; }
   .itinerary-heading-actions { width: 100%; flex-wrap: wrap; }
-  .itinerary-workspace { display: flex; flex-direction: column-reverse; gap: 9px; }
-  .itinerary-map-panel { min-height: 47vh; }
-  .itinerary-plan-card { min-height: 380px; overflow: visible; }
+  .itinerary-workspace { min-height: 0; max-height: none; flex: 0 0 auto; display: flex; flex-direction: column-reverse; gap: 9px; }
+  .itinerary-map-panel { height: clamp(280px,42dvh,460px); max-height: calc(100dvh - 150px); flex: 0 0 auto; }
+  .itinerary-plan-card { min-height: 0; max-height: none; height: auto; flex: 0 1 auto; overflow: visible; }
+  .itinerary-plan-card:has(.itinerary-trip-form),.itinerary-plan-card:has(.itinerary-item-form) { height: auto; overflow: visible; }
+  .itinerary-items-scroll { flex: 0 0 auto; overflow: visible; scrollbar-gutter: auto; }
   .itinerary-detail-heading { flex-direction: column; }
   .itinerary-field-grid { grid-template-columns: 1fr; }
   .itinerary-field-wide { grid-column: auto; }
