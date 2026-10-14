@@ -184,7 +184,7 @@ function validateBackup(value: unknown): TravelBackup {
       record,
       'Place',
       ['name', 'regionIds', 'labelIds'],
-      ['mapsUrl', 'googlePlaceId', 'notes'],
+      ['icon', 'mapsUrl', 'googlePlaceId', 'notes'],
       validatePlace,
     ),
   )

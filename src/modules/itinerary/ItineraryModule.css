@@ -95,7 +95,8 @@
 .itinerary-order { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; color: #648a74; background: #eef4ef; font-size: 10px; font-weight: 600; }
 .itinerary-item-copy { min-width: 0; }
 .itinerary-item-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.itinerary-item-title > strong { overflow: hidden; color: #4f5c52; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.itinerary-item-title > strong { min-width: 0; overflow: hidden; color: #4f5c52; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.itinerary-place-icon { margin-right: 5px; font-size: 1.05em; }
 .itinerary-map-link { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #e4ebe4; border-radius: 5px; color: #587861; background: #fff; font-size: 9px; line-height: 1.2; text-decoration: none; white-space: nowrap; }
 .itinerary-map-link:hover { background: #f5f8f5; }
 .itinerary-place-note-toggle { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid #e4ebe4; border-radius: 5px; color: #77877a; background: #fff; font-size: 11px; cursor: pointer; }

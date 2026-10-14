@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Label, NewPlace, Place, Region } from '../../database'
+import type { Label, NewPlace, Place, PlaceIcon, Region } from '../../database'
+import { placeIcons } from '../../database'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { placeController } from './place.controller'
 import type { GooglePlaceDetails } from './google-places.service'
@@ -8,6 +9,7 @@ import './PlaceModule.css'
 
 interface PlaceDraft {
   name: string
+  icon?: PlaceIcon
   mapsUrl: string
   googlePlaceId?: string
   notes: string
@@ -26,6 +28,7 @@ const emptyDraft: PlaceDraft = {
 function toDraft(place: Place): PlaceDraft {
   return {
     name: place.name,
+    icon: place.icon,
     mapsUrl: place.mapsUrl ?? '',
     googlePlaceId: place.googlePlaceId,
     notes: place.notes ?? '',
@@ -295,6 +298,7 @@ function PlaceModule() {
     setNotice('')
     const input: NewPlace = {
       name: draft.name.trim(),
+      ...(draft.icon ? { icon: draft.icon } : {}),
       ...(draft.mapsUrl.trim() ? { mapsUrl: draft.mapsUrl.trim() } : {}),
       ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
       ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
@@ -464,7 +468,14 @@ function PlaceModule() {
                       >
                         <span className="place-list-avatar">{getPlaceInitial(place.name)}</span>
                         <span className="place-list-copy">
-                          <strong>{place.name}</strong>
+                          <strong>
+                            {place.icon && (
+                              <span className="place-name-icon" aria-hidden="true">
+                                {place.icon}
+                              </span>
+                            )}
+                            {place.name}
+                          </strong>
                           <span>
                             {place.googlePlaceId ? 'Google Maps 地點' : '自訂地圖連結'}
                           </span>
@@ -493,7 +504,14 @@ function PlaceModule() {
                   <div className="place-detail-heading">
                     <div>
                       <div className="section-kicker">{creating ? '新增收藏地點' : '編輯地點資料'}</div>
-                      <h2>{creating ? '建立地點' : draft.name || '編輯地點'}</h2>
+                      <h2>
+                        {!creating && draft.icon && (
+                          <span className="place-name-icon" aria-hidden="true">
+                            {draft.icon}
+                          </span>
+                        )}
+                        {creating ? '建立地點' : draft.name || '編輯地點'}
+                      </h2>
                     </div>
                     <button className="subtle-icon-button" type="button" aria-label="取消編輯" onClick={cancelEditing}>×</button>
                   </div>
@@ -553,6 +571,34 @@ function PlaceModule() {
                         disabled={formDisabled}
                       />
                     </label>
+
+                    <fieldset className="place-icon-field">
+                      <legend>地點圖示（選填）</legend>
+                      <div className="place-icon-options">
+                        <button
+                          type="button"
+                          className={`place-icon-option place-icon-none${draft.icon ? '' : ' selected'}`}
+                          aria-pressed={!draft.icon}
+                          onClick={() => setDraft({ ...draft, icon: undefined })}
+                          disabled={formDisabled}
+                        >
+                          無
+                        </button>
+                        {placeIcons.map((icon) => (
+                          <button
+                            type="button"
+                            className={`place-icon-option${draft.icon === icon ? ' selected' : ''}`}
+                            key={icon}
+                            aria-label={`選擇圖示 ${icon}`}
+                            aria-pressed={draft.icon === icon}
+                            onClick={() => setDraft({ ...draft, icon })}
+                            disabled={formDisabled}
+                          >
+                            {icon}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
 
                     {!draft.googlePlaceId ? (
                       <label className="form-field place-url-field">
@@ -646,7 +692,14 @@ function PlaceModule() {
                   <div className="place-detail-heading">
                     <div>
                       <div className="section-kicker">地點詳細資料</div>
-                      <h2>{selectedPlace.name}</h2>
+                      <h2>
+                        {selectedPlace.icon && (
+                          <span className="place-name-icon" aria-hidden="true">
+                            {selectedPlace.icon}
+                          </span>
+                        )}
+                        {selectedPlace.name}
+                      </h2>
                     </div>
                     <button className="primary-button small-action-button" type="button" onClick={startEditing}>
                       編輯資料

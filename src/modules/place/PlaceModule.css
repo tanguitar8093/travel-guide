@@ -397,6 +397,9 @@
 }
 
 .place-list-copy strong {
+  display: flex;
+  align-items: center;
+  gap: 5px;
   overflow: hidden;
   color: #4b564e;
   font-size: 11px;
@@ -451,10 +454,19 @@
 }
 
 .place-detail-heading h2 {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin: 6px 0 0;
   color: #3c453f;
   font-size: 17px;
   font-weight: 600;
+}
+
+.place-name-icon {
+  flex: 0 0 auto;
+  font-size: 0.95em;
+  line-height: 1;
 }
 
 .place-map-card {
@@ -818,6 +830,65 @@
   color: #69736c;
   font-size: 10px;
   font-weight: 600;
+}
+
+.place-icon-field {
+  min-width: 0;
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.place-icon-field legend {
+  margin-bottom: 8px;
+  color: #69736c;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.place-icon-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.place-icon-option {
+  width: 34px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #e8ece8;
+  border-radius: 6px;
+  color: #657168;
+  background: #fff;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.place-icon-option:hover {
+  border-color: #d4e2d6;
+  background: #f7faf7;
+}
+
+.place-icon-option.selected {
+  border-color: #9bb69f;
+  color: #54715b;
+  background: #f1f6f1;
+  box-shadow: 0 0 0 1px #d4e2d6;
+}
+
+.place-icon-option:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.place-icon-option.place-icon-none {
+  width: auto;
+  min-width: 42px;
+  padding-inline: 7px;
+  font-size: 10px;
 }
 
 .choice-chip-list {

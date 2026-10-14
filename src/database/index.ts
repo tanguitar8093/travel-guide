@@ -24,8 +24,10 @@ export type {
   NewTrip,
   Place,
   PlaceChanges,
+  PlaceIcon,
   Region,
   RegionChanges,
   Trip,
   TripChanges,
 } from './models'
+export { placeIcons } from './models'

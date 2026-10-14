@@ -12,12 +12,40 @@ export interface Region {
 export interface Place {
   id: string
   name: string
+  icon?: PlaceIcon
   mapsUrl?: string
   googlePlaceId?: string
   notes?: string
   regionIds: string[]
   labelIds: string[]
 }
+
+export const placeIcons = [
+  '🍜',
+  '🍽️',
+  '☕',
+  '🍰',
+  '🏨',
+  '🏠',
+  '⛩️',
+  '🏛️',
+  '🏰',
+  '🏞️',
+  '🌳',
+  '🏖️',
+  '⛰️',
+  '🎡',
+  '🛍️',
+  '🎨',
+  '🎭',
+  '📷',
+  '🚉',
+  '✈️',
+  '🚗',
+  '♨️',
+] as const
+
+export type PlaceIcon = (typeof placeIcons)[number]
 
 export interface Label {
   id: string

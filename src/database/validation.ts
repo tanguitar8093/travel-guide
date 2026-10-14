@@ -1,4 +1,5 @@
 import { ValidationError } from './errors'
+import { placeIcons } from './models'
 import type {
   ItineraryItem,
   Label,
@@ -62,6 +63,12 @@ export function validateRegion(region: Omit<Region, 'id'>): void {
 
 export function validatePlace(place: Omit<Place, 'id'>): void {
   requireText(place.name, 'Place name')
+  if (
+    place.icon !== undefined &&
+    !placeIcons.some((icon) => icon === place.icon)
+  ) {
+    throw new ValidationError('Place icon is not supported.')
+  }
   if (place.googlePlaceId !== undefined) {
     requireText(place.googlePlaceId, 'Google Place ID')
   }

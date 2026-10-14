@@ -1225,7 +1225,17 @@ function ItineraryModule() {
                           </span>
                           <div className="itinerary-item-copy">
                             <div className="itinerary-item-title">
-                              <strong>{place?.name ?? "地點已不存在"}</strong>
+                              <strong>
+                                {place?.icon && (
+                                  <span
+                                    className="itinerary-place-icon"
+                                    aria-hidden="true"
+                                  >
+                                    {place.icon}
+                                  </span>
+                                )}
+                                {place?.name ?? "地點已不存在"}
+                              </strong>
                               {mapUrl && (
                                 <a
                                   className="itinerary-map-link"

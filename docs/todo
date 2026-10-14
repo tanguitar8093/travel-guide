@@ -1,5 +1,3 @@
-7. 評估使用 firebase db or postgress db + 後端(python or node.js)
-
 改功能完成後 不需要跑 playwright (過程有需要還是要跑)
 告訴我怎麼手段驗證即可
 不用跑 npm run build
