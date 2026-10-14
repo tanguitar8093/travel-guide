@@ -266,14 +266,7 @@ export class TripRepository {
       database.itineraryItems,
       async () => {
         required(await database.trips.get(id), 'Trip', id)
-        const itemCount = await database.itineraryItems.where('tripId').equals(id).count()
-        if (itemCount) {
-          throw new EntityInUseError(
-            'Trip',
-            id,
-            'remove its itinerary items before deleting it.',
-          )
-        }
+        await database.itineraryItems.where('tripId').equals(id).delete()
         await database.trips.delete(id)
       },
     )

@@ -107,9 +107,10 @@ parallel framework.
 - An itinerary item references a trip and a place, its date must fall within
   the trip dates, and its ordering is scoped by trip/date. Existing item fields
   include arrival time, duration, transport, note, and order.
-- Place and trip deletion are rejected while itinerary items reference them.
-  Trip date changes are rejected if they would exclude existing itinerary
-  items.
+- Place deletion is rejected while itinerary items reference the place. Trip
+  deletion requires explicit UI confirmation and atomically deletes that trip's
+  itinerary items in the same database transaction. Trip date changes are
+  rejected if they would exclude existing itinerary items.
 
 ## Change workflow
 

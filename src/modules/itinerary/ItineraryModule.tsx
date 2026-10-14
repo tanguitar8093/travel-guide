@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type {
   ItineraryItem,
+  Label,
   NewTrip,
   Place,
   Region,
@@ -10,6 +11,8 @@ import type {
 import { RouterLink } from "../../router";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { routes } from "../../routes";
+import type { LabelTreeNode } from "../label";
+import { labelController } from "../label/label.controller";
 import { mountGoogleMap } from "../place/google-places.service";
 import type {
   GoogleMapHandle,
@@ -78,6 +81,20 @@ function toItemDraft(item: ItineraryItem): ItemDraft {
   };
 }
 
+function flattenLabels(nodes: LabelTreeNode[]): Label[] {
+  return nodes.flatMap(({ children, ...label }) => [
+    label,
+    ...flattenLabels(children),
+  ]);
+}
+
+function getPlaceMapUrl(place: Place): string | undefined {
+  if (place.googlePlaceId) {
+    return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${encodeURIComponent(place.googlePlaceId)}`;
+  }
+  return place.mapsUrl;
+}
+
 function formatDate(date: string): string {
   return new Intl.DateTimeFormat("zh-TW", {
     month: "long",
@@ -133,6 +150,7 @@ function ItineraryModule() {
   const [trips, setTrips] = useState<Trip[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
+  const [labels, setLabels] = useState<Label[]>([]);
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState("");
@@ -147,6 +165,7 @@ function ItineraryModule() {
   });
   const [creatingTrip, setCreatingTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState(false);
+  const [deleteTripDialogOpen, setDeleteTripDialogOpen] = useState(false);
   const [editingItemId, setEditingItemId] = useState<string>();
   const [addingItem, setAddingItem] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -177,6 +196,10 @@ function ItineraryModule() {
   const tripItems = useMemo(
     () => items.filter((item) => item.tripId === selectedTripId),
     [items, selectedTripId],
+  );
+  const labelsById = useMemo(
+    () => new Map(labels.map((label) => [label.id, label])),
+    [labels],
   );
   const dayItems = useMemo(
     () =>
@@ -262,10 +285,14 @@ function ItineraryModule() {
   );
 
   async function refreshWorkspace(preferredTripId = selectedTripId) {
-    const workspace = await itineraryController.loadWorkspace();
+    const [workspace, labelTree] = await Promise.all([
+      itineraryController.loadWorkspace(),
+      labelController.listTree(),
+    ]);
     setTrips(workspace.trips);
     setRegions(workspace.regions);
     setPlaces(workspace.places);
+    setLabels(flattenLabels(labelTree));
     const nextTrip =
       workspace.trips.find((trip) => trip.id === preferredTripId) ??
       workspace.trips[0];
@@ -285,13 +312,16 @@ function ItineraryModule() {
 
   useEffect(() => {
     let active = true;
-    itineraryController
-      .loadWorkspace()
-      .then((workspace) => {
+    Promise.all([
+      itineraryController.loadWorkspace(),
+      labelController.listTree(),
+    ])
+      .then(([workspace, labelTree]) => {
         if (!active) return;
         setTrips(workspace.trips);
         setRegions(workspace.regions);
         setPlaces(workspace.places);
+        setLabels(flattenLabels(labelTree));
         const firstTrip = workspace.trips[0];
         setSelectedTripId(firstTrip?.id);
         setTripDraft(firstTrip ? toTripDraft(firstTrip) : emptyTripDraft);
@@ -331,6 +361,15 @@ function ItineraryModule() {
       active = false;
     };
   }, [selectedTripId]);
+
+  useEffect(() => {
+    if (!deleteTripDialogOpen || saving) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDeleteTripDialogOpen(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [deleteTripDialogOpen, saving]);
 
   useEffect(() => {
     if (!selectedRegionId) return;
@@ -478,18 +517,16 @@ function ItineraryModule() {
   }
 
   async function handleDeleteTrip() {
-    if (
-      !selectedTrip ||
-      !window.confirm(`確定要刪除行程「${selectedTrip.name}」嗎？`)
-    )
-      return;
+    if (!selectedTrip || saving) return;
+    const deletingTrip = selectedTrip;
     setSaving(true);
     setError("");
     setNotice("");
     try {
-      await itineraryController.deleteTrip(selectedTrip.id);
+      await itineraryController.deleteTrip(deletingTrip.id);
+      setDeleteTripDialogOpen(false);
       await refreshWorkspace();
-      setNotice(`行程「${selectedTrip.name}」已刪除。`);
+      setNotice(`行程「${deletingTrip.name}」及其行程項目已刪除。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "刪除行程失敗。");
     } finally {
@@ -709,13 +746,11 @@ function ItineraryModule() {
                 <button
                   type="button"
                   className="itinerary-delete"
-                  disabled={saving || tripItems.length > 0}
-                  title={
-                    tripItems.length
-                      ? "請先移除行程中的地點，才能刪除行程。"
-                      : undefined
-                  }
-                  onClick={() => void handleDeleteTrip()}
+                  disabled={saving}
+                  onClick={() => {
+                    setError("");
+                    setDeleteTripDialogOpen(true);
+                  }}
                 >
                   刪除
                 </button>
@@ -730,7 +765,7 @@ function ItineraryModule() {
             </button>
           </div>
         </section>
-        {error && (
+        {error && !deleteTripDialogOpen && (
           <div className="itinerary-feedback itinerary-error" role="alert">
             {error}
           </div>
@@ -1164,13 +1199,33 @@ function ItineraryModule() {
                         previousPlace?.googlePlaceId &&
                         place?.googlePlaceId,
                       );
+                      const placeLabels =
+                        place?.labelIds.flatMap((labelId) => {
+                          const label = labelsById.get(labelId);
+                          return label ? [label] : [];
+                        }) ?? [];
+                      const mapUrl = place ? getPlaceMapUrl(place) : undefined;
                       return (
                         <li className="itinerary-item-row" key={item.id}>
                           <span className="itinerary-order">
                             {String(index + 1).padStart(2, "0")}
                           </span>
                           <div className="itinerary-item-copy">
-                            <strong>{place?.name ?? "地點已不存在"}</strong>
+                            <div className="itinerary-item-title">
+                              <strong>{place?.name ?? "地點已不存在"}</strong>
+                              {mapUrl && (
+                                <a
+                                  className="itinerary-map-link"
+                                  href={mapUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={`在地圖開啟${place?.name}`}
+                                  title="在地圖開啟"
+                                >
+                                  ⌖ 地圖 ↗
+                                </a>
+                              )}
+                            </div>
                             <div className="itinerary-item-meta">
                               {item.arrivalTime && (
                                 <span>預計抵達 {item.arrivalTime}</span>
@@ -1188,6 +1243,30 @@ function ItineraryModule() {
                                 </span>
                               )}
                             </div>
+                            {placeLabels.length > 0 && (
+                              <div
+                                className="itinerary-item-labels"
+                                aria-label="地點標籤"
+                              >
+                                {placeLabels.slice(0, 3).map((label) => (
+                                  <span
+                                    className="itinerary-item-label"
+                                    key={label.id}
+                                  >
+                                    <i
+                                      style={{ backgroundColor: label.color }}
+                                      aria-hidden="true"
+                                    />
+                                    {label.name}
+                                  </span>
+                                ))}
+                                {placeLabels.length > 3 && (
+                                  <span className="itinerary-item-label-more">
+                                    +{placeLabels.length - 3}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                             {item.note && <p>{item.note}</p>}
                           </div>
                           <div className="itinerary-item-actions">
@@ -1385,6 +1464,78 @@ function ItineraryModule() {
           </section>
         </section>
       </div>
+      {deleteTripDialogOpen && selectedTrip && (
+        <div
+          className="itinerary-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving)
+              setDeleteTripDialogOpen(false);
+          }}
+        >
+          <section
+            className="itinerary-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-trip-title"
+          >
+            <header className="itinerary-delete-dialog-heading">
+              <div>
+                <span>刪除行程</span>
+                <h2 id="delete-trip-title">
+                  確定刪除「{selectedTrip.name}」？
+                </h2>
+              </div>
+              <button
+                className="itinerary-dialog-close"
+                type="button"
+                aria-label="關閉"
+                disabled={saving}
+                onClick={() => setDeleteTripDialogOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <div className="itinerary-delete-warning">
+              <strong aria-hidden="true">!</strong>
+              <p>
+                刪除後無法復原。此操作會一併刪除此行程的每日安排及備註；
+                收藏地點、標籤與區域不受影響。
+              </p>
+            </div>
+            <div className="itinerary-delete-summary">
+              <span>將一併刪除的行程項目</span>
+              <strong>{tripItems.length} 個地點</strong>
+            </div>
+            {error && (
+              <div
+                className="itinerary-feedback itinerary-error itinerary-dialog-error"
+                role="alert"
+              >
+                {error}
+              </div>
+            )}
+            <footer className="itinerary-delete-dialog-actions">
+              <button
+                type="button"
+                className="itinerary-secondary"
+                disabled={saving}
+                onClick={() => setDeleteTripDialogOpen(false)}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="itinerary-delete"
+                disabled={saving}
+                onClick={() => void handleDeleteTrip()}
+              >
+                {saving ? "刪除中…" : "刪除行程與項目"}
+              </button>
+            </footer>
+          </section>
+        </div>
+      )}
     </WorkspaceLayout>
   );
 }
