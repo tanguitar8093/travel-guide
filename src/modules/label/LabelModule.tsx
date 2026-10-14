@@ -53,6 +53,8 @@ function LabelModule() {
   const [draftColor, setDraftColor] = useState(labelColors[0]);
   const [draftParentId, setDraftParentId] = useState("");
   const [includeDescendants, setIncludeDescendants] = useState(true);
+  const [activeTab, setActiveTab] = useState<"taxonomy" | "preview">("taxonomy");
+  const [previewSearch, setPreviewSearch] = useState("");
   const [matchingPlaces, setMatchingPlaces] = useState<Place[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState("");
   const [dialog, setDialog] = useState<LabelDialogState | null>(null);
@@ -155,6 +157,14 @@ function LabelModule() {
   }, [selectedId, includeDescendants]);
 
   const displayedPlaces = selectedId ? matchingPlaces : [];
+  const filteredPreviewPlaces = displayedPlaces.filter((place) => {
+    const query = previewSearch.trim().toLocaleLowerCase();
+    return (
+      !query ||
+      place.name.toLocaleLowerCase().includes(query) ||
+      place.notes?.toLocaleLowerCase().includes(query)
+    );
+  });
 
   function openCreateDialog(parentId?: string) {
     setDialog({ parentId });
@@ -368,6 +378,77 @@ function LabelModule() {
     });
   }
 
+  function renderTaxonomyPanel(previewMode = false) {
+    return (
+      <div className="panel taxonomy-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>{previewMode ? "選擇標籤" : "標籤分類"}</h2>
+            <p>{previewMode ? "選取分類以預覽已套用的地點" : "以階層整理標籤"}</p>
+          </div>
+          <button
+            className="subtle-icon-button"
+            type="button"
+            aria-label="新增根標籤"
+            title="新增根標籤"
+            onClick={() => openCreateDialog()}
+          >
+            ＋
+          </button>
+        </div>
+
+        <label className="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input
+            type="search"
+            placeholder="搜尋標籤"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          {search && (
+            <button
+              className="clear-search"
+              type="button"
+              onClick={() => setSearch("")}
+              aria-label="清除搜尋"
+            >
+              ×
+            </button>
+          )}
+        </label>
+
+        <div className="tree-list">
+          <div className="tree-section-label">
+            所有標籤 <span>{flatLabels.length}</span>
+          </div>
+          {loading ? (
+            <div className="empty-state">正在載入標籤…</div>
+          ) : visibleTree.length ? (
+            renderTree(visibleTree)
+          ) : (
+            <div className="empty-state">
+              {search
+                ? "找不到符合的標籤。"
+                : "目前還沒有標籤，先建立一個分類吧。"}
+            </div>
+          )}
+          <button
+            className="add-root-link"
+            type="button"
+            onClick={() => openCreateDialog()}
+          >
+            <span>＋</span> 新增分類
+          </button>
+        </div>
+
+        <div className="tree-footer">
+          <span className="footer-dot" />
+          可建立多層子標籤
+        </div>
+      </div>
+    );
+  }
+
   return (
     <WorkspaceLayout
       active="labels"
@@ -427,93 +508,38 @@ function LabelModule() {
 
         <div className="module-tabs" role="tablist" aria-label="標籤模組頁面">
           <button
-            className="module-tab selected"
+            id="taxonomy-tab"
+            className={`module-tab${activeTab === "taxonomy" ? " selected" : ""}`}
             type="button"
             role="tab"
-            aria-selected="true"
+            aria-controls="taxonomy-panel"
+            aria-selected={activeTab === "taxonomy"}
+            onClick={() => setActiveTab("taxonomy")}
           >
             標籤分類
           </button>
           <button
-            className="module-tab"
+            id="place-preview-tab"
+            className={`module-tab${activeTab === "preview" ? " selected" : ""}`}
             type="button"
             role="tab"
-            aria-selected="false"
-            disabled
+            aria-controls="place-preview-panel"
+            aria-selected={activeTab === "preview"}
+            onClick={() => setActiveTab("preview")}
           >
             地點套用預覽
-            <span className="soon-label">規劃中</span>
           </button>
         </div>
 
-        <section className="workspace-grid" aria-label="標籤">
-          <div className="panel taxonomy-panel">
-            <div className="panel-heading">
-              <div>
-                <h2>標籤分類</h2>
-                <p>以階層整理標籤</p>
-              </div>
-              <button
-                className="subtle-icon-button"
-                type="button"
-                aria-label="新增根標籤"
-                title="新增根標籤"
-                onClick={() => openCreateDialog()}
-              >
-                ＋
-              </button>
-            </div>
-
-            <label className="search-box">
-              <span aria-hidden="true">⌕</span>
-              <input
-                type="search"
-                placeholder="搜尋標籤"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-              />
-              {search && (
-                <button
-                  className="clear-search"
-                  type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="清除搜尋"
-                >
-                  ×
-                </button>
-              )}
-            </label>
-
-            <div className="tree-list">
-              <div className="tree-section-label">
-                所有標籤 <span>{flatLabels.length}</span>
-              </div>
-              {loading ? (
-                <div className="empty-state">正在載入標籤…</div>
-              ) : visibleTree.length ? (
-                renderTree(visibleTree)
-              ) : (
-                <div className="empty-state">
-                  {search
-                    ? "找不到符合的標籤。"
-                    : "目前還沒有標籤，先建立一個分類吧。"}
-                </div>
-              )}
-              <button
-                className="add-root-link"
-                type="button"
-                onClick={() => openCreateDialog()}
-              >
-                <span>＋</span> 新增分類
-              </button>
-            </div>
-
-            <div className="tree-footer">
-              <span className="footer-dot" />
-              可建立多層子標籤
-            </div>
-          </div>
-
+        <section
+          id="taxonomy-panel"
+          className="workspace-grid"
+          aria-label="標籤分類"
+          role="tabpanel"
+          aria-labelledby="taxonomy-tab"
+          hidden={activeTab !== "taxonomy"}
+        >
+          {renderTaxonomyPanel()}
           <div className="detail-column">
             {selectedLabel ? (
               <section className="panel detail-panel">
@@ -746,6 +772,167 @@ function LabelModule() {
               </div>
             </section>
           </div>
+        </section>
+
+        <section
+          id="place-preview-panel"
+          className="workspace-grid place-preview-workspace"
+          aria-label="地點套用預覽"
+          role="tabpanel"
+          aria-labelledby="place-preview-tab"
+          hidden={activeTab !== "preview"}
+        >
+          {renderTaxonomyPanel(true)}
+          <section className="panel full-preview-panel">
+            {selectedLabel ? (
+              <>
+                <div className="preview-summary">
+                  <span
+                    className="large-color-dot"
+                    style={{ backgroundColor: selectedLabel.color }}
+                    aria-hidden="true"
+                  />
+                  <div className="preview-summary-copy">
+                    <h2>{selectedLabel.name}</h2>
+                    <p>
+                      上層分類：
+                      {selectedLabel.parentId
+                        ? flatLabels.find((label) => label.id === selectedLabel.parentId)?.name ?? "未知"
+                        : "無（根分類）"}
+                    </p>
+                  </div>
+                  <span className="preview-count">
+                    {displayedPlaces.length} 個地點
+                  </span>
+                </div>
+
+                <div className="preview-toolbar">
+                  <label className="search-box preview-search">
+                    <span aria-hidden="true">⌕</span>
+                    <input
+                      type="search"
+                      placeholder="搜尋已套用的地點"
+                      value={previewSearch}
+                      onChange={(event) => setPreviewSearch(event.target.value)}
+                    />
+                    {previewSearch && (
+                      <button
+                        className="clear-search"
+                        type="button"
+                        onClick={() => setPreviewSearch("")}
+                        aria-label="清除地點搜尋"
+                      >
+                        ×
+                      </button>
+                    )}
+                  </label>
+                  <label className="descendant-toggle">
+                    <input
+                      type="checkbox"
+                      checked={includeDescendants}
+                      onChange={(event) => setIncludeDescendants(event.target.checked)}
+                    />
+                    包含子標籤
+                  </label>
+                </div>
+
+                <form
+                  className="assign-place-form preview-assign-form"
+                  onSubmit={(event) => void handleAssign(event)}
+                >
+                  <select
+                    aria-label="選擇要套用標籤的地點"
+                    value={selectedPlaceId}
+                    onChange={(event) => setSelectedPlaceId(event.target.value)}
+                    disabled={saving}
+                  >
+                    <option value="">選擇地點並套用「{selectedLabel.name}」…</option>
+                    {allPlaces
+                      .filter((place) => !place.labelIds.includes(selectedLabel.id))
+                      .map((place) => (
+                        <option value={place.id} key={place.id}>
+                          {place.name}
+                        </option>
+                      ))}
+                  </select>
+                  <button
+                    className="assign-button"
+                    type="submit"
+                    disabled={!selectedPlaceId || saving}
+                  >
+                    {saving ? "套用中…" : "＋ 套用標籤"}
+                  </button>
+                </form>
+
+                <div className="preview-list-heading">
+                  <strong>已套用此標籤的地點</strong>
+                  <span>
+                    {filteredPreviewPlaces.length}
+                    {previewSearch ? ` / ${displayedPlaces.length}` : ""} 個結果
+                  </span>
+                </div>
+                <div className="full-place-preview-list">
+                  {filteredPreviewPlaces.map((place) => {
+                    const directlyAssigned = place.labelIds.includes(selectedLabel.id);
+                    const appliedLabels = flatLabels.filter((label) =>
+                      place.labelIds.includes(label.id),
+                    );
+                    return (
+                      <article className="full-place-preview" key={place.id}>
+                        <span className="place-thumbnail" aria-hidden="true">
+                          {place.name.slice(0, 1)}
+                        </span>
+                        <div className="place-copy">
+                          <strong>{place.name}</strong>
+                          <span>
+                            {place.regionIds.length} 個區域
+                            {" · "}
+                            {place.googlePlaceId ? "Google Maps 地點" : "自訂地圖連結"}
+                          </span>
+                        </div>
+                        <div className="place-tags">
+                          {appliedLabels.map((label) => (
+                            <span
+                              className="place-tag"
+                              key={label.id}
+                              style={{ color: label.color }}
+                            >
+                              {label.name}
+                            </span>
+                          ))}
+                        </div>
+                        {directlyAssigned && (
+                          <button
+                            className="remove-place-label"
+                            type="button"
+                            aria-label={`從${place.name}移除${selectedLabel.name}`}
+                            title={`從${place.name}移除此標籤`}
+                            disabled={saving}
+                            onClick={() => void handleRemoveFromPlace(place)}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </article>
+                    );
+                  })}
+                  {!filteredPreviewPlaces.length && (
+                    <div className="empty-state preview-empty-state">
+                      {displayedPlaces.length
+                        ? "沒有符合搜尋條件的地點。"
+                        : includeDescendants
+                          ? "此標籤及其子標籤尚未套用到任何地點。"
+                          : "此標籤尚未直接套用到任何地點。"}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="preview-empty">
+                {loading ? "正在載入標籤…" : "先建立並選取一個標籤，即可預覽套用的地點。"}
+              </div>
+            )}
+          </section>
         </section>
         <footer className="page-footer">
           標籤與地點資料儲存於此瀏覽器 <span>•</span> 清除網站資料會一併移除
