@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { NewRegion, Region } from '../../database'
-import { RouterLink } from '../../router'
-import { routes } from '../../routes'
+import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { regionController } from './region.controller'
 import type { GooglePlaceDetails } from '../place/google-places.service'
 import './RegionModule.css'
@@ -248,24 +247,11 @@ function RegionModule() {
   }
 
   return (
-    <div className="region-app-shell">
-      <aside className="region-sidebar">
-        <RouterLink className="region-brand" to={routes.labels}>
-          <span className="region-brand-mark">漫</span>
-          <span><strong>漫遊手帳</strong><small>TRAVEL PLANNER</small></span>
-        </RouterLink>
-        <div className="region-nav-caption">工作區</div>
-        <nav className="region-nav" aria-label="主要導覽">
-          <RouterLink to={routes.regions} aria-current="page">◎ <span>區域管理</span></RouterLink>
-          <RouterLink to={routes.places}>⌖ <span>地點</span></RouterLink>
-          <RouterLink to={routes.labels}>◈ <span>標籤管理</span></RouterLink>
-          <RouterLink to={routes.itinerary}>▤ <span>行程</span></RouterLink>
-          <RouterLink to={routes.dataManagement}>⇅ <span>資料管理</span></RouterLink>
-        </nav>
-        <div className="region-sidebar-foot">資料儲存於此瀏覽器</div>
-      </aside>
-
-      <main className="region-main">
+    <WorkspaceLayout
+      active="regions"
+      shellClassName="region-app-shell"
+      mainClassName="region-main"
+    >
         <header className="region-topbar"><span>工作區　/　區域管理</span><span>本機資料</span></header>
         <div className="region-content">
           <section className="region-heading">
@@ -371,8 +357,7 @@ function RegionModule() {
             </section>
           </section>
         </div>
-      </main>
-    </div>
+    </WorkspaceLayout>
   )
 }
 

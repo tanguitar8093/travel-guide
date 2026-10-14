@@ -8,6 +8,7 @@ import type {
   Trip,
 } from "../../database";
 import { RouterLink } from "../../router";
+import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { routes } from "../../routes";
 import { mountGoogleMap } from "../place/google-places.service";
 import type {
@@ -649,23 +650,13 @@ function ItineraryModule() {
   const interactionBusy = saving || calculatingItemId !== undefined;
 
   return (
-    <div className="itinerary-app-shell">
-      <main className="itinerary-main">
+    <WorkspaceLayout
+      active="itinerary"
+      shellClassName="itinerary-app-shell"
+      mainClassName="itinerary-main"
+    >
         <header className="itinerary-topbar">
-          <RouterLink className="itinerary-brand" to={routes.labels}>
-            <span className="itinerary-brand-mark">漫</span>
-            <strong>漫遊手帳</strong>
-            <small>TRAVEL PLANNER</small>
-          </RouterLink>
-          <nav className="itinerary-top-nav" aria-label="主要導覽">
-            <RouterLink to={routes.regions}>區域</RouterLink>
-            <RouterLink to={routes.places}>地點</RouterLink>
-            <RouterLink to={routes.labels}>標籤</RouterLink>
-            <RouterLink to={routes.itinerary} aria-current="page">
-              行程
-            </RouterLink>
-            <RouterLink to={routes.dataManagement}>資料</RouterLink>
-          </nav>
+          <span>工作區　/　行程</span>
           <span className="itinerary-local-badge">本機資料</span>
         </header>
         <div className="itinerary-content">
@@ -1405,8 +1396,7 @@ function ItineraryModule() {
             </section>
           </section>
         </div>
-      </main>
-    </div>
+    </WorkspaceLayout>
   );
 }
 

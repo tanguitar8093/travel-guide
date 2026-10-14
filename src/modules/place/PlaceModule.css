@@ -17,122 +17,6 @@
   color: inherit;
 }
 
-.place-app-shell .sidebar {
-  width: 240px;
-  min-height: 100vh;
-  position: fixed;
-  inset: 0 auto 0 0;
-  z-index: 2;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-  padding: 25px 16px 18px;
-  border-right: 1px solid #e9ece8;
-  background: #fff;
-}
-
-.place-app-shell .brand {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 0 8px 42px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.place-app-shell .brand-mark {
-  width: 37px;
-  height: 37px;
-  display: grid;
-  place-items: center;
-  border-radius: 12px;
-  color: white;
-  background: #648a74;
-  font-family: serif;
-  font-size: 20px;
-  font-weight: 700;
-}
-
-.place-app-shell .brand strong,
-.place-app-shell .brand small,
-.place-app-shell .profile-copy strong,
-.place-app-shell .profile-copy small {
-  display: block;
-}
-
-.place-app-shell .brand strong {
-  font-size: 15px;
-  letter-spacing: 0.03em;
-}
-
-.place-app-shell .brand small {
-  margin-top: 2px;
-  color: #a0a9a1;
-  font-size: 8px;
-  letter-spacing: 0.15em;
-}
-
-.place-app-shell .workspace-label {
-  padding: 0 12px;
-  margin-bottom: 11px;
-  color: #a1aaa3;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-}
-
-.place-app-shell .main-nav {
-  display: grid;
-  gap: 4px;
-}
-
-.place-app-shell .nav-item {
-  min-height: 42px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 0 12px;
-  border-radius: 8px;
-  color: #6e7771;
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.place-app-shell .nav-item.active {
-  color: #456b54;
-  background: #edf3ee;
-  font-weight: 600;
-}
-
-.place-app-shell .nav-icon {
-  width: 18px;
-  color: #8d9890;
-  font-size: 19px;
-  line-height: 1;
-  text-align: center;
-}
-
-.place-app-shell .nav-item.active .nav-icon {
-  color: #648a74;
-}
-
-.place-app-shell .nav-count {
-  margin-left: auto;
-  color: #839188;
-  font-size: 11px;
-}
-
-.place-app-shell .sidebar-bottom {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: auto;
-  padding: 14px 5px 0;
-  border-top: 1px solid #eef0ed;
-}
-
-.place-app-shell .profile-avatar,
 .place-app-shell .user-avatar {
   display: grid;
   place-items: center;
@@ -143,37 +27,9 @@
   font-weight: 600;
 }
 
-.place-app-shell .profile-avatar {
-  width: 34px;
-  height: 34px;
-}
-
-.place-app-shell .profile-copy {
-  flex: 1;
-  min-width: 0;
-}
-
-.place-app-shell .profile-copy strong {
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.place-app-shell .profile-copy small {
-  margin-top: 2px;
-  color: #9aa39d;
-  font-size: 11px;
-}
-
-.place-app-shell .profile-menu {
-  color: #9aa39d;
-  font-size: 20px;
-}
-
 .place-app-shell .main-content {
-  width: calc(100% - 240px);
   min-width: 0;
   min-height: 100vh;
-  margin-left: 240px;
 }
 
 .place-app-shell .topbar {
@@ -1068,15 +924,6 @@
 }
 
 @media (max-width: 1050px) {
-  .place-app-shell .sidebar {
-    width: 205px;
-  }
-
-  .place-app-shell .main-content {
-    width: calc(100% - 205px);
-    margin-left: 205px;
-  }
-
   .place-app-shell .topbar {
     padding-inline: 27px;
   }
@@ -1092,52 +939,6 @@
 }
 
 @media (max-width: 760px) {
-  .place-app-shell .sidebar {
-    width: 62px;
-    align-items: center;
-    padding: 18px 8px;
-  }
-
-  .place-app-shell .brand {
-    margin: 0 0 35px;
-  }
-
-  .place-app-shell .brand > span:last-child,
-  .place-app-shell .workspace-label,
-  .place-app-shell .profile-copy,
-  .place-app-shell .profile-menu {
-    display: none;
-  }
-
-  .place-app-shell .main-nav {
-    width: 100%;
-  }
-
-  .place-app-shell .nav-item {
-    justify-content: center;
-    padding: 0;
-    font-size: 0;
-  }
-
-  .place-app-shell .nav-icon {
-    font-size: 20px;
-  }
-
-  .place-app-shell .nav-count {
-    display: none;
-  }
-
-  .place-app-shell .sidebar-bottom {
-    justify-content: center;
-    width: 100%;
-    padding-inline: 0;
-  }
-
-  .place-app-shell .main-content {
-    width: calc(100% - 62px);
-    margin-left: 62px;
-  }
-
   .place-app-shell .topbar {
     height: 56px;
     padding-inline: 17px;

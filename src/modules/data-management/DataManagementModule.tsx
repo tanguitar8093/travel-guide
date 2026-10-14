@@ -1,8 +1,7 @@
 import { useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import type { TravelBackup } from '../../database'
-import { RouterLink } from '../../router'
-import { routes } from '../../routes'
+import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { dataManagementController } from './data-management.controller'
 import './DataManagementModule.css'
 
@@ -131,24 +130,11 @@ function DataManagementModule() {
   }
 
   return (
-    <div className="data-management-shell">
-      <aside className="data-management-sidebar">
-        <RouterLink className="data-management-brand" to={routes.labels} aria-label="漫遊手帳首頁">
-          <span className="data-management-brand-mark">漫</span>
-          <span><strong>漫遊手帳</strong><small>TRAVEL PLANNER</small></span>
-        </RouterLink>
-        <div className="data-management-nav-caption">工作區</div>
-        <nav className="data-management-nav" aria-label="主要導覽">
-          <RouterLink to={routes.places}><span>⌖</span>地點</RouterLink>
-          <RouterLink to={routes.itinerary}><span>▤</span>行程</RouterLink>
-          <RouterLink to={routes.regions}><span>◎</span>區域管理</RouterLink>
-          <RouterLink to={routes.labels}><span>◈</span>標籤管理</RouterLink>
-          <RouterLink to={routes.dataManagement} aria-current="page"><span>⇅</span>資料管理</RouterLink>
-        </nav>
-        <div className="data-management-sidebar-foot">資料儲存於此瀏覽器</div>
-      </aside>
-
-      <main className="data-management-main">
+    <WorkspaceLayout
+      active="data"
+      shellClassName="data-management-shell"
+      mainClassName="data-management-main"
+    >
         <header className="data-management-topbar">
           <span>工作區　/　資料管理</span>
           <span>本機資料</span>
@@ -219,8 +205,7 @@ function DataManagementModule() {
             </section>
           </div>
         </section>
-      </main>
-    </div>
+    </WorkspaceLayout>
   )
 }
 

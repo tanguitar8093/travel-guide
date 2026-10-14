@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, Region } from '../../database'
-import { RouterLink } from '../../router'
-import { routes } from '../../routes'
+import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { placeController } from './place.controller'
 import type { GooglePlaceDetails } from './google-places.service'
 import './PlaceModule.css'
@@ -359,52 +358,12 @@ function PlaceModule() {
   const formDisabled = !editing || saving
 
   return (
-    <div className="app-shell place-app-shell">
-      <aside className="sidebar">
-        <RouterLink className="brand" to={routes.labels} aria-label="漫遊手帳首頁">
-          <span className="brand-mark">漫</span>
-          <span>
-            <strong>漫遊手帳</strong>
-            <small>TRAVEL PLANNER</small>
-          </span>
-        </RouterLink>
-
-        <div className="workspace-label">工作區</div>
-        <nav className="main-nav" aria-label="主要導覽">
-          <RouterLink to={routes.regions} className="nav-item">
-            <span className="nav-icon">◎</span>
-            區域管理
-          </RouterLink>
-          <a href={routes.places} className="nav-item active" aria-current="page">
-            <span className="nav-icon">⌖</span>
-            地點
-            <span className="nav-count">{places.length}</span>
-          </a>
-          <RouterLink to={routes.labels} className="nav-item">
-            <span className="nav-icon">◈</span>
-            標籤管理
-          </RouterLink>
-          <RouterLink to={routes.itinerary} className="nav-item">
-            <span className="nav-icon">▤</span>
-            行程
-          </RouterLink>
-          <RouterLink to={routes.dataManagement} className="nav-item">
-            <span className="nav-icon">⇅</span>
-            資料管理
-          </RouterLink>
-        </nav>
-
-        <div className="sidebar-bottom">
-          <div className="profile-avatar">T</div>
-          <div className="profile-copy">
-            <strong>我的旅遊空間</strong>
-            <small>個人工作區</small>
-          </div>
-          <span className="profile-menu" aria-hidden="true">···</span>
-        </div>
-      </aside>
-
-      <main className="main-content">
+    <WorkspaceLayout
+      active="places"
+      counts={{ places: places.length }}
+      shellClassName="app-shell place-app-shell"
+      mainClassName="main-content"
+    >
         <header className="topbar">
           <div className="breadcrumb">
             <span>工作區</span>
@@ -779,8 +738,7 @@ function PlaceModule() {
 
           <footer className="page-footer">地點資料儲存於此瀏覽器 <span>•</span> 後續行程模組可直接選用</footer>
         </div>
-      </main>
-    </div>
+    </WorkspaceLayout>
   )
 }
 
