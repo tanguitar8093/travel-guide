@@ -98,6 +98,13 @@
 .itinerary-item-title > strong { overflow: hidden; color: #4f5c52; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .itinerary-map-link { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #e4ebe4; border-radius: 5px; color: #587861; background: #fff; font-size: 9px; line-height: 1.2; text-decoration: none; white-space: nowrap; }
 .itinerary-map-link:hover { background: #f5f8f5; }
+.itinerary-place-note-toggle { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid #e4ebe4; border-radius: 5px; color: #77877a; background: #fff; font-size: 11px; cursor: pointer; }
+.itinerary-place-note-toggle:hover,.itinerary-place-note-toggle[aria-expanded="true"] { border-color: #dce8de; color: #52745a; background: #f5f8f5; }
+.itinerary-place-note-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.2; }
+.itinerary-place-note { margin-top: 8px; padding: 9px 10px; border-left: 2px solid #a9c0ac; border-radius: 0 5px 5px 0; color: #68756b; background: #f7f9f6; }
+.itinerary-place-note[hidden] { display: none; }
+.itinerary-place-note > span { color: #829087; font-size: 9px; font-weight: 600; }
+.itinerary-place-note p { margin: 4px 0 0; color: #667168; font-size: 10px; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 .itinerary-item-meta { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 5px; color: #849087; font-size: 9px; }
 .itinerary-item-labels { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 6px; }
 .itinerary-item-label { display: inline-flex; align-items: center; gap: 4px; max-width: 130px; overflow: hidden; padding: 3px 7px; border-radius: 10px; color: #657168; background: #f5f6f4; font-size: 9px; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }

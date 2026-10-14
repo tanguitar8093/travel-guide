@@ -166,6 +166,9 @@ function ItineraryModule() {
   const [creatingTrip, setCreatingTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState(false);
   const [deleteTripDialogOpen, setDeleteTripDialogOpen] = useState(false);
+  const [expandedPlaceNotes, setExpandedPlaceNotes] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [editingItemId, setEditingItemId] = useState<string>();
   const [addingItem, setAddingItem] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -447,6 +450,7 @@ function ItineraryModule() {
     setEditingTrip(false);
     setAddingItem(false);
     setEditingItemId(undefined);
+    setExpandedPlaceNotes(new Set());
     setError("");
     setNotice("");
   }
@@ -637,6 +641,15 @@ function ItineraryModule() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function togglePlaceNote(itemId: string) {
+    setExpandedPlaceNotes((current) => {
+      const next = new Set(current);
+      if (next.has(itemId)) next.delete(itemId);
+      else next.add(itemId);
+      return next;
+    });
   }
 
   async function handleCalculateTravelDuration(item: ItineraryItem) {
@@ -1225,6 +1238,25 @@ function ItineraryModule() {
                                   ⌖ 地圖 ↗
                                 </a>
                               )}
+                              {place?.notes?.trim() && (
+                                <button
+                                  className="itinerary-place-note-toggle"
+                                  type="button"
+                                  aria-label={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}${place.name}的地點備註`}
+                                  aria-expanded={expandedPlaceNotes.has(item.id)}
+                                  aria-controls={`place-note-${item.id}`}
+                                  title={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}地點備註`}
+                                  onClick={() => togglePlaceNote(item.id)}
+                                >
+                                  <svg
+                                    aria-hidden="true"
+                                    viewBox="0 0 16 16"
+                                    focusable="false"
+                                  >
+                                    <path d="M5 2.5h8v11H5zM3 4h2M3 7h2M3 10h2M3 13h2M7.5 5h3M7.5 7.5h3M7.5 10h2" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
                             <div className="itinerary-item-meta">
                               {item.arrivalTime && (
@@ -1265,6 +1297,16 @@ function ItineraryModule() {
                                     +{placeLabels.length - 3}
                                   </span>
                                 )}
+                              </div>
+                            )}
+                            {place?.notes?.trim() && (
+                              <div
+                                className="itinerary-place-note"
+                                id={`place-note-${item.id}`}
+                                hidden={!expandedPlaceNotes.has(item.id)}
+                              >
+                                <span>地點備註</span>
+                                <p>{place.notes}</p>
                               </div>
                             )}
                             {item.note && <p>{item.note}</p>}
