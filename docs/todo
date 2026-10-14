@@ -5,7 +5,7 @@
 2. 工作區: 重新排序, 上到下: 區域 -> 地點 -> 標籤 -> 行程 -> 資料
 
 3. 標籤管理: 
-- 實作地點套用預覽
+- 實作地點套用預覽, 先畫張是 web 圖告訴我長啥樣子
 - 評估拖曳標籤群組的功能對現有框架的改動程度, 以及儲存成本, 實用性或成本過大就不套用
 
 4. 區域管理
@@ -18,7 +18,8 @@
 ^以上功能需要模組交互, 設計上怕破壞既有框架, 要先確認怎麼設計給我看
 - ui: 資訊卡有些微 padding 太小的問題, 如 "當日安排", 加入地點按鈕 緊貼邊緣, 需微調
 
-6. sidebar: 改成 可 toggle 的 sidebar, 且 zindex 再上層, 要對手機友善, 且 "行程模組" 不該獨樹一格把 sidebar 變成 nav, 須一致, 不然這樣使用體驗不佳
+6. nav & sidebar: 
+- 改成 可 toggle 的 sidebar, 且 zindex 再上層, 要對手機友善, 且 "行程模組" 不該獨樹一格把 sidebar 變成 nav, 須一致, 不然這樣使用體驗不佳
+- 我有發現你這個很像重複 hardcode 寫在各模組, 這個應該要是獨立模組重構才對, 你評估要 common/nav, 還是 nav 就好 (nav sidebar 語意你決定)
 
-
-7. 評估使用 firebase db or postgress db
+7. 評估使用 firebase db or postgress db + 後端(python or node.js)

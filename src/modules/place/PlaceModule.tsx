@@ -371,22 +371,22 @@ function PlaceModule() {
 
         <div className="workspace-label">工作區</div>
         <nav className="main-nav" aria-label="主要導覽">
+          <RouterLink to={routes.regions} className="nav-item">
+            <span className="nav-icon">◎</span>
+            區域管理
+          </RouterLink>
           <a href={routes.places} className="nav-item active" aria-current="page">
             <span className="nav-icon">⌖</span>
             地點
             <span className="nav-count">{places.length}</span>
           </a>
-          <RouterLink to={routes.itinerary} className="nav-item">
-            <span className="nav-icon">▤</span>
-            行程
-          </RouterLink>
-          <RouterLink to={routes.regions} className="nav-item">
-            <span className="nav-icon">◎</span>
-            區域管理
-          </RouterLink>
           <RouterLink to={routes.labels} className="nav-item">
             <span className="nav-icon">◈</span>
             標籤管理
+          </RouterLink>
+          <RouterLink to={routes.itinerary} className="nav-item">
+            <span className="nav-icon">▤</span>
+            行程
           </RouterLink>
           <RouterLink to={routes.dataManagement} className="nav-item">
             <span className="nav-icon">⇅</span>
