@@ -76,6 +76,36 @@
 .region-field small { color: #9da69f; font-size: 10px; line-height: 1.5; }
 .region-actions { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-top: 17px; border-top: 1px solid #eff1ef; }
 .region-actions > div { display: flex; gap: 8px; }
+.region-dialog-backdrop { position: fixed; inset: 0; z-index: 1000; display: grid; place-items: center; padding: 20px; background: rgba(31, 42, 34, .42); }
+.region-delete-dialog { width: min(680px, 100%); max-height: min(88vh, 760px); box-sizing: border-box; overflow: auto; padding: 22px; border: 1px solid #e5eae5; border-radius: 10px; background: #fff; box-shadow: 0 20px 60px rgba(28, 44, 32, .24); }
+.region-delete-dialog-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; padding-bottom: 15px; border-bottom: 1px solid #eff1ef; }
+.region-delete-dialog-heading span { color: #849187; font-size: 11px; }
+.region-delete-dialog-heading h2 { margin: 6px 0 0; color: #48544b; font-size: 19px; font-weight: 600; }
+.region-dialog-close { width: 30px; height: 30px; border: 1px solid #e4e9e4; border-radius: 50%; color: #78847b; background: #fff; font-size: 19px; cursor: pointer; }
+.region-dialog-close:disabled { opacity: .55; cursor: not-allowed; }
+.region-delete-intro { margin: 14px 0; color: #758178; font-size: 11px; line-height: 1.65; }
+.region-linked-section { margin-top: 15px; border: 1px solid #edf0ed; border-radius: 7px; overflow: hidden; }
+.region-linked-heading { display: flex; align-items: center; justify-content: space-between; padding: 11px 13px; border-bottom: 1px solid #edf0ed; background: #fafbfa; }
+.region-linked-heading h3 { margin: 0; color: #59655c; font-size: 11px; font-weight: 600; }
+.region-linked-heading > span { color: #89958c; font-size: 10px; }
+.region-linked-list { margin: 0; padding: 0; list-style: none; }
+.region-linked-list li { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 12px; border-bottom: 1px solid #f0f2f0; }
+.region-linked-list li:last-child { border-bottom: 0; }
+.region-linked-list li > div:first-child { min-width: 0; }
+.region-linked-list strong,.region-linked-list small { display: block; }
+.region-linked-list strong { overflow: hidden; color: #59655c; font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.region-linked-list small { margin-top: 4px; color: #929d94; font-size: 9px; line-height: 1.5; }
+.region-linked-list .region-secondary { flex: 0 0 auto; min-height: 31px; font-size: 10px; }
+.region-linked-empty { margin: 0; padding: 13px; color: #929d94; font-size: 10px; }
+.region-linked-trip-copy { flex: 1; }
+.region-reassign-controls { display: flex; align-items: center; gap: 7px; }
+.region-reassign-controls select { min-width: 145px; height: 32px; padding: 0 8px; border: 1px solid #e4e9e4; border-radius: 5px; color: #647068; background: #fff; font: inherit; font-size: 10px; }
+.region-reassign-controls select:disabled { opacity: .55; }
+.region-no-alternative { margin: 0; padding: 10px 13px; border-top: 1px solid #f0e8d8; color: #92723f; background: #fffaf0; font-size: 10px; line-height: 1.5; }
+.region-delete-dialog-actions { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 18px; padding-top: 15px; border-top: 1px solid #eff1ef; }
+.region-delete-dialog-actions > span { color: #879188; font-size: 10px; line-height: 1.5; }
+.region-delete-dialog-actions > div { display: flex; flex: 0 0 auto; gap: 8px; }
+.region-delete-dialog-actions .region-delete:disabled { opacity: .5; cursor: not-allowed; }
 
 @media (max-width: 900px) {
   .region-content { padding: 28px 24px; }
@@ -88,4 +118,10 @@
   .region-workspace { grid-template-columns: 1fr; }
   .region-list-card { max-height: 230px; overflow: auto; }
   .region-detail-card { padding: 17px; }
+  .region-delete-dialog { padding: 17px; }
+  .region-linked-trip { align-items: stretch !important; flex-direction: column; }
+  .region-reassign-controls { width: 100%; }
+  .region-reassign-controls select { min-width: 0; flex: 1; }
+  .region-delete-dialog-actions { align-items: stretch; flex-direction: column; }
+  .region-delete-dialog-actions > div { justify-content: flex-end; }
 }

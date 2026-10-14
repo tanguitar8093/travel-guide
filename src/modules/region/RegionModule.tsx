@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { NewRegion, Region } from "../../database";
+import type { NewRegion, Place, Region, Trip } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
+import { itineraryController } from "../itinerary/itinerary.controller";
+import { placeController } from "../place/place.controller";
 import { regionController } from "./region.controller";
 import type { GooglePlaceDetails } from "../place/google-places.service";
 import "./RegionModule.css";
@@ -29,6 +31,8 @@ function toDraft(region: Region): RegionDraft {
 
 function RegionModule() {
   const [regions, setRegions] = useState<Region[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [trips, setTrips] = useState<Trip[]>([]);
   const [usage, setUsage] = useState({
     places: new Map<string, number>(),
     trips: new Map<string, number>(),
@@ -41,6 +45,8 @@ function RegionModule() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [tripTargets, setTripTargets] = useState<Record<string, string>>({});
   const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails>();
   const [googleDetailsForId, setGoogleDetailsForId] = useState<string>();
   const [googleDetailsErrorForId, setGoogleDetailsErrorForId] =
@@ -48,6 +54,10 @@ function RegionModule() {
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
 
   const selectedRegion = regions.find((region) => region.id === selectedId);
+  const linkedPlaces =
+    selectedRegion && places.filter((place) => place.regionIds.includes(selectedRegion.id));
+  const linkedTrips =
+    selectedRegion && trips.filter((trip) => trip.regionId === selectedRegion.id);
   const selectedGooglePlaceId = selectedRegion?.googlePlaceId;
   const visibleGoogleDetails =
     googleDetailsForId === selectedGooglePlaceId ? googleDetails : undefined;
@@ -63,6 +73,8 @@ function RegionModule() {
       workspace.regions.find((region) => region.id === preferredId) ??
       workspace.regions[0];
     setRegions(workspace.regions);
+    setPlaces(workspace.places);
+    setTrips(workspace.trips);
     setUsage({
       places: new Map(
         workspace.regions.map((region) => [
@@ -90,6 +102,8 @@ function RegionModule() {
       .then((workspace) => {
         if (!active) return;
         setRegions(workspace.regions);
+        setPlaces(workspace.places);
+        setTrips(workspace.trips);
         setUsage({
           places: new Map(
             workspace.regions.map((region) => [
@@ -264,15 +278,64 @@ function RegionModule() {
     }
   }
 
-  async function handleDelete(region: Region) {
-    if (!window.confirm(`確定要刪除「${region.name}」嗎？`)) return;
+  function handleDelete(region: Region) {
+    setSelectedId(region.id);
+    setDeleteDialogOpen(true);
+    setTripTargets({});
+    setError("");
+    setNotice("");
+  }
+
+  async function handleRemovePlaceRegion(place: Place) {
+    if (!selectedRegion) return;
     setSaving(true);
     setError("");
     setNotice("");
     try {
-      await regionController.delete(region.id);
+      await placeController.update(place.id, {
+        regionIds: place.regionIds.filter((id) => id !== selectedRegion.id),
+      });
+      await refresh(selectedRegion.id);
+      setNotice(`已從「${place.name}」移除此區域。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "解除地點區域關聯失敗。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleReassignTrip(trip: Trip) {
+    const regionId = tripTargets[trip.id];
+    if (!regionId || !selectedRegion) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await itineraryController.updateTrip(trip.id, { regionId });
+      await refresh(selectedRegion.id);
+      setTripTargets((current) => {
+        const next = { ...current };
+        delete next[trip.id];
+        return next;
+      });
+      setNotice(`已將行程「${trip.name}」改派至「${regions.find((region) => region.id === regionId)?.name ?? "其他區域"}」。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "重新指派行程區域失敗。");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmDeleteRegion() {
+    if (!selectedRegion || linkedPlaces?.length || linkedTrips?.length) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await regionController.delete(selectedRegion.id);
+      setDeleteDialogOpen(false);
       await refresh();
-      setNotice(`區域「${region.name}」已刪除。`);
+      setNotice(`區域「${selectedRegion.name}」已刪除。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "刪除區域失敗。");
     } finally {
@@ -305,12 +368,12 @@ function RegionModule() {
             ＋ 新增區域
           </button>
         </section>
-        {error && (
+        {error && !deleteDialogOpen && (
           <div className="region-feedback region-error" role="alert">
             {error}
           </div>
         )}
-        {notice && (
+        {notice && !deleteDialogOpen && (
           <div className="region-feedback region-success" role="status">
             {notice}
           </div>
@@ -525,6 +588,164 @@ function RegionModule() {
           </section>
         </section>
       </div>
+      {deleteDialogOpen && selectedRegion && (
+        <div
+          className="region-dialog-backdrop"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !saving)
+              setDeleteDialogOpen(false);
+          }}
+        >
+          <section
+            className="region-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="region-delete-title"
+          >
+            <header className="region-delete-dialog-heading">
+              <div>
+                <span>刪除區域前，先處理關聯資料</span>
+                <h2 id="region-delete-title">{selectedRegion.name}</h2>
+              </div>
+              <button
+                className="region-dialog-close"
+                type="button"
+                aria-label="關閉"
+                disabled={saving}
+                onClick={() => setDeleteDialogOpen(false)}
+              >
+                ×
+              </button>
+            </header>
+            <p className="region-delete-intro">
+              移除地點關聯不會刪除地點或標籤。行程必須保留區域，請改派至其他區域。
+            </p>
+            {error && (
+              <div className="region-feedback region-error" role="alert">
+                {error}
+              </div>
+            )}
+            {notice && (
+              <div className="region-feedback region-success" role="status">
+                {notice}
+              </div>
+            )}
+            <section className="region-linked-section" aria-labelledby="linked-places-title">
+              <div className="region-linked-heading">
+                <h3 id="linked-places-title">收藏地點</h3>
+                <span>{linkedPlaces?.length ?? 0}</span>
+              </div>
+              {linkedPlaces?.length ? (
+                <ul className="region-linked-list">
+                  {linkedPlaces.map((place) => (
+                    <li key={place.id}>
+                      <div>
+                        <strong>{place.name}</strong>
+                        <small>地點與其標籤資料都會保留</small>
+                      </div>
+                      <button
+                        type="button"
+                        className="region-secondary"
+                        disabled={saving}
+                        onClick={() => void handleRemovePlaceRegion(place)}
+                      >
+                        {saving ? "處理中…" : "從此區域移除"}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="region-linked-empty">沒有地點使用此區域。</p>
+              )}
+            </section>
+            <section className="region-linked-section" aria-labelledby="linked-trips-title">
+              <div className="region-linked-heading">
+                <h3 id="linked-trips-title">行程</h3>
+                <span>{linkedTrips?.length ?? 0}</span>
+              </div>
+              {linkedTrips?.length ? (
+                <ul className="region-linked-list">
+                  {linkedTrips.map((trip) => (
+                    <li className="region-linked-trip" key={trip.id}>
+                      <div className="region-linked-trip-copy">
+                        <strong>{trip.name}</strong>
+                        <small>
+                          {trip.startDate} 至 {trip.endDate} · 行程內容會保留
+                        </small>
+                      </div>
+                      <div className="region-reassign-controls">
+                        <select
+                          aria-label={`將行程「${trip.name}」改派至其他區域`}
+                          value={tripTargets[trip.id] ?? ""}
+                          onChange={(event) =>
+                            setTripTargets((current) => ({
+                              ...current,
+                              [trip.id]: event.target.value,
+                            }))
+                          }
+                          disabled={saving}
+                        >
+                          <option value="">選擇其他區域…</option>
+                          {regions
+                            .filter((region) => region.id !== selectedRegion.id)
+                            .map((region) => (
+                              <option value={region.id} key={region.id}>
+                                {region.name}
+                              </option>
+                            ))}
+                        </select>
+                        <button
+                          type="button"
+                          className="region-secondary"
+                          disabled={saving || !tripTargets[trip.id]}
+                          onClick={() => void handleReassignTrip(trip)}
+                        >
+                          改派行程
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="region-linked-empty">沒有行程使用此區域。</p>
+              )}
+              {Boolean(linkedTrips?.length) &&
+                regions.filter((region) => region.id !== selectedRegion.id)
+                  .length === 0 && (
+                  <p className="region-no-alternative">
+                    目前沒有其他區域可供改派。請先關閉此視窗並建立另一個區域。
+                  </p>
+                )}
+            </section>
+            <footer className="region-delete-dialog-actions">
+              <span>
+                {linkedPlaces?.length || linkedTrips?.length
+                  ? "處理完所有關聯後即可刪除。"
+                  : "此區域已沒有關聯資料，可以安全刪除。"}
+              </span>
+              <div>
+                <button
+                  type="button"
+                  className="region-secondary"
+                  disabled={saving}
+                  onClick={() => setDeleteDialogOpen(false)}
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  className="region-delete"
+                  disabled={saving || Boolean(linkedPlaces?.length || linkedTrips?.length)}
+                  onClick={() => void confirmDeleteRegion()}
+                >
+                  {saving ? "處理中…" : "刪除區域"}
+                </button>
+              </div>
+            </footer>
+          </section>
+        </div>
+      )}
     </WorkspaceLayout>
   );
 }
