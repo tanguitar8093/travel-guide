@@ -281,6 +281,24 @@ export class BackupRepository {
       itineraryItems: itineraryItems.length,
     }
   }
+
+  async clearAllData(): Promise<void> {
+    await database.transaction(
+      'rw',
+      database.regions,
+      database.places,
+      database.labels,
+      database.trips,
+      database.itineraryItems,
+      async () => {
+        await database.itineraryItems.clear()
+        await database.trips.clear()
+        await database.places.clear()
+        await database.labels.clear()
+        await database.regions.clear()
+      },
+    )
+  }
 }
 
 export const backupRepository = new BackupRepository()

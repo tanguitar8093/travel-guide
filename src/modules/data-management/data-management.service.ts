@@ -19,4 +19,8 @@ export class DataManagementService {
   replaceAllData(backup: TravelBackup): Promise<BackupCounts> {
     return backupRepository.replaceAll(backup)
   }
+
+  clearAllData(): Promise<void> {
+    return backupRepository.clearAllData()
+  }
 }

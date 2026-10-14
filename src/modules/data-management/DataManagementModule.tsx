@@ -110,6 +110,26 @@ function DataManagementModule() {
     }
   }
 
+  async function handleClearAllData() {
+    if (!window.confirm('即將清空此瀏覽器中的全部資料庫內容。\n\n包括：區域、地點、標籤、行程與每日行程項目。\n\n此操作無法撤銷，請先確認是否已備份。確定要清空嗎？')) {
+      return
+    }
+
+    setBusy(true)
+    setError('')
+    setNotice('')
+    try {
+      await dataManagementController.clearAllData()
+      setBackup(undefined)
+      setFileName('')
+      setNotice('資料庫已清空，所有旅遊資料已移除。')
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '清空資料失敗。')
+    } finally {
+      setBusy(false)
+    }
+  }
+
   return (
     <div className="data-management-shell">
       <aside className="data-management-sidebar">
@@ -181,6 +201,20 @@ function DataManagementModule() {
               {backup && <p className="data-management-selected-file">已驗證：{fileName}</p>}
               <div className="data-management-warning" role="note">
                 匯入會取代此瀏覽器的全部旅行資料，不會合併。請確認已選對備份檔，並先匯出目前資料以免遺失。
+              </div>
+            </section>
+
+            <section className="data-management-card data-management-import-card">
+              <div className="data-management-card-icon">⌫</div>
+              <h2>清空資料庫</h2>
+              <p>將此瀏覽器中所有旅行資料一次性刪除，包括區域、地點、標籤、行程與每日行程項目。</p>
+              <div className="data-management-actions">
+                <button type="button" className="data-management-danger" disabled={busy} onClick={() => void handleClearAllData()}>
+                  {busy ? '清空中…' : '清空整個資料庫'}
+                </button>
+              </div>
+              <div className="data-management-warning" role="note">
+                這是破壞性操作，且不會保留可回復內容。建議先匯出備份後再執行。
               </div>
             </section>
           </div>
