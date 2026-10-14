@@ -66,10 +66,15 @@
 .itinerary-plan-card:has(.itinerary-trip-form),.itinerary-plan-card:has(.itinerary-item-form) { height: auto; overflow: visible; }
 .itinerary-plan-title { display: flex; align-items: center; justify-content: space-between; padding: 16px 17px 12px; }
 .itinerary-plan-title > div { display: grid; gap: 5px; }
+.itinerary-plan-title-actions { display: flex !important; align-items: center; gap: 8px; }
 .itinerary-plan-title > div > span { color: #8e9a90; font-size: 9px; }
 .itinerary-plan-title strong { color: #47554b; font-size: 13px; }
 .itinerary-plan-title strong small { color: #8b968e; font-size: 10px; font-weight: 400; }
 .itinerary-day-count { color: #98a29a; font-size: 9px; }
+.itinerary-focus-toggle { width: 32px; height: 32px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid #e2e9e3; border-radius: 6px; color: #64786a; background: #fff; cursor: pointer; }
+.itinerary-focus-toggle:hover { border-color: #cbdace; color: #456c50; background: #f5f8f5; }
+.itinerary-focus-toggle svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.4; }
+.itinerary-focus-toggle-label { font-size: 10px; }
 .itinerary-day-strip { min-width: 0; display: flex; flex-wrap: wrap; gap: 6px; overflow: visible; padding: 0 14px 13px; border-bottom: 1px solid #eef1ee; }
 .itinerary-plan-title,.itinerary-day-strip,.itinerary-detail-heading,.itinerary-day-toolbar,.itinerary-items-heading { flex: 0 0 auto; }
 .itinerary-day-strip button { min-width: 48px; min-height: 46px; display: grid; align-content: center; justify-items: center; gap: 4px; border: 0; border-radius: 7px; color: #89958c; background: transparent; cursor: pointer; }
@@ -175,9 +180,15 @@
 .itinerary-map-marker { width: 13px; height: 13px; border: 2px solid #fff; border-radius: 50%; background: #6d91ad; box-shadow: 0 1px 5px rgba(34,54,40,.4); }
 .itinerary-map-marker-numbered { width: 25px; height: 25px; display: grid; place-items: center; border-radius: 50%; color: #fff; background: #648a74; box-shadow: 0 2px 7px rgba(34,54,40,.35); font: 600 10px Inter, sans-serif; }
 
+.itinerary-workspace-focused { position: fixed; inset: 0; z-index: 3000; box-sizing: border-box; width: 100vw; height: 100vh; height: 100dvh; min-height: 0; max-height: none; flex: none; grid-template-columns: minmax(315px,38%) minmax(0,1fr); grid-template-rows: minmax(0,1fr); align-items: center; gap: 14px; padding: 14px; overflow: hidden; background: #f7f8f6; }
+.itinerary-workspace-focused .itinerary-plan-card,.itinerary-workspace-focused .itinerary-map-panel { height: min(70dvh,720px); max-height: min(70dvh,720px); align-self: center; }
+.itinerary-workspace-focused .itinerary-day-strip { display: none; }
+.itinerary-workspace-focused .itinerary-items-scroll { min-height: 0; flex: 1 1 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+
 @media (max-width: 1000px) {
   .itinerary-content { padding: 22px 16px 12px; }
   .itinerary-workspace { grid-template-columns: minmax(290px, 40%) minmax(0,1fr); gap: 10px; }
+  .itinerary-workspace-focused { grid-template-columns: minmax(290px,40%) minmax(0,1fr); gap: 10px; padding: 10px; }
   .itinerary-item-row { grid-template-columns: 30px minmax(0,1fr); }
   .itinerary-item-actions { grid-column: 2; justify-content: end; }
 }
@@ -189,10 +200,14 @@
   .itinerary-heading h1 { font-size: 22px; }
   .itinerary-heading-actions { width: 100%; flex-wrap: wrap; }
   .itinerary-workspace { min-height: 0; max-height: none; flex: 0 0 auto; display: flex; flex-direction: column-reverse; gap: 9px; }
+  .itinerary-workspace-focused { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: clamp(220px,42dvh,360px) minmax(0,1fr); gap: 8px; padding: max(8px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) max(8px,env(safe-area-inset-bottom)) max(8px,env(safe-area-inset-left)); }
   .itinerary-map-panel { height: clamp(280px,42dvh,460px); max-height: calc(100dvh - 150px); flex: 0 0 auto; }
+  .itinerary-workspace-focused .itinerary-map-panel { grid-row: 1; height: 100%; max-height: 100%; min-height: 0; }
   .itinerary-plan-card { min-height: 0; max-height: none; height: auto; flex: 0 1 auto; overflow: visible; }
+  .itinerary-workspace-focused .itinerary-plan-card { grid-row: 2; min-height: 0; height: 100%; max-height: none; overflow: hidden; }
   .itinerary-plan-card:has(.itinerary-trip-form),.itinerary-plan-card:has(.itinerary-item-form) { height: auto; overflow: visible; }
   .itinerary-items-scroll { flex: 0 0 auto; overflow: visible; scrollbar-gutter: auto; }
+  .itinerary-workspace-focused .itinerary-items-scroll { min-height: 0; flex: 1 1 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
   .itinerary-detail-heading { flex-direction: column; }
   .itinerary-field-grid { grid-template-columns: 1fr; }
   .itinerary-field-wide { grid-column: auto; }

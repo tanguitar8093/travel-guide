@@ -154,6 +154,7 @@ function ItineraryModule() {
   const [items, setItems] = useState<ItineraryItem[]>([]);
   const [selectedTripId, setSelectedTripId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState("");
+  const [focusMode, setFocusMode] = useState(false);
   const [tripDraft, setTripDraft] = useState<TripDraft>(emptyTripDraft);
   const [itemDraft, setItemDraft] = useState<ItemDraft>({
     placeId: "",
@@ -183,6 +184,9 @@ function ItineraryModule() {
   const [mountedMapRegionId, setMountedMapRegionId] = useState<string>();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapHandleRef = useRef<GoogleMapHandle | undefined>(undefined);
+  const workspaceRef = useRef<HTMLElement>(null);
+  const focusModeTriggerRef = useRef<HTMLButtonElement>(null);
+  const focusModeCloseRef = useRef<HTMLButtonElement>(null);
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
   const selectedRegionId = selectedTrip?.regionId;
@@ -373,6 +377,48 @@ function ItineraryModule() {
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [deleteTripDialogOpen, saving]);
+
+  useEffect(() => {
+    if (!focusMode) {
+      focusModeTriggerRef.current?.focus();
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    focusModeCloseRef.current?.focus();
+
+    function handleFocusModeKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setFocusMode(false);
+        return;
+      }
+
+      if (event.key !== "Tab") return;
+      const focusable = Array.from(
+        workspaceRef.current?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+      if (!focusable?.length) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    window.addEventListener("keydown", handleFocusModeKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleFocusModeKeyDown);
+    };
+  }, [focusMode]);
 
   useEffect(() => {
     if (!selectedRegionId) return;
@@ -789,8 +835,29 @@ function ItineraryModule() {
           </div>
         )}
 
-        <section className="itinerary-workspace">
+        <section
+          ref={workspaceRef}
+          className={
+            focusMode
+              ? "itinerary-workspace itinerary-workspace-focused"
+              : "itinerary-workspace"
+          }
+          role={focusMode ? "dialog" : undefined}
+          aria-modal={focusMode ? true : undefined}
+          aria-label={focusMode ? "當日行程專注檢視" : undefined}
+          tabIndex={focusMode ? -1 : undefined}
+        >
           <aside className="itinerary-plan-card">
+            {focusMode && error && !deleteTripDialogOpen && (
+              <div className="itinerary-feedback itinerary-error" role="alert">
+                {error}
+              </div>
+            )}
+            {focusMode && notice && (
+              <div className="itinerary-feedback itinerary-success" role="status">
+                {notice}
+              </div>
+            )}
             {editingTrip ? (
               <form
                 className="itinerary-trip-form"
@@ -940,9 +1007,50 @@ function ItineraryModule() {
                       第 {dayNumber} 天 <small>・{selectedRegion?.name}</small>
                     </strong>
                   </div>
-                  <span className="itinerary-day-count">
-                    {formatDate(selectedDate)} · {totalDays} 天
-                  </span>
+                  <div className="itinerary-plan-title-actions">
+                    <span className="itinerary-day-count">
+                      {formatDate(selectedDate)} · {totalDays} 天
+                    </span>
+                    {(focusMode || (!itemFormVisible && !editingTrip)) && (
+                      <button
+                        ref={
+                          focusMode
+                            ? focusModeCloseRef
+                            : focusModeTriggerRef
+                        }
+                        type="button"
+                        className="itinerary-focus-toggle"
+                        aria-label={
+                          focusMode
+                            ? "離開當日專注模式"
+                            : "進入當日專注模式"
+                        }
+                        title={
+                          focusMode
+                            ? "離開當日專注模式"
+                            : "專注查看當日行程與地圖"
+                        }
+                        onClick={() => setFocusMode((current) => !current)}
+                      >
+                        {focusMode ? (
+                          <>
+                            <span aria-hidden="true">↙</span>
+                            <span className="itinerary-focus-toggle-label">
+                              返回
+                            </span>
+                          </>
+                        ) : (
+                          <svg
+                            viewBox="0 0 16 16"
+                            aria-hidden="true"
+                            focusable="false"
+                          >
+                            <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4" />
+                          </svg>
+                        )}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="itinerary-day-strip" aria-label="選擇行程日期">
                   {tripDates.map((date, index) => (
