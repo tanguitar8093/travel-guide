@@ -106,6 +106,41 @@
   font-size: 11px;
 }
 
+.workspace-session-card {
+  display: grid;
+  gap: 8px;
+}
+
+.workspace-session-card strong {
+  color: #415449;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.workspace-session-card span {
+  color: #8e9991;
+  line-height: 1.5;
+}
+
+.workspace-session-button {
+  min-height: 34px;
+  justify-self: start;
+  padding: 0 12px;
+  border: 1px solid #dde4dd;
+  border-radius: 10px;
+  color: #4f6356;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.workspace-session-button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
 div.workspace-layout > main.workspace-main {
   width: 100%;
   min-width: 0;

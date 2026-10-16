@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { RouterLink } from "../router";
 import { routes } from "../routes";
+import { useAuth } from "../auth/AuthProvider";
 import "./WorkspaceLayout.css";
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "data";
@@ -40,8 +41,10 @@ export function WorkspaceLayout({
   mainClassName = "",
   shellClassName = "",
 }: WorkspaceLayoutProps) {
+  const { user, signOut } = useAuth();
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined,
   );
@@ -136,6 +139,15 @@ export function WorkspaceLayout({
     if (sidebarPinned) setSidebarHovered(false);
   }
 
+  async function handleSignOut() {
+    setIsSigningOut(true);
+    try {
+      await signOut();
+    } finally {
+      setIsSigningOut(false);
+    }
+  }
+
   return (
     <div
       className={`workspace-layout ${shellClassName}`.trim()}
@@ -191,7 +203,20 @@ export function WorkspaceLayout({
             </RouterLink>
           ))}
         </nav>
-        <div className="workspace-sidebar-foot">資料儲存於此瀏覽器</div>
+        <div className="workspace-sidebar-foot">
+          <div className="workspace-session-card">
+            <strong>{user?.email ?? "已登入成員"}</strong>
+            <span>資料讀寫將逐步改由 Supabase 控制</span>
+            <button
+              className="workspace-session-button"
+              type="button"
+              onClick={() => void handleSignOut()}
+              disabled={isSigningOut}
+            >
+              {isSigningOut ? "登出中..." : "登出"}
+            </button>
+          </div>
+        </div>
       </aside>
 
       <button
