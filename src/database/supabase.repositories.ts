@@ -1022,20 +1022,39 @@ export class SupabaseItineraryItemRepository {
       nextPreviousById.set(nextItems[index].id, nextItems[index - 1]?.placeId)
     }
 
-    for (let order = 0; order < orderedIds.length; order += 1) {
-      const itemId = orderedIds[order]
-      const updates = {
-        sort_order: order,
-        ...(previousById.get(itemId) !== nextPreviousById.get(itemId)
-          ? { travel_duration_minutes: null }
-          : {}),
-      }
-      const { error } = await withSupabaseTimeout(
-        Promise.resolve(supabase.from('itinerary_items').update(updates).eq('id', itemId)),
-        'reorder itinerary items',
-      )
-      if (error) throw mapSupabaseError(error, itemId)
-    }
+    const maxCurrentOrder = currentItems.reduce((maximum, item) => Math.max(maximum, item.order), -1)
+    const temporaryOrderStart = maxCurrentOrder + 1
+
+    await Promise.all(
+      orderedIds.map(async (itemId, order) => {
+        const { error } = await withSupabaseTimeout(
+          Promise.resolve(
+            supabase
+              .from('itinerary_items')
+              .update({ sort_order: temporaryOrderStart + order })
+              .eq('id', itemId),
+          ),
+          'reorder itinerary items (temporary order)',
+        )
+        if (error) throw mapSupabaseError(error, itemId)
+      }),
+    )
+
+    await Promise.all(
+      orderedIds.map(async (itemId, order) => {
+        const updates = {
+          sort_order: order,
+          ...(previousById.get(itemId) !== nextPreviousById.get(itemId)
+            ? { travel_duration_minutes: null }
+            : {}),
+        }
+        const { error } = await withSupabaseTimeout(
+          Promise.resolve(supabase.from('itinerary_items').update(updates).eq('id', itemId)),
+          'reorder itinerary items (final order)',
+        )
+        if (error) throw mapSupabaseError(error, itemId)
+      }),
+    )
   }
 }
 
