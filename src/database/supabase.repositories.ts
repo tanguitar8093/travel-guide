@@ -434,9 +434,15 @@ export class SupabaseLabelRepository {
       await assertLabelExists(input.parentId)
     }
 
+    const labelId = crypto.randomUUID()
+
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
-        supabase.from('labels').insert(toLabelInput(input)).select('id').single(),
+        supabase
+          .from('labels')
+          .insert({ id: labelId, ...toLabelInput(input) })
+          .select('id')
+          .single(),
       ),
       'create label',
     )
@@ -562,23 +568,29 @@ export class SupabasePlaceRepository {
       ...input.labelIds.map((labelId) => assertLabelExists(labelId)),
     ])
 
+    const placeId = crypto.randomUUID()
+
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
-        supabase.from('places').insert(toPlaceInput(input)).select('id').single(),
+        supabase
+          .from('places')
+          .insert({ id: placeId, ...toPlaceInput(input) })
+          .select('id')
+          .single(),
       ),
       'create place',
     )
     if (error) throw mapSupabaseError(error, 'new place')
 
-    const placeId = (data as { id: string }).id
+    const createdPlaceId = (data as { id: string }).id
     try {
-      await syncPlaceRelations(placeId, input.regionIds, input.labelIds)
+      await syncPlaceRelations(createdPlaceId, input.regionIds, input.labelIds)
     } catch (cause) {
-      await supabase.from('places').delete().eq('id', placeId)
+      await supabase.from('places').delete().eq('id', createdPlaceId)
       throw cause
     }
 
-    return placeId
+    return createdPlaceId
   }
 
   async update(id: string, changes: PlaceChanges): Promise<void> {
@@ -724,10 +736,15 @@ export class SupabaseTripRepository {
     validateTrip(input)
     await assertRegionExists(input.regionId)
     const ownerUid = await requireAuthenticatedUserId()
+    const tripId = crypto.randomUUID()
 
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
-        supabase.from('trips').insert(toTripInput(input, ownerUid)).select('id').single(),
+        supabase
+          .from('trips')
+          .insert({ id: tripId, ...toTripInput(input, ownerUid) })
+          .select('id')
+          .single(),
       ),
       'create trip',
     )
@@ -815,9 +832,15 @@ export class SupabaseItineraryItemRepository {
       throw new ValidationError('Itinerary item date must be within the trip dates.')
     }
 
+    const itineraryItemId = crypto.randomUUID()
+
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
-        supabase.from('itinerary_items').insert(toItineraryInput(input)).select('id').single(),
+        supabase
+          .from('itinerary_items')
+          .insert({ id: itineraryItemId, ...toItineraryInput(input) })
+          .select('id')
+          .single(),
       ),
       'create itinerary item',
     )

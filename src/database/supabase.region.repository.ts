@@ -73,11 +73,13 @@ function mapSupabaseError(error: { code?: string; message: string }, fallback: s
 export class SupabaseRegionRepository {
   async create(input: NewRegion): Promise<string> {
     validateRegion(input)
+    const regionId = crypto.randomUUID()
+
     const { data, error } = await withTimeout(
       Promise.resolve(
         supabase
           .from('regions')
-          .insert(toSupabaseRegionInput(input))
+          .insert({ id: regionId, ...toSupabaseRegionInput(input) })
           .select('id')
           .single(),
       ),
