@@ -1,5 +1,3 @@
-import { useSyncExternalStore } from 'react'
-
 import {
   readDatabaseModePreference,
   type DatabaseMode,
@@ -49,8 +47,4 @@ export function subscribeDatabaseMode(listener: DatabaseModeListener): () => voi
   return () => {
     listeners.delete(listener)
   }
-}
-
-export function useDatabaseMode(): DatabaseMode {
-  return useSyncExternalStore(subscribeDatabaseMode, getDatabaseMode, () => 'supabase')
 }

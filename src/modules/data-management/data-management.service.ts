@@ -1,19 +1,21 @@
 import {
   backupRepository,
   getDatabaseMode,
-  indexedBackupRepository,
   setDatabaseMode,
-  supabaseBackupRepository,
 } from '../../database'
 import type { BackupCounts, DatabaseMode, TravelBackup } from '../../database'
+import {
+  dataManagementCloudAdapter,
+  type CloudPreviewPayload,
+  type DataManagementCloudAdapter,
+} from './data-management.cloud-adapter'
 import type { CloudBackupPreview } from '../../database/supabase.repositories'
 
-export interface CloudPreviewPayload {
-  backup: TravelBackup
-  preview: CloudBackupPreview
-}
-
 export class DataManagementService {
+  constructor(
+    private readonly cloudAdapter: DataManagementCloudAdapter = dataManagementCloudAdapter,
+  ) {}
+
   exportBackup(): Promise<TravelBackup> {
     return backupRepository.exportAll()
   }
@@ -37,34 +39,31 @@ export class DataManagementService {
   }
 
   async previewSupabaseReplace(backup: TravelBackup): Promise<CloudBackupPreview> {
-    return supabaseBackupRepository.previewReplaceAll(backup)
+    return this.cloudAdapter.previewReplace(backup)
   }
 
   async applySupabaseReplace(backup: TravelBackup, previewToken: string): Promise<BackupCounts> {
-    return supabaseBackupRepository.replaceAll(backup, previewToken)
+    return this.cloudAdapter.applyReplace(backup, previewToken)
   }
 
   async previewSupabaseClearAllData(): Promise<CloudBackupPreview> {
-    return supabaseBackupRepository.previewClearAllData()
+    return this.cloudAdapter.previewClearAllData()
   }
 
   async applySupabaseClearAllData(previewToken: string): Promise<BackupCounts> {
-    return supabaseBackupRepository.clearAllData(previewToken)
+    return this.cloudAdapter.applyClearAllData(previewToken)
   }
 
   async previewLocalToSupabaseTransfer(): Promise<CloudPreviewPayload> {
-    const backup = await indexedBackupRepository.exportAll()
-    const preview = await supabaseBackupRepository.previewReplaceAll(backup)
-    return { backup, preview }
+    return this.cloudAdapter.previewLocalToCloudTransfer()
   }
 
   async transferLocalToSupabase(backup: TravelBackup, previewToken: string): Promise<BackupCounts> {
-    return supabaseBackupRepository.replaceAll(backup, previewToken)
+    return this.cloudAdapter.transferLocalToCloud(backup, previewToken)
   }
 
   async transferSupabaseToLocal(): Promise<BackupCounts> {
-    const backup = await supabaseBackupRepository.exportAll()
-    return indexedBackupRepository.replaceAll(backup)
+    return this.cloudAdapter.transferCloudToLocal()
   }
 
   getDatabaseMode(): DatabaseMode {

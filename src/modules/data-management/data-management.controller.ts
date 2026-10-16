@@ -1,7 +1,7 @@
 import type { TravelBackup } from '../../database'
 import type { DatabaseMode } from '../../database'
 import { DataManagementService } from './data-management.service'
-import type { CloudPreviewPayload } from './data-management.service'
+import type { CloudPreviewPayload } from './data-management.cloud-adapter'
 
 export class DataManagementController {
   private readonly service: DataManagementService

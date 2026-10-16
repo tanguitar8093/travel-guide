@@ -27,10 +27,10 @@ export {
   getDatabaseMode,
   getDatabaseModeLabel,
   setDatabaseMode,
-  useDatabaseMode,
   type DatabaseMode,
   subscribeDatabaseMode,
 } from './runtime'
+export { useDatabaseMode } from './useDatabaseMode'
 export type {
   ItineraryItem,
   ItineraryItemChanges,

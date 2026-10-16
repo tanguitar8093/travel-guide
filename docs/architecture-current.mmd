@@ -1,0 +1,25 @@
+flowchart TD
+  UI[UI Modules]
+  C[Controller]
+  S[DataManagementService]
+  CA[Cloud Adapter]
+  DBF[Database Facade]
+  RT[runtime state]
+  HOOK[useDatabaseMode hook]
+  IDB[IndexedDB repos]
+  SBR[Supabase repos]
+  SBC[supabase.client]
+  DB[(Supabase DB RLS)]
+  AP[AuthProvider]
+  AG[auth.gateway]
+
+  UI --> C --> S
+  S --> DBF
+  S --> CA
+  DBF --> RT
+  UI --> HOOK --> RT
+  DBF --> IDB
+  DBF --> SBR --> SBC --> DB
+  CA --> IDB
+  CA --> SBR
+  AP --> AG --> SBC

@@ -1,15 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DataManagementCloudAdapter } from './data-management.cloud-adapter'
 
 const repositories = vi.hoisted(() => ({
   mode: 'supabase' as 'supabase' | 'indexeddb',
   local: { exportAll: vi.fn(), replaceAll: vi.fn(), clearAllData: vi.fn() },
-  cloud: {
-    exportAll: vi.fn(),
-    replaceAll: vi.fn(),
-    clearAllData: vi.fn(),
-    previewReplaceAll: vi.fn(),
-    previewClearAllData: vi.fn(),
-  },
+}))
+
+const cloudAdapter = vi.hoisted(() => ({
+  previewReplace: vi.fn(),
+  applyReplace: vi.fn(),
+  previewClearAllData: vi.fn(),
+  applyClearAllData: vi.fn(),
+  previewLocalToCloudTransfer: vi.fn(),
+  transferLocalToCloud: vi.fn(),
+  transferCloudToLocal: vi.fn(),
 }))
 
 vi.mock('../../database', async () => {
@@ -17,10 +21,9 @@ vi.mock('../../database', async () => {
     getDatabaseMode: () => repositories.mode,
     setDatabaseMode: vi.fn(),
     indexedBackupRepository: repositories.local,
-    supabaseBackupRepository: repositories.cloud,
     backupRepository: {
-      replaceAll: (value: unknown) => repositories.mode === 'supabase' ? repositories.cloud.replaceAll(value) : repositories.local.replaceAll(value),
-      clearAllData: () => repositories.mode === 'supabase' ? repositories.cloud.clearAllData() : repositories.local.clearAllData(),
+      replaceAll: (value: unknown) => repositories.local.replaceAll(value),
+      clearAllData: () => repositories.local.clearAllData(),
     },
   }
 })
@@ -29,16 +32,22 @@ import { DataManagementService } from './data-management.service'
 
 beforeEach(() => { vi.clearAllMocks(); repositories.mode = 'supabase' })
 
+function createService() {
+  return new DataManagementService(cloudAdapter as unknown as DataManagementCloudAdapter)
+}
+
 describe('safe data management', () => {
   it('restores local-to-cloud transfer with preview token flow', async () => {
     const backup = { data: 'local-backup' }
-    repositories.local.exportAll.mockResolvedValue(backup)
-    repositories.cloud.previewReplaceAll.mockResolvedValue({
-      token: 'token-1',
-      current: { regions: 1, places: 1, labels: 1, trips: 1, itineraryItems: 1 },
-      incoming: { regions: 2, places: 2, labels: 2, trips: 2, itineraryItems: 2 },
+    cloudAdapter.previewLocalToCloudTransfer.mockResolvedValue({
+      backup,
+      preview: {
+        token: 'token-1',
+        current: { regions: 1, places: 1, labels: 1, trips: 1, itineraryItems: 1 },
+        incoming: { regions: 2, places: 2, labels: 2, trips: 2, itineraryItems: 2 },
+      },
     })
-    repositories.cloud.replaceAll.mockResolvedValue({
+    cloudAdapter.transferLocalToCloud.mockResolvedValue({
       regions: 2,
       places: 2,
       labels: 2,
@@ -46,15 +55,14 @@ describe('safe data management', () => {
       itineraryItems: 2,
     })
 
-    const service = new DataManagementService()
+    const service = createService()
     const prepared = await service.previewLocalToSupabaseTransfer()
     expect(prepared.backup).toEqual(backup)
     expect(prepared.preview.token).toBe('token-1')
     const counts = await service.transferLocalToSupabase(backup as never, prepared.preview.token)
 
-    expect(repositories.local.exportAll).toHaveBeenCalledOnce()
-    expect(repositories.cloud.previewReplaceAll).toHaveBeenCalledWith(backup)
-    expect(repositories.cloud.replaceAll).toHaveBeenCalledWith(backup, 'token-1')
+    expect(cloudAdapter.previewLocalToCloudTransfer).toHaveBeenCalledOnce()
+    expect(cloudAdapter.transferLocalToCloud).toHaveBeenCalledWith(backup, 'token-1')
     expect(counts).toEqual({
       regions: 2,
       places: 2,
@@ -65,21 +73,19 @@ describe('safe data management', () => {
   })
 
   it('retains cloud-to-local transfer', async () => {
-    const backup = { data: 'readable cloud data' }
-    repositories.cloud.exportAll.mockResolvedValue(backup)
-    repositories.local.replaceAll.mockResolvedValue({ trips: 1 })
-    await expect(new DataManagementService().transferSupabaseToLocal()).resolves.toEqual({ trips: 1 })
-    expect(repositories.local.replaceAll).toHaveBeenCalledWith(backup)
-    expect(repositories.cloud.replaceAll).not.toHaveBeenCalled()
+    cloudAdapter.transferCloudToLocal.mockResolvedValue({ trips: 1 })
+    await expect(createService().transferSupabaseToLocal()).resolves.toEqual({ trips: 1 })
+    expect(cloudAdapter.transferCloudToLocal).toHaveBeenCalledOnce()
+    expect(repositories.local.replaceAll).not.toHaveBeenCalled()
   })
 
   it('supports cloud clear with preview token flow', async () => {
-    repositories.cloud.previewClearAllData.mockResolvedValue({
+    cloudAdapter.previewClearAllData.mockResolvedValue({
       token: 'token-clear',
       current: { regions: 3, places: 3, labels: 3, trips: 3, itineraryItems: 3 },
       incoming: { regions: 0, places: 0, labels: 0, trips: 0, itineraryItems: 0 },
     })
-    repositories.cloud.clearAllData.mockResolvedValue({
+    cloudAdapter.applyClearAllData.mockResolvedValue({
       regions: 3,
       places: 3,
       labels: 3,
@@ -87,12 +93,12 @@ describe('safe data management', () => {
       itineraryItems: 3,
     })
 
-    const service = new DataManagementService()
+    const service = createService()
     const preview = await service.previewSupabaseClearAllData()
     const counts = await service.applySupabaseClearAllData(preview.token)
 
-    expect(repositories.cloud.previewClearAllData).toHaveBeenCalledOnce()
-    expect(repositories.cloud.clearAllData).toHaveBeenCalledWith('token-clear')
+    expect(cloudAdapter.previewClearAllData).toHaveBeenCalledOnce()
+    expect(cloudAdapter.applyClearAllData).toHaveBeenCalledWith('token-clear')
     expect(counts).toEqual({
       regions: 3,
       places: 3,
@@ -103,9 +109,40 @@ describe('safe data management', () => {
   })
 
   it('retains local clear', async () => {
-    repositories.mode = 'indexeddb'
-    await new DataManagementService().clearAllData()
+    repositories.local.clearAllData.mockResolvedValue(undefined)
+    await createService().clearAllData()
     expect(repositories.local.clearAllData).toHaveBeenCalledOnce()
-    expect(repositories.cloud.clearAllData).not.toHaveBeenCalled()
+    expect(cloudAdapter.applyClearAllData).not.toHaveBeenCalled()
   })
+
+  it('supports cloud replace preview and apply', async () => {
+    const backup = { data: 'replace' }
+    cloudAdapter.previewReplace.mockResolvedValue({
+      token: 'token-1',
+      current: { regions: 1, places: 1, labels: 1, trips: 1, itineraryItems: 1 },
+      incoming: { regions: 2, places: 2, labels: 2, trips: 2, itineraryItems: 2 },
+    })
+    cloudAdapter.applyReplace.mockResolvedValue({
+      regions: 2,
+      places: 2,
+      labels: 2,
+      trips: 2,
+      itineraryItems: 2,
+    })
+
+    const service = createService()
+    const preview = await service.previewSupabaseReplace(backup as never)
+    const counts = await service.applySupabaseReplace(backup as never, preview.token)
+
+    expect(cloudAdapter.previewReplace).toHaveBeenCalledWith(backup)
+    expect(cloudAdapter.applyReplace).toHaveBeenCalledWith(backup, 'token-1')
+    expect(counts).toEqual({
+      regions: 2,
+      places: 2,
+      labels: 2,
+      trips: 2,
+      itineraryItems: 2,
+    })
+  })
+
 })
