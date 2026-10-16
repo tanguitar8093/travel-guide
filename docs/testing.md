@@ -10,25 +10,73 @@
 | `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且預設模式是 Supabase |
 | `src/database/database-mode-preference.ts` | 使用者資料庫偏好 | 驗證會讀寫最後使用的資料庫模式 |
 | `src/database/backup.repository.ts` | 備份驗證 | 驗證 `validateImport()` 會接受合法備份並拒絕不合法資料 |
+| `src/database/supabase-backup-safety.test.ts` | 雲端覆蓋安全檢查 | 驗證 preview/apply token 守門與 RPC 呼叫路徑 |
+| `src/modules/data-management/data-management.service.test.ts` | Data Management 流程 | 驗證 Supabase replace/clear/transfer 的 preview->apply 流程 |
+| `src/database/owner-isolation.test.ts` | owner isolation 與角色條件 | 驗證 owner 隔離與角色邊界 |
+| `src/database/supabase-create-id.test.ts` | 建立資料時 UUID 行為 | 驗證建立路徑會補齊 id 避免 null insert |
 
 實際測試檔：
 - [src/database/database-mode-preference.test.ts](../src/database/database-mode-preference.test.ts)
 - [src/database/index.test.ts](../src/database/index.test.ts)
 - [src/database/runtime.test.ts](../src/database/runtime.test.ts)
 - [src/database/backup.repository.test.ts](../src/database/backup.repository.test.ts)
+- [src/database/supabase-backup-safety.test.ts](../src/database/supabase-backup-safety.test.ts)
+- [src/modules/data-management/data-management.service.test.ts](../src/modules/data-management/data-management.service.test.ts)
+- [src/database/owner-isolation.test.ts](../src/database/owner-isolation.test.ts)
+- [src/database/supabase-create-id.test.ts](../src/database/supabase-create-id.test.ts)
 
 ## 執行方式
 
 - 一般執行：`npm test`
 - 單次執行：`npm run test:run`
 - 靜態檢查：`npm run lint`
+- 變更後最小檢查：`git diff --check` + `npm run lint`
 
 ## 推送前檢查
 
-專案已設定 `pre-push` hook。當你執行 `git push` 時，Git 會先跑 `npm run test:run` 和 `npm run build`。
+專案建議採用「輕量 pre-push」策略，避免高成本阻塞：
 
-- 如果測試通過，才會繼續 push。
-- 如果測試失敗，push 會被中止。
+- 預設先跑：`git diff --check`、`npm run lint`
+- 當有資料層或同步流程改動，再補跑對應 focused tests
+- 不把 `npm run build` 當成每次 push 的必要項
+
+> 若你本機仍有舊的 pre-push hook 會強制跑 build，請同步更新 hook 設定，避免和目前流程不一致。
+
+## Phase-2 雲端覆蓋/清空 驗證清單
+
+SQL 腳本： [docs/supabase-phase2-safe-import.sql](supabase-phase2-safe-import.sql)
+
+- [ ] Member：preview/apply replace 成功，結果筆數符合預覽 incoming。
+- [ ] Member：preview/apply clear 成功，清空後各表筆數為 0。
+- [ ] Member：token 過期防護生效（預覽後資料改變，apply 被拒絕）。
+- [ ] Member：存在 shared/collab trip 時，replace/clear 都被拒絕。
+- [ ] Admin：重跑上述 4 項，確認只影響自己的 owner 範圍。
+
+### 手動驗證紀錄模板
+
+日期：
+環境：
+帳號角色：
+
+1. Replace
+- 預期：
+- 實際：
+- 結果：PASS / FAIL
+
+2. Clear
+- 預期：
+- 實際：
+- 結果：PASS / FAIL
+
+3. Token stale guard
+- 預期：
+- 實際：
+- 結果：PASS / FAIL
+
+4. Shared/Collab block
+- 預期：
+- 實際：
+- 結果：PASS / FAIL
 
 ## 後續擴充順序
 

@@ -1,6 +1,7 @@
 import type { TravelBackup } from '../../database'
 import type { DatabaseMode } from '../../database'
 import { DataManagementService } from './data-management.service'
+import type { CloudPreviewPayload } from './data-management.service'
 
 export class DataManagementController {
   private readonly service: DataManagementService
@@ -25,8 +26,28 @@ export class DataManagementController {
     return this.service.clearAllData()
   }
 
-  transferLocalToSupabase() {
-    return this.service.transferLocalToSupabase()
+  previewSupabaseReplace(backup: TravelBackup) {
+    return this.service.previewSupabaseReplace(backup)
+  }
+
+  applySupabaseReplace(backup: TravelBackup, previewToken: string) {
+    return this.service.applySupabaseReplace(backup, previewToken)
+  }
+
+  previewSupabaseClearAllData() {
+    return this.service.previewSupabaseClearAllData()
+  }
+
+  applySupabaseClearAllData(previewToken: string) {
+    return this.service.applySupabaseClearAllData(previewToken)
+  }
+
+  previewLocalToSupabaseTransfer(): Promise<CloudPreviewPayload> {
+    return this.service.previewLocalToSupabaseTransfer()
+  }
+
+  transferLocalToSupabase(backup: TravelBackup, previewToken: string) {
+    return this.service.transferLocalToSupabase(backup, previewToken)
   }
 
   transferSupabaseToLocal() {

@@ -5,8 +5,13 @@ import {
   setDatabaseMode,
   supabaseBackupRepository,
 } from '../../database'
-import { ValidationError } from '../../database'
 import type { BackupCounts, DatabaseMode, TravelBackup } from '../../database'
+import type { CloudBackupPreview } from '../../database/supabase.repositories'
+
+export interface CloudPreviewPayload {
+  backup: TravelBackup
+  preview: CloudBackupPreview
+}
 
 export class DataManagementService {
   exportBackup(): Promise<TravelBackup> {
@@ -31,8 +36,30 @@ export class DataManagementService {
     return backupRepository.clearAllData()
   }
 
-  async transferLocalToSupabase(): Promise<BackupCounts> {
-    throw new ValidationError('本機搬移至雲端暫停使用，避免覆蓋雲端資料。')
+  async previewSupabaseReplace(backup: TravelBackup): Promise<CloudBackupPreview> {
+    return supabaseBackupRepository.previewReplaceAll(backup)
+  }
+
+  async applySupabaseReplace(backup: TravelBackup, previewToken: string): Promise<BackupCounts> {
+    return supabaseBackupRepository.replaceAll(backup, previewToken)
+  }
+
+  async previewSupabaseClearAllData(): Promise<CloudBackupPreview> {
+    return supabaseBackupRepository.previewClearAllData()
+  }
+
+  async applySupabaseClearAllData(previewToken: string): Promise<BackupCounts> {
+    return supabaseBackupRepository.clearAllData(previewToken)
+  }
+
+  async previewLocalToSupabaseTransfer(): Promise<CloudPreviewPayload> {
+    const backup = await indexedBackupRepository.exportAll()
+    const preview = await supabaseBackupRepository.previewReplaceAll(backup)
+    return { backup, preview }
+  }
+
+  async transferLocalToSupabase(backup: TravelBackup, previewToken: string): Promise<BackupCounts> {
+    return supabaseBackupRepository.replaceAll(backup, previewToken)
   }
 
   async transferSupabaseToLocal(): Promise<BackupCounts> {

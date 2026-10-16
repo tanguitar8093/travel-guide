@@ -1040,6 +1040,39 @@ export class SupabaseItineraryItemRepository {
 }
 
 export class SupabaseBackupRepository {
+  private parsePreview(data: unknown): CloudBackupPreview {
+    const preview = data as Partial<CloudBackupPreview> | null
+    if (!preview?.token || !preview.current || !preview.incoming) {
+      throw new ValidationError('無法取得雲端覆蓋預覽結果，請稍後再試。')
+    }
+    return {
+      token: preview.token,
+      current: preview.current,
+      incoming: preview.incoming,
+    }
+  }
+
+  private parseCounts(data: unknown): BackupCounts {
+    const counts = data as Partial<BackupCounts> | null
+    if (
+      counts?.regions === undefined ||
+      counts.places === undefined ||
+      counts.labels === undefined ||
+      counts.trips === undefined ||
+      counts.itineraryItems === undefined
+    ) {
+      throw new ValidationError('雲端操作回傳格式不正確，請稍後再試。')
+    }
+
+    return {
+      regions: counts.regions,
+      places: counts.places,
+      labels: counts.labels,
+      trips: counts.trips,
+      itineraryItems: counts.itineraryItems,
+    }
+  }
+
   validateImport(value: unknown) {
     return indexedBackupRepository.validateImport(value)
   }
@@ -1061,13 +1094,70 @@ export class SupabaseBackupRepository {
     }
   }
 
-  async replaceAll(_value: unknown): Promise<BackupCounts> {
-    throw new ValidationError('雲端覆蓋匯入暫停使用，請切換至單機模式匯入備份。')
+  async previewReplaceAll(value: unknown): Promise<CloudBackupPreview> {
+    const backup = this.validateImport(value)
+    const { data, error } = await withSupabaseTimeout(
+      Promise.resolve(
+        supabase.rpc('app_backup_preview_replace', {
+          p_backup: backup,
+        }),
+      ),
+      'preview cloud replace',
+    )
+    if (error) throw mapSupabaseError(error, 'preview cloud replace')
+    return this.parsePreview(data)
   }
 
-  async clearAllData(): Promise<void> {
-    throw new ValidationError('雲端整批清空暫停使用，請逐筆刪除需要移除的資料。')
+  async replaceAll(value: unknown, previewToken?: string): Promise<BackupCounts> {
+    if (!previewToken) {
+      throw new ValidationError('雲端覆蓋需要先完成預覽並再次確認。')
+    }
+
+    const backup = this.validateImport(value)
+    const { data, error } = await withSupabaseTimeout(
+      Promise.resolve(
+        supabase.rpc('app_backup_apply_replace', {
+          p_backup: backup,
+          p_token: previewToken,
+        }),
+      ),
+      'apply cloud replace',
+    )
+    if (error) throw mapSupabaseError(error, 'apply cloud replace')
+    return this.parseCounts(data)
   }
+
+  async previewClearAllData(): Promise<CloudBackupPreview> {
+    const { data, error } = await withSupabaseTimeout(
+      Promise.resolve(supabase.rpc('app_backup_preview_clear')),
+      'preview cloud clear',
+    )
+    if (error) throw mapSupabaseError(error, 'preview cloud clear')
+    return this.parsePreview(data)
+  }
+
+  async clearAllData(previewToken?: string): Promise<BackupCounts> {
+    if (!previewToken) {
+      throw new ValidationError('雲端清空需要先完成預覽並再次確認。')
+    }
+
+    const { data, error } = await withSupabaseTimeout(
+      Promise.resolve(
+        supabase.rpc('app_backup_apply_clear', {
+          p_token: previewToken,
+        }),
+      ),
+      'apply cloud clear',
+    )
+    if (error) throw mapSupabaseError(error, 'apply cloud clear')
+    return this.parseCounts(data)
+  }
+}
+
+export interface CloudBackupPreview {
+  token: string
+  current: BackupCounts
+  incoming: BackupCounts
 }
 
 export const supabaseRegions = new SupabaseRegionRepository()

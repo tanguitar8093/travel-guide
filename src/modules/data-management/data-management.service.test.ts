@@ -3,13 +3,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const repositories = vi.hoisted(() => ({
   mode: 'supabase' as 'supabase' | 'indexeddb',
   local: { exportAll: vi.fn(), replaceAll: vi.fn(), clearAllData: vi.fn() },
-  cloud: { exportAll: vi.fn(), replaceAll: vi.fn(), clearAllData: vi.fn() },
+  cloud: {
+    exportAll: vi.fn(),
+    replaceAll: vi.fn(),
+    clearAllData: vi.fn(),
+    previewReplaceAll: vi.fn(),
+    previewClearAllData: vi.fn(),
+  },
 }))
 
 vi.mock('../../database', async () => {
-  const { ValidationError } = await import('../../database/errors')
   return {
-    ValidationError,
     getDatabaseMode: () => repositories.mode,
     setDatabaseMode: vi.fn(),
     indexedBackupRepository: repositories.local,
@@ -26,10 +30,38 @@ import { DataManagementService } from './data-management.service'
 beforeEach(() => { vi.clearAllMocks(); repositories.mode = 'supabase' })
 
 describe('safe data management', () => {
-  it('blocks local-to-cloud before reading or overwriting either database', async () => {
-    await expect(new DataManagementService().transferLocalToSupabase()).rejects.toThrow('暫停使用')
-    expect(repositories.local.exportAll).not.toHaveBeenCalled()
-    expect(repositories.cloud.replaceAll).not.toHaveBeenCalled()
+  it('restores local-to-cloud transfer with preview token flow', async () => {
+    const backup = { data: 'local-backup' }
+    repositories.local.exportAll.mockResolvedValue(backup)
+    repositories.cloud.previewReplaceAll.mockResolvedValue({
+      token: 'token-1',
+      current: { regions: 1, places: 1, labels: 1, trips: 1, itineraryItems: 1 },
+      incoming: { regions: 2, places: 2, labels: 2, trips: 2, itineraryItems: 2 },
+    })
+    repositories.cloud.replaceAll.mockResolvedValue({
+      regions: 2,
+      places: 2,
+      labels: 2,
+      trips: 2,
+      itineraryItems: 2,
+    })
+
+    const service = new DataManagementService()
+    const prepared = await service.previewLocalToSupabaseTransfer()
+    expect(prepared.backup).toEqual(backup)
+    expect(prepared.preview.token).toBe('token-1')
+    const counts = await service.transferLocalToSupabase(backup as never, prepared.preview.token)
+
+    expect(repositories.local.exportAll).toHaveBeenCalledOnce()
+    expect(repositories.cloud.previewReplaceAll).toHaveBeenCalledWith(backup)
+    expect(repositories.cloud.replaceAll).toHaveBeenCalledWith(backup, 'token-1')
+    expect(counts).toEqual({
+      regions: 2,
+      places: 2,
+      labels: 2,
+      trips: 2,
+      itineraryItems: 2,
+    })
   })
 
   it('retains cloud-to-local transfer', async () => {
@@ -39,6 +71,35 @@ describe('safe data management', () => {
     await expect(new DataManagementService().transferSupabaseToLocal()).resolves.toEqual({ trips: 1 })
     expect(repositories.local.replaceAll).toHaveBeenCalledWith(backup)
     expect(repositories.cloud.replaceAll).not.toHaveBeenCalled()
+  })
+
+  it('supports cloud clear with preview token flow', async () => {
+    repositories.cloud.previewClearAllData.mockResolvedValue({
+      token: 'token-clear',
+      current: { regions: 3, places: 3, labels: 3, trips: 3, itineraryItems: 3 },
+      incoming: { regions: 0, places: 0, labels: 0, trips: 0, itineraryItems: 0 },
+    })
+    repositories.cloud.clearAllData.mockResolvedValue({
+      regions: 3,
+      places: 3,
+      labels: 3,
+      trips: 3,
+      itineraryItems: 3,
+    })
+
+    const service = new DataManagementService()
+    const preview = await service.previewSupabaseClearAllData()
+    const counts = await service.applySupabaseClearAllData(preview.token)
+
+    expect(repositories.cloud.previewClearAllData).toHaveBeenCalledOnce()
+    expect(repositories.cloud.clearAllData).toHaveBeenCalledWith('token-clear')
+    expect(counts).toEqual({
+      regions: 3,
+      places: 3,
+      labels: 3,
+      trips: 3,
+      itineraryItems: 3,
+    })
   })
 
   it('retains local clear', async () => {

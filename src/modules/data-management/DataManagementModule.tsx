@@ -22,6 +22,15 @@ function formatCount(
     .join("、");
 }
 
+function formatPreviewCounts(
+  current: Record<(typeof countLabels)[number][0], number>,
+  incoming: Record<(typeof countLabels)[number][0], number>,
+): string {
+  return countLabels
+    .map(([key, label]) => `${label} 目前 ${current[key]} → 匯入 ${incoming[key]}`)
+    .join("\n");
+}
+
 function DataManagementModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const databaseMode = useDatabaseMode();
@@ -103,7 +112,8 @@ function DataManagementModule() {
   }
 
   async function handleImport() {
-    if (!backup || databaseMode === "supabase") return;
+    if (!backup) return;
+
     const summary = formatCount({
       regions: backup.data.regions.length,
       places: backup.data.places.length,
@@ -111,6 +121,41 @@ function DataManagementModule() {
       trips: backup.data.trips.length,
       itineraryItems: backup.data.itineraryItems.length,
     });
+
+    if (databaseMode === "supabase") {
+      setBusy(true);
+      setError("");
+      setNotice("");
+      try {
+        const preview = await dataManagementController.previewSupabaseReplace(backup);
+        const previewDetail = formatPreviewCounts(preview.current, preview.incoming);
+        if (
+          !window.confirm(
+            `即將覆蓋目前登入帳號的雲端資料。\n\n${previewDetail}\n\n確認後會以匯入資料完整取代目前帳號在雲端的資料。是否繼續？`,
+          )
+        ) {
+          return;
+        }
+
+        const counts = await dataManagementController.applySupabaseReplace(
+          backup,
+          preview.token,
+        );
+        setBackup(undefined);
+        setFileName("");
+        setNotice(`雲端資料已覆蓋：${formatCount(counts)}。`);
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "雲端覆蓋失敗，請重新預覽後再試。",
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (
       !window.confirm(
         `即將用「${fileName}」覆蓋此瀏覽器中的全部資料。\n\n匯入內容：${summary}\n\n目前的資料會被完全取代，且無法從本程式復原。建議先匯出目前資料作為備份。確定繼續嗎？`,
@@ -138,7 +183,40 @@ function DataManagementModule() {
   }
 
   async function handleClearAllData() {
-    if (databaseMode === "supabase") return;
+    if (databaseMode === "supabase") {
+      setBusy(true);
+      setError("");
+      setNotice("");
+      try {
+        const preview = await dataManagementController.previewSupabaseClearAllData();
+        if (
+          !window.confirm(
+            `即將清空目前登入帳號的雲端資料。\n\n${formatCount(
+              preview.current,
+            )}\n\n此操作無法撤銷，且不會影響其他帳號資料。確定繼續嗎？`,
+          )
+        ) {
+          return;
+        }
+
+        const counts = await dataManagementController.applySupabaseClearAllData(
+          preview.token,
+        );
+        setBackup(undefined);
+        setFileName("");
+        setNotice(`雲端資料已清空：${formatCount(counts)}。`);
+      } catch (cause) {
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "雲端清空失敗，請重新預覽後再試。",
+        );
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
     if (
       !window.confirm(
         "即將清空此瀏覽器中的全部資料庫內容。\n\n包括：區域、地點、標籤、行程與每日行程項目。\n\n此操作無法撤銷，請先確認是否已備份。確定要清空嗎？",
@@ -179,6 +257,38 @@ function DataManagementModule() {
       setNotice(`已從 Supabase 匯回本機：${formatCount(counts)}。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "從 Supabase 匯回本機失敗。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTransferLocalToSupabase() {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const { backup: localBackup, preview } =
+        await dataManagementController.previewLocalToSupabaseTransfer();
+      const previewDetail = formatPreviewCounts(preview.current, preview.incoming);
+      if (
+        !window.confirm(
+          `即將用本機資料覆蓋目前登入帳號的雲端資料。\n\n${previewDetail}\n\n確認後會以本機資料取代目前帳號雲端資料。是否繼續？`,
+        )
+      ) {
+        return;
+      }
+
+      const counts = await dataManagementController.transferLocalToSupabase(
+        localBackup,
+        preview.token,
+      );
+      setNotice(`已從本機覆蓋至雲端：${formatCount(counts)}。`);
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : "本機搬移至雲端失敗，請重新預覽後再試。",
+      );
     } finally {
       setBusy(false);
     }
@@ -240,8 +350,16 @@ function DataManagementModule() {
           <section className="data-management-card data-management-transfer-card">
             <div className="data-management-card-icon">⇄</div>
             <h2>資料搬移</h2>
-            <p>將雲端可存取的資料匯回本機，會覆蓋本機現有資料。本機搬移至雲端暫停使用。</p>
+            <p>可在本機與雲端間執行帳號範圍內的覆蓋搬移。每次都會先預覽再確認。</p>
             <div className="data-management-actions data-management-transfer-actions">
+              <button
+                type="button"
+                className="data-management-secondary"
+                disabled={busy}
+                onClick={() => void handleTransferLocalToSupabase()}
+              >
+                從本機覆蓋到 Supabase
+              </button>
               <button
                 type="button"
                 className="data-management-secondary"
@@ -269,11 +387,13 @@ function DataManagementModule() {
             </button>
           </section>
 
-          {databaseMode === "indexeddb" && (<section className="data-management-card data-management-import-card">
+          <section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">↑</div>
             <h2>匯入並覆蓋</h2>
             <p>
-              只接受格式正確、版本相容且資料關聯完整的本程式備份。驗證通過後才會替換現有資料。
+              {databaseMode === "supabase"
+                ? "只覆蓋目前登入帳號在雲端的資料。會先顯示預覽數量，再由你確認。"
+                : "只接受格式正確、版本相容且資料關聯完整的本程式備份。驗證通過後才會替換現有資料。"}
             </p>
             <input
               ref={fileInputRef}
@@ -300,7 +420,11 @@ function DataManagementModule() {
                   disabled={busy}
                   onClick={() => void handleImport()}
                 >
-                  {busy ? "匯入中…" : "確認覆蓋匯入"}
+                  {busy
+                    ? "匯入中…"
+                    : databaseMode === "supabase"
+                      ? "確認覆蓋雲端資料"
+                      : "確認覆蓋匯入"}
                 </button>
               )}
             </div>
@@ -310,15 +434,19 @@ function DataManagementModule() {
               </p>
             )}
             <div className="data-management-warning" role="note">
-              匯入會取代此瀏覽器的全部旅行資料，不會合併。請確認已選對備份檔，並先匯出目前資料以免遺失。
+              {databaseMode === "supabase"
+                ? "雲端覆蓋只作用於目前登入帳號，且會檢查預覽快照是否過期。"
+                : "匯入會取代此瀏覽器的全部旅行資料，不會合併。請確認已選對備份檔，並先匯出目前資料以免遺失。"}
             </div>
-          </section>)}
+          </section>
 
-          {databaseMode === "indexeddb" && (<section className="data-management-card data-management-import-card">
+          <section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">⌫</div>
             <h2>清空資料庫</h2>
             <p>
-              將此瀏覽器中所有旅行資料一次性刪除，包括區域、地點、標籤、行程與每日行程項目。
+              {databaseMode === "supabase"
+                ? "清空目前登入帳號在雲端的資料。會先預覽並確認後才執行。"
+                : "將此瀏覽器中所有旅行資料一次性刪除，包括區域、地點、標籤、行程與每日行程項目。"}
             </p>
             <div className="data-management-actions">
               <button
@@ -327,15 +455,21 @@ function DataManagementModule() {
                 disabled={busy}
                 onClick={() => void handleClearAllData()}
               >
-                {busy ? "清空中…" : "清空整個資料庫"}
+                {busy
+                  ? "清空中…"
+                  : databaseMode === "supabase"
+                    ? "清空目前帳號雲端資料"
+                    : "清空整個資料庫"}
               </button>
             </div>
             <div className="data-management-warning" role="note">
-              這是破壞性操作，且不會保留可回復內容。建議先匯出備份後再執行。
+              {databaseMode === "supabase"
+                ? "僅影響目前登入帳號，且會阻擋可能破壞分享/協作設定的情況。"
+                : "這是破壞性操作，且不會保留可回復內容。建議先匯出備份後再執行。"}
             </div>
-          </section>)}
+          </section>
           {databaseMode === "supabase" && (
-            <p role="note">雲端覆蓋匯入與整批清空暫停使用。需要刪除資料時，請到各模組逐筆刪除。</p>
+            <p role="note">雲端操作只作用於目前登入帳號，且採預覽確認與交易回滾保護。</p>
           )}
         </div>
       </section>
