@@ -6,7 +6,7 @@
 
 | 模式 | 適用位置 | 為什麼適合 | 預期收益 | 建議優先度 |
 | --- | --- | --- | --- | --- |
-| Strategy | `src/database/index.ts`、`src/database/runtime.ts` | 已經有 IndexedDB / Supabase 兩套同介面後端 | 降低資料來源切換成本，新增後端較容易 | 最高 |
+| Strategy | `src/database/index.ts`、`src/database/runtime.ts` | 已經有 IndexedDB / Supabase 兩套同介面後端，且已用策略登錄表封裝切換 | 降低資料來源切換成本，新增後端較容易 | 最高 |
 | Observer | `src/database/runtime.ts` | `subscribeDatabaseMode` 已具備訂閱模型 | 模式變更可同步到多處，不用手動輪詢 | 高 |
 | Composite | `src/modules/label/label.service.ts` | Label 本身就是樹狀結構 | 樹節點與子樹操作更一致，方便階層功能擴充 | 中 |
 | Command | `src/modules/data-management/data-management.service.ts` | 匯出、匯入、覆蓋、清空都是明確動作 | 方便加確認、記錄、重做/復原或背景執行 | 中 |
@@ -28,7 +28,7 @@
 - 切換資料來源時不需要到處改業務模組。
 - 目前的條件分支可以更有結構地收斂到單一選擇點。
 
-結論：這是最值得正式化的模式，因為專案現在已經在這條路上。
+結論：這是最值得正式化的模式，而且目前已經落地成策略登錄表，不再只是概念。
 
 ### 2. Observer：資料庫模式與全域狀態變化
 

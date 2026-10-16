@@ -51,9 +51,10 @@ export type {
 export { placeIcons } from './models'
 
 import { backupRepository as indexedBackupRepository } from './backup.repository'
+import type { BackupCounts, TravelBackup } from './backup.repository'
 import { labels as indexedLabels } from './label.repository'
 import { itineraryItems as indexedItineraryItems, places as indexedPlaces, regions as indexedRegions, trips as indexedTrips } from './repositories'
-import { getDatabaseMode } from './runtime'
+import { getDatabaseMode, type DatabaseMode } from './runtime'
 import {
   supabaseBackupRepository,
   supabaseItineraryItems,
@@ -62,8 +63,81 @@ import {
   supabaseTrips,
 } from './supabase.repositories'
 import { supabaseRegions } from './supabase.region.repository'
+import type {
+  ItineraryItem,
+  Label,
+  Place,
+  Region,
+  Trip,
+} from './models'
 
-const indexedDbBackend = {
+type RegionRepositoryLike = {
+  create(input: Parameters<typeof indexedRegions.create>[0]): Promise<string>
+  update(id: string, changes: Parameters<typeof indexedRegions.update>[1]): Promise<void>
+  delete(id: string): Promise<void>
+  getById(id: string): Promise<Region | undefined>
+  list(): Promise<Region[]>
+}
+
+type PlaceRepositoryLike = {
+  create(input: Parameters<typeof indexedPlaces.create>[0]): Promise<string>
+  update(id: string, changes: Parameters<typeof indexedPlaces.update>[1]): Promise<void>
+  delete(id: string): Promise<void>
+  getById(id: string): Promise<Place | undefined>
+  list(): Promise<Place[]>
+  findByRegionId(regionId: string): Promise<Place[]>
+  findByLabelIds(labelIds: string[]): Promise<Place[]>
+  addLabel(placeId: string, labelId: string): Promise<void>
+  removeLabel(placeId: string, labelId: string): Promise<void>
+}
+
+type LabelRepositoryLike = {
+  list(): Promise<Label[]>
+  getById(id: string): Promise<Label | undefined>
+  getDescendantIds(id: string): Promise<string[]>
+  create(input: Parameters<typeof indexedLabels.create>[0]): Promise<string>
+  update(id: string, changes: Parameters<typeof indexedLabels.update>[1]): Promise<void>
+  delete(id: string): Promise<void>
+  assignToPlace(placeId: string, labelId: string): Promise<void>
+  removeFromPlace(placeId: string, labelId: string): Promise<void>
+  listPlaces(): Promise<Place[]>
+}
+
+type TripRepositoryLike = {
+  create(input: Parameters<typeof indexedTrips.create>[0]): Promise<string>
+  update(id: string, changes: Parameters<typeof indexedTrips.update>[1]): Promise<void>
+  delete(id: string): Promise<void>
+  getById(id: string): Promise<Trip | undefined>
+  list(): Promise<Trip[]>
+}
+
+type ItineraryItemRepositoryLike = {
+  create(input: Parameters<typeof indexedItineraryItems.create>[0]): Promise<string>
+  update(id: string, changes: Parameters<typeof indexedItineraryItems.update>[1]): Promise<void>
+  delete(id: string): Promise<void>
+  getById(id: string): Promise<ItineraryItem | undefined>
+  findByTripId(tripId: string): Promise<ItineraryItem[]>
+  findByTripAndDate(tripId: string, date: string): Promise<ItineraryItem[]>
+  reorderForDate(tripId: string, date: string, orderedIds: string[]): Promise<void>
+}
+
+type BackupRepositoryLike = {
+  exportAll(): Promise<TravelBackup>
+  validateImport(value: unknown): TravelBackup
+  replaceAll(value: unknown): Promise<BackupCounts>
+  clearAllData(): Promise<void>
+}
+
+type DatabaseBackend = {
+  regions: RegionRepositoryLike
+  places: PlaceRepositoryLike
+  labels: LabelRepositoryLike
+  trips: TripRepositoryLike
+  itineraryItems: ItineraryItemRepositoryLike
+  backupRepository: BackupRepositoryLike
+}
+
+const indexedDbBackend: DatabaseBackend = {
   regions: indexedRegions,
   places: indexedPlaces,
   labels: indexedLabels,
@@ -72,7 +146,7 @@ const indexedDbBackend = {
   backupRepository: indexedBackupRepository,
 }
 
-const supabaseBackend = {
+const supabaseBackend: DatabaseBackend = {
   regions: supabaseRegions,
   places: supabasePlaces,
   labels: supabaseLabels,
@@ -81,8 +155,13 @@ const supabaseBackend = {
   backupRepository: supabaseBackupRepository,
 }
 
-function activeBackend() {
-  return getDatabaseMode() === 'supabase' ? supabaseBackend : indexedDbBackend
+const databaseBackends: Record<DatabaseMode, DatabaseBackend> = {
+  indexeddb: indexedDbBackend,
+  supabase: supabaseBackend,
+}
+
+function activeBackend(): DatabaseBackend {
+  return databaseBackends[getDatabaseMode()]
 }
 
 export const regions = {
