@@ -219,7 +219,7 @@ async function loadPlaceRowsByIds(ids: string[]): Promise<Place[]> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions(region_id),place_labels(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .in('id', ids),
     ),
     'list places',
@@ -233,7 +233,7 @@ async function loadPlaceRows(): Promise<Place[]> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions(region_id),place_labels(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .order('name', { ascending: true }),
     ),
     'list places',
@@ -374,7 +374,7 @@ async function assertPlaceExistsById(placeId: string): Promise<Place> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions(region_id),place_labels(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .eq('id', placeId)
         .maybeSingle(),
     ),
@@ -678,7 +678,7 @@ export class SupabasePlaceRepository {
       Promise.resolve(
         supabase
           .from('places')
-          .select('id,name,icon,maps_url,google_place_id,notes,place_regions(region_id),place_labels(label_id)')
+          .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
           .eq('id', id)
           .maybeSingle(),
       ),

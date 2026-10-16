@@ -174,6 +174,8 @@ function ItineraryModule() {
   const [editingItemId, setEditingItemId] = useState<string>();
   const [addingItem, setAddingItem] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
+  const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
   const [error, setError] = useState("");
@@ -326,6 +328,8 @@ function ItineraryModule() {
     ])
       .then(([workspace, labelTree]) => {
         if (!active) return;
+        setError("");
+        setWorkspaceLoadFailed(false);
         setTrips(workspace.trips);
         setRegions(workspace.regions);
         setPlaces(workspace.places);
@@ -336,10 +340,12 @@ function ItineraryModule() {
         setSelectedDate(firstTrip?.startDate ?? "");
       })
       .catch((cause: unknown) => {
-        if (active)
+        if (active) {
+          setWorkspaceLoadFailed(true);
           setError(
             cause instanceof Error ? cause.message : "載入行程資料失敗。",
           );
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -347,7 +353,7 @@ function ItineraryModule() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [workspaceReloadKey]);
 
   useEffect(() => {
     if (!selectedTripId) {
@@ -828,6 +834,21 @@ function ItineraryModule() {
         {error && !deleteTripDialogOpen && (
           <div className="itinerary-feedback itinerary-error" role="alert">
             {error}
+            {workspaceLoadFailed && (
+              <button
+                type="button"
+                className="itinerary-secondary"
+                disabled={loading}
+                onClick={() => {
+                  setLoading(true);
+                  setError("");
+                  setWorkspaceLoadFailed(false);
+                  setWorkspaceReloadKey((value) => value + 1);
+                }}
+              >
+                重新載入
+              </button>
+            )}
           </div>
         )}
         {notice && (

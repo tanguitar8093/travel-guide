@@ -1,0 +1,5 @@
+VITE_GOOGLE_MAPS_API_KEY=AIzaSyB8T9ZUn5IsNpxpwgRBpVduCCy-IRVogdw
+VITE_SUPABASE_URL=https://dblpjzimucrlmmgwntiq.supabase.co
+VITE_SUPABASE_ANON_KEY=sb_publishable_CM8GHB-nza0ld4uAVwaWGQ_FNmKotFA
+VITE_SUPABASE_EMAIL_REDIRECT_TO=http://localhost:5173/
+SUPABASE_DB_URL="postgresql://postgres:你的資料庫密碼@db.dblpjzimucrlmmgwntiq.supabase.co:5432/postgres"
