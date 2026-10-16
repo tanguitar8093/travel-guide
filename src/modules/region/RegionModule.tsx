@@ -351,7 +351,7 @@ function RegionModule() {
     >
       <header className="region-topbar">
         <span>工作區　/　區域</span>
-        <span>本機資料</span>
+        <span>Supabase 區域 · 其他模組仍為本機資料</span>
       </header>
       <div className="region-content">
         <section className="region-heading">

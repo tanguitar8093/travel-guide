@@ -111,6 +111,17 @@
   gap: 8px;
 }
 
+.workspace-session-status {
+  justify-self: start;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #477159;
+  background: #ebf4ed;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
 .workspace-session-card strong {
   color: #415449;
   font-size: 12px;
@@ -139,6 +150,28 @@
 .workspace-session-button:disabled {
   cursor: wait;
   opacity: .65;
+}
+
+.workspace-session-error {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 8px;
+  border-radius: 10px;
+  color: #874040;
+  background: #fbeceb;
+}
+
+.workspace-session-error button {
+  justify-self: start;
+  padding: 0;
+  border: 0;
+  color: #874040;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 700;
 }
 
 div.workspace-layout > main.workspace-main {

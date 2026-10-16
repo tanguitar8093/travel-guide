@@ -41,7 +41,7 @@ export function WorkspaceLayout({
   mainClassName = "",
   shellClassName = "",
 }: WorkspaceLayoutProps) {
-  const { user, signOut } = useAuth();
+  const { user, errorMessage, clearError, signOut } = useAuth();
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -205,8 +205,15 @@ export function WorkspaceLayout({
         </nav>
         <div className="workspace-sidebar-foot">
           <div className="workspace-session-card">
+            <div className="workspace-session-status">Supabase 已登入</div>
             <strong>{user?.email ?? "已登入成員"}</strong>
             <span>資料讀寫將逐步改由 Supabase 控制</span>
+            {errorMessage && (
+              <p className="workspace-session-error" role="alert">
+                {errorMessage}
+                <button type="button" onClick={clearError}>關閉</button>
+              </p>
+            )}
             <button
               className="workspace-session-button"
               type="button"

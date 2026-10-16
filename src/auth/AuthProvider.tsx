@@ -15,8 +15,10 @@ interface AuthContextValue {
   status: AuthStatus
   session: Session | null
   user: User | null
+  errorMessage: string | null
   signInWithPassword(email: string, password: string): Promise<void>
   signOut(): Promise<void>
+  clearError(): void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -28,6 +30,7 @@ interface AuthProviderProps {
 export function AuthProvider({ children }: AuthProviderProps) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<AuthStatus>('loading')
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   const applySession = useEffectEvent((nextSession: Session | null) => {
     setSession(nextSession)
@@ -40,16 +43,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return
       if (error) {
+        setErrorMessage('無法讀取登入狀態，請重新整理頁面。')
         setSession(null)
         setStatus('unauthenticated')
         return
       }
+      setErrorMessage(null)
       applySession(data.session ?? null)
     })
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setErrorMessage(null)
       applySession(nextSession)
     })
 
@@ -61,12 +67,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function signInWithPassword(email: string, password: string): Promise<void> {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) throw error
+    if (error) {
+      setErrorMessage(error.message)
+      throw error
+    }
+    setErrorMessage(null)
   }
 
   async function signOut(): Promise<void> {
     const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    if (error) {
+      setErrorMessage(error.message)
+      throw error
+    }
+    setErrorMessage(null)
+  }
+
+  function clearError() {
+    setErrorMessage(null)
   }
 
   return (
@@ -75,8 +93,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         status,
         session,
         user: session?.user ?? null,
+        errorMessage,
         signInWithPassword,
         signOut,
+        clearError,
       }}
     >
       {children}

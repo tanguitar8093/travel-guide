@@ -5,19 +5,24 @@ create extension if not exists pgcrypto;
 create table if not exists public.regions (
   id uuid primary key default gen_random_uuid(),
   name text not null check (btrim(name) <> ''),
-  center_latitude double precision,
-  center_longitude double precision,
+  center jsonb,
   google_place_id text,
   zoom integer not null check (zoom between 0 and 22),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   check (
     (google_place_id is not null and btrim(google_place_id) <> '')
-    or (center_latitude is not null and center_longitude is not null)
+    or center is not null
   ),
   check (
-    (center_latitude is null and center_longitude is null)
-    or (center_latitude between -90 and 90 and center_longitude between -180 and 180)
+    center is null
+    or (
+      jsonb_typeof(center) = 'object'
+      and center ? 'latitude'
+      and center ? 'longitude'
+      and ((center->>'latitude')::double precision between -90 and 90)
+      and ((center->>'longitude')::double precision between -180 and 180)
+    )
   )
 );
 

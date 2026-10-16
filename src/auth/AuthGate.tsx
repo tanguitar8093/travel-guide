@@ -8,25 +8,28 @@ interface AuthGateProps {
 }
 
 export function AuthGate({ children }: AuthGateProps) {
-  const { status, signInWithPassword } = useAuth()
+  const { status, errorMessage: authErrorMessage, signInWithPassword, clearError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    setErrorMessage(null)
+    setFormErrorMessage(null)
+    clearError()
     setIsSubmitting(true)
 
     try {
       await signInWithPassword(email.trim(), password)
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : '登入失敗，請稍後再試。')
+      setFormErrorMessage(error instanceof Error ? error.message : '登入失敗，請稍後再試。')
     } finally {
       setIsSubmitting(false)
     }
   }
+
+  const visibleError = formErrorMessage ?? authErrorMessage
 
   if (status === 'loading') {
     return (
@@ -81,9 +84,9 @@ export function AuthGate({ children }: AuthGateProps) {
             />
           </label>
 
-          {errorMessage && (
+          {visibleError && (
             <p className="auth-error" role="alert">
-              {errorMessage}
+              {visibleError}
             </p>
           )}
 

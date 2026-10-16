@@ -6,10 +6,10 @@ export {
 export { BackupRepository, backupRepository } from './backup.repository'
 export type { BackupCounts, TravelBackup } from './backup.repository'
 export { LabelRepository, labels } from './label.repository'
+export { SupabaseRegionRepository, regions } from './supabase.region.repository'
 export {
   itineraryItems,
   places,
-  regions,
   trips,
 } from './repositories'
 export type {
