@@ -85,6 +85,15 @@
   font-size: 13px;
 }
 
+.auth-notice {
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  color: #3f5f48;
+  background: #eaf4ec;
+  font-size: 13px;
+}
+
 .auth-submit {
   min-height: 48px;
   border: 0;
@@ -95,6 +104,22 @@
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+}
+
+.auth-switch {
+  border: 0;
+  padding: 0;
+  color: #5b755f;
+  background: transparent;
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.auth-switch:hover {
+  text-decoration: underline;
 }
 
 .auth-submit:disabled {

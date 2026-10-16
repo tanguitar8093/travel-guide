@@ -9,6 +9,7 @@ export interface AuthContextValue {
   user: User | null
   errorMessage: string | null
   signInWithPassword(email: string, password: string): Promise<void>
+  signUpWithPassword(email: string, password: string): Promise<{ requiresEmailConfirmation: boolean }>
   signOut(): Promise<void>
   clearError(): void
 }

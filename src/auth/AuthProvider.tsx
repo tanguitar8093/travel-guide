@@ -74,6 +74,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setErrorMessage(null)
   }
 
+  async function signUpWithPassword(
+    email: string,
+    password: string,
+  ): Promise<{ requiresEmailConfirmation: boolean }> {
+    const { data, error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      setErrorMessage(error.message)
+      throw error
+    }
+
+    setErrorMessage(null)
+
+    return {
+      requiresEmailConfirmation: data.session === null,
+    }
+  }
+
   async function signOut(): Promise<void> {
     clearLocalAuthState()
 
@@ -94,6 +111,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         user: session?.user ?? null,
         errorMessage,
         signInWithPassword,
+        signUpWithPassword,
         signOut,
         clearError,
       }}
