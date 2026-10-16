@@ -12,9 +12,13 @@ import {
 import type { CloudBackupPreview } from '../../database/supabase.repositories'
 
 export class DataManagementService {
+  private readonly cloudAdapter: DataManagementCloudAdapter
+
   constructor(
-    private readonly cloudAdapter: DataManagementCloudAdapter = dataManagementCloudAdapter,
-  ) {}
+    cloudAdapter: DataManagementCloudAdapter = dataManagementCloudAdapter,
+  ) {
+    this.cloudAdapter = cloudAdapter
+  }
 
   exportBackup(): Promise<TravelBackup> {
     return backupRepository.exportAll()
