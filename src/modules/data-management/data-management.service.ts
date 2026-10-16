@@ -32,7 +32,7 @@ export class DataManagementService {
     return backupRepository.replaceAll(backup)
   }
 
-  clearAllData(): Promise<void> {
+  clearAllData(): Promise<BackupCounts | void> {
     return backupRepository.clearAllData()
   }
 

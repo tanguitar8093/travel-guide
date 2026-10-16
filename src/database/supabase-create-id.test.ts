@@ -11,31 +11,29 @@ const generatedIds = vi.hoisted(() => [
 const authUserId = '11111111-1111-4111-8111-111111111111'
 
 class MockQueryBuilder {
-  private operation: 'select' | 'insert' | 'delete' | 'update' | null = null
+  private readonly table: string
   private payload: unknown = undefined
   private filters = new Map<string, unknown>()
 
-  constructor(private readonly table: string) {}
+  constructor(table: string) {
+    this.table = table
+  }
 
   select(): this {
-    this.operation = 'select'
     return this
   }
 
   insert(payload: unknown): this {
-    this.operation = 'insert'
     this.payload = payload
     insertCalls.push({ table: this.table, payload })
     return this
   }
 
   delete(): this {
-    this.operation = 'delete'
     return this
   }
 
   update(payload: unknown): this {
-    this.operation = 'update'
     this.payload = payload
     return this
   }

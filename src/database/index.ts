@@ -123,7 +123,7 @@ type BackupRepositoryLike = {
   exportAll(): Promise<TravelBackup>
   validateImport(value: unknown): TravelBackup
   replaceAll(value: unknown): Promise<BackupCounts>
-  clearAllData(): Promise<void>
+  clearAllData(): Promise<BackupCounts | void>
 }
 
 type DatabaseBackend = {
