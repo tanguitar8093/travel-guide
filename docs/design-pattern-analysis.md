@@ -2,6 +2,16 @@
 
 這份紀錄只整理目前這個專案中，真的有機會帶來結構收益的地方。重點不是把每個地方都硬套模式，而是找出「現在的架構已經有模式雛形」或「未來演進時，模式會明顯降低耦合」的區域。
 
+## 整理表格
+
+| 模式 | 適用位置 | 為什麼適合 | 預期收益 | 建議優先度 |
+| --- | --- | --- | --- | --- |
+| Strategy | `src/database/index.ts`、`src/database/runtime.ts` | 已經有 IndexedDB / Supabase 兩套同介面後端 | 降低資料來源切換成本，新增後端較容易 | 最高 |
+| Observer | `src/database/runtime.ts` | `subscribeDatabaseMode` 已具備訂閱模型 | 模式變更可同步到多處，不用手動輪詢 | 高 |
+| Composite | `src/modules/label/label.service.ts` | Label 本身就是樹狀結構 | 樹節點與子樹操作更一致，方便階層功能擴充 | 中 |
+| Command | `src/modules/data-management/data-management.service.ts` | 匯出、匯入、覆蓋、清空都是明確動作 | 方便加確認、記錄、重做/復原或背景執行 | 中 |
+| Adapter | `src/modules/place/google-places.service.ts`、`src/modules/itinerary/itinerary-map.service.ts` | 外部地圖供應商已直接耦合到上層功能 | 未來替換供應商時可減少上層改動 | 中低 |
+
 ## 優先候選
 
 ### 1. Strategy：資料庫後端切換
