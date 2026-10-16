@@ -1,4 +1,4 @@
-import { places, supabaseRegions, trips } from '../../database'
+import { places, regions, trips } from '../../database'
 import type { NewRegion, Place, Region, RegionChanges, Trip } from '../../database'
 import {
   getGooglePlaceDetails,
@@ -32,7 +32,7 @@ export class RegionService {
 
   async loadWorkspace(): Promise<RegionWorkspace> {
     const [regionRecords, placeRecords, tripRecords] = await Promise.all([
-      supabaseRegions.list(),
+      regions.list(),
       places.list(),
       trips.list(),
     ])
@@ -40,14 +40,14 @@ export class RegionService {
   }
 
   create(input: NewRegion): Promise<string> {
-    return supabaseRegions.create(input)
+    return regions.create(input)
   }
 
   update(id: string, changes: RegionChanges): Promise<void> {
-    return supabaseRegions.update(id, changes)
+    return regions.update(id, changes)
   }
 
   delete(id: string): Promise<void> {
-    return supabaseRegions.delete(id)
+    return regions.delete(id)
   }
 }

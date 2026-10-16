@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { NewRegion, Place, Region, Trip } from "../../database";
+import { getDatabaseModeLabel } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { itineraryController } from "../itinerary/itinerary.controller";
 import { placeController } from "../place/place.controller";
@@ -358,7 +359,7 @@ function RegionModule() {
     >
       <header className="region-topbar">
         <span>工作區　/　區域</span>
-        <span>Supabase 區域 · 其他模組仍為本機資料</span>
+        <span>{getDatabaseModeLabel()}</span>
       </header>
       <div className="region-content">
         <section className="region-heading">

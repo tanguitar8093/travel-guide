@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, PlaceIcon, Region } from '../../database'
-import { placeIcons } from '../../database'
+import { getDatabaseModeLabel, placeIcons } from '../../database'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { placeController } from './place.controller'
 import type { GooglePlaceDetails } from './google-places.service'
@@ -375,8 +375,8 @@ function PlaceModule() {
             <strong>地點資料庫</strong>
           </div>
           <div className="topbar-actions">
-            <span className="prototype-badge">本機資料</span>
-            <button className="icon-button" type="button" aria-label="說明" title="資料儲存在此瀏覽器">
+              <span className="prototype-badge">{getDatabaseModeLabel()}</span>
+              <button className="icon-button" type="button" aria-label="說明" title={`資料儲存在 ${getDatabaseModeLabel()}`}>
               ?
             </button>
             <div className="user-avatar" aria-label="使用者">T</div>

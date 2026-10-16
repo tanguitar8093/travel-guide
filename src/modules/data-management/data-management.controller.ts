@@ -1,4 +1,5 @@
 import type { TravelBackup } from '../../database'
+import type { DatabaseMode } from '../../database'
 import { DataManagementService } from './data-management.service'
 
 export class DataManagementController {
@@ -22,6 +23,22 @@ export class DataManagementController {
 
   clearAllData() {
     return this.service.clearAllData()
+  }
+
+  transferLocalToSupabase() {
+    return this.service.transferLocalToSupabase()
+  }
+
+  transferSupabaseToLocal() {
+    return this.service.transferSupabaseToLocal()
+  }
+
+  getDatabaseMode(): DatabaseMode {
+    return this.service.getDatabaseMode()
+  }
+
+  setDatabaseMode(mode: DatabaseMode): DatabaseMode {
+    return this.service.setDatabaseMode(mode)
   }
 }
 

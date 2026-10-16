@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { TravelBackup } from "../../database";
+import type { DatabaseMode, TravelBackup } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
 import "./DataManagementModule.css";
@@ -23,11 +23,23 @@ function formatCount(
 
 function DataManagementModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [databaseMode, setDatabaseMode] = useState<DatabaseMode>(
+    dataManagementController.getDatabaseMode(),
+  );
   const [backup, setBackup] = useState<TravelBackup>();
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+
+  function handleDatabaseModeChange(event: ChangeEvent<HTMLSelectElement>) {
+    const nextMode = event.target.value as DatabaseMode;
+    if (nextMode === databaseMode) return;
+
+    setDatabaseMode(nextMode);
+    dataManagementController.setDatabaseMode(nextMode);
+    window.location.reload();
+  }
 
   async function handleExport() {
     setBusy(true);
@@ -152,6 +164,50 @@ function DataManagementModule() {
     }
   }
 
+  async function handleTransferLocalToSupabase() {
+    if (
+      !window.confirm(
+        "即將用本機資料覆蓋 Supabase 雲端資料庫中的全部資料。\n\n此操作會以本機目前內容取代雲端內容，且無法從本程式復原。確定繼續嗎？",
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const counts = await dataManagementController.transferLocalToSupabase();
+      setNotice(`已將本機資料搬到 Supabase：${formatCount(counts)}。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "搬移到 Supabase 失敗。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleTransferSupabaseToLocal() {
+    if (
+      !window.confirm(
+        "即將用 Supabase 雲端資料庫覆蓋本機資料。\n\n此操作會以雲端目前內容取代本機內容，且無法從本程式復原。確定繼續嗎？",
+      )
+    ) {
+      return;
+    }
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const counts = await dataManagementController.transferSupabaseToLocal();
+      setNotice(`已從 Supabase 匯回本機：${formatCount(counts)}。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "從 Supabase 匯回本機失敗。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <WorkspaceLayout
       active="data"
@@ -160,7 +216,7 @@ function DataManagementModule() {
     >
       <header className="data-management-topbar">
         <span>工作區　/　資料</span>
-        <span>本機資料</span>
+        <span>{databaseMode === "supabase" ? "Supabase (雲端)" : "Dexie/IndexedDB (單機)"}</span>
       </header>
       <section className="data-management-content">
         <div className="data-management-heading">
@@ -172,6 +228,20 @@ function DataManagementModule() {
             <p>匯出所有模組資料，或從備份檔完整取代此瀏覽器中的資料。</p>
           </div>
         </div>
+
+        <section className="data-management-switcher" aria-label="資料庫切換">
+          <label className="data-management-switcher-field">
+            <span>資料庫來源</span>
+            <select
+              value={databaseMode}
+              disabled={busy}
+              onChange={handleDatabaseModeChange}
+            >
+              <option value="indexeddb">Dexie/IndexedDB（單機）</option>
+              <option value="supabase">Supabase（雲端）</option>
+            </select>
+          </label>
+        </section>
 
         {error && (
           <div
@@ -191,6 +261,30 @@ function DataManagementModule() {
         )}
 
         <div className="data-management-cards">
+          <section className="data-management-card data-management-transfer-card">
+            <div className="data-management-card-icon">⇄</div>
+            <h2>資料搬移</h2>
+            <p>把目前的資料完整搬到另一個資料庫版本，會覆蓋目標端現有資料。</p>
+            <div className="data-management-actions data-management-transfer-actions">
+              <button
+                type="button"
+                className="data-management-secondary"
+                disabled={busy}
+                onClick={() => void handleTransferLocalToSupabase()}
+              >
+                從本機搬到 Supabase
+              </button>
+              <button
+                type="button"
+                className="data-management-secondary"
+                disabled={busy}
+                onClick={() => void handleTransferSupabaseToLocal()}
+              >
+                從 Supabase 匯回本機
+              </button>
+            </div>
+          </section>
+
           <section className="data-management-card">
             <div className="data-management-card-icon">↓</div>
             <h2>匯出備份</h2>

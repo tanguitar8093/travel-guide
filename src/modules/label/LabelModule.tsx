@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
+import { getDatabaseModeLabel } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
@@ -463,12 +464,12 @@ function LabelModule() {
           <strong>標籤</strong>
         </div>
         <div className="topbar-actions">
-          <span className="prototype-badge">本機資料</span>
+          <span className="prototype-badge">{getDatabaseModeLabel()}</span>
           <button
             className="icon-button"
             type="button"
             aria-label="說明"
-            title="標籤資料儲存在此瀏覽器"
+            title={`標籤資料儲存在 ${getDatabaseModeLabel()}`}
           >
             ?
           </button>
@@ -632,7 +633,7 @@ function LabelModule() {
                 </div>
 
                 <div className="detail-actions">
-                  <span>資料即時儲存於本機瀏覽器</span>
+                  <span>資料即時儲存於 {getDatabaseModeLabel()}</span>
                   <button
                     className="save-button"
                     type="button"

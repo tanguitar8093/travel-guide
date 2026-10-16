@@ -8,6 +8,7 @@ import type {
   Region,
   Trip,
 } from "../../database";
+import { getDatabaseModeLabel } from "../../database";
 import { RouterLink } from "../../router";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { routes } from "../../routes";
@@ -753,7 +754,7 @@ function ItineraryModule() {
     >
       <header className="itinerary-topbar">
         <span>工作區　/　行程</span>
-        <span className="itinerary-local-badge">本機資料</span>
+        <span className="itinerary-local-badge">{getDatabaseModeLabel()}</span>
       </header>
       <div className="itinerary-content">
         <section className="itinerary-heading">

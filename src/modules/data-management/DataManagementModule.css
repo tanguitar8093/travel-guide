@@ -7,6 +7,10 @@
 .data-management-eyebrow { margin-bottom: 8px; color: #88958b; font-size: 11px; }
 .data-management-heading h1 { margin: 0; color: #3f4b42; font-size: 28px; font-weight: 600; }
 .data-management-heading p { margin: 9px 0 0; color: #8b958d; font-size: 12px; }
+.data-management-switcher { display: flex; justify-content: flex-start; margin: 0 0 17px; }
+.data-management-switcher-field { display: grid; gap: 8px; min-width: min(100%, 320px); }
+.data-management-switcher-field span { color: #667269; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; }
+.data-management-switcher-field select { min-height: 40px; padding: 0 12px; border: 1px solid #dfe5df; border-radius: 8px; color: #3f4b42; background: #fff; font: inherit; }
 .data-management-feedback { padding: 12px 14px; margin-bottom: 17px; border-radius: 6px; font-size: 12px; line-height: 1.6; }
 .data-management-error { color: #a34f45; background: #fff0ed; }
 .data-management-success { color: #52755c; background: #edf5ef; }
@@ -22,11 +26,15 @@
 .data-management-primary:disabled,.data-management-secondary:disabled,.data-management-danger:disabled { opacity: .55; cursor: not-allowed; }
 .data-management-file-input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); }
 .data-management-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.data-management-transfer-card { align-items: stretch; }
+.data-management-transfer-actions { flex-direction: column; }
+.data-management-transfer-actions .data-management-secondary { width: 100%; }
 .data-management-selected-file { max-width: 100%; margin: 11px 0 0 !important; overflow-wrap: anywhere; color: #617c68 !important; }
 .data-management-warning { padding: 12px; margin-top: 17px; border: 1px solid #f0dfc2; border-radius: 6px; color: #826e4b; background: #fffaf0; font-size: 10px; line-height: 1.6; }
 @media (max-width: 800px) {
   .data-management-topbar { padding: 0 22px; }
   .data-management-content { padding: 28px 22px 40px; }
+  .data-management-switcher { margin-bottom: 15px; }
   .data-management-cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
