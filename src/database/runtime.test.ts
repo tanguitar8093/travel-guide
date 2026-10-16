@@ -27,14 +27,15 @@ describe('database runtime', () => {
     vi.unstubAllGlobals()
   })
 
-  it('defaults to indexeddb when no mode is stored', async () => {
+  it('defaults to supabase when no mode is stored', async () => {
     const runtime = await import('./runtime')
 
-    expect(runtime.getDatabaseMode()).toBe('indexeddb')
-    expect(runtime.getDatabaseModeLabel()).toBe('Dexie/IndexedDB (單機)')
+    expect(runtime.getDatabaseMode()).toBe('supabase')
+    expect(runtime.getDatabaseModeLabel()).toBe('Supabase (雲端)')
   })
 
   it('stores and notifies when the mode changes', async () => {
+    window.localStorage.setItem('travel-planner-database-mode', 'indexeddb')
     const runtime = await import('./runtime')
     const listener = vi.fn()
     const unsubscribe = runtime.subscribeDatabaseMode(listener)

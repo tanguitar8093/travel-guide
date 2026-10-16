@@ -15,7 +15,7 @@ const listeners = new Set<DatabaseModeListener>()
 
 function readStoredDatabaseMode(): DatabaseMode {
   const storedMode = window.localStorage.getItem(DATABASE_MODE_STORAGE_KEY)
-  return storedMode === 'supabase' ? 'supabase' : 'indexeddb'
+  return storedMode === 'indexeddb' ? 'indexeddb' : 'supabase'
 }
 
 let currentDatabaseMode = readStoredDatabaseMode()
@@ -49,5 +49,5 @@ export function subscribeDatabaseMode(listener: DatabaseModeListener): () => voi
 }
 
 export function useDatabaseMode(): DatabaseMode {
-  return useSyncExternalStore(subscribeDatabaseMode, getDatabaseMode, () => 'indexeddb')
+  return useSyncExternalStore(subscribeDatabaseMode, getDatabaseMode, () => 'supabase')
 }

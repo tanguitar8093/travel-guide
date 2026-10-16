@@ -6,7 +6,7 @@
 
 | 測項 | 目標 | 重點 |
 | --- | --- | --- |
-| `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者 |
+| `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且預設模式是 Supabase |
 | `src/database/backup.repository.ts` | 備份驗證 | 驗證 `validateImport()` 會接受合法備份並拒絕不合法資料 |
 
 實際測試檔：
