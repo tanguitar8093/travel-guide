@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { RouterLink } from "../router";
 import { routes } from "../routes";
-import { useAuth } from "../auth/AuthProvider";
+import { useAuth } from "../auth/useAuth";
 import "./WorkspaceLayout.css";
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "data";

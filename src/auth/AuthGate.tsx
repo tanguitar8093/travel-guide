@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { useAuth } from './AuthProvider'
+import { useAuth } from './useAuth'
 import './AuthGate.css'
 
 interface AuthGateProps {

@@ -1,0 +1,152 @@
+%% 顆粒到類別層級；helper 與過細節流程省略
+flowchart TB
+    subgraph ENTRY["入口與外殼"]
+        APP["App"]
+        PATH["usePathname"]
+        AUTH_PROVIDER["AuthProvider"]
+        AUTH_GATE["AuthGate"]
+        AUTH_CONTEXT["auth-context / useAuth"]
+        LAYOUT["WorkspaceLayout"]
+        ROUTER["RouterLink"]
+    end
+
+    subgraph FEATURES["功能模組"]
+        LABEL_MODULE["LabelModule"]
+        LABEL_CTRL["LabelController"]
+        LABEL_SVC["LabelService"]
+
+        PLACE_MODULE["PlaceModule"]
+        PLACE_CTRL["PlaceController"]
+        PLACE_SVC["PlaceService"]
+
+        REGION_MODULE["RegionModule"]
+        REGION_CTRL["RegionController"]
+        REGION_SVC["RegionService"]
+
+        ITIN_MODULE["ItineraryModule"]
+        ITIN_CTRL["ItineraryController"]
+        ITIN_SVC["ItineraryService"]
+        MAP_SVC["ItineraryMapService"]
+
+        DATA_MODULE["DataManagementModule"]
+        DATA_CTRL["DataManagementController"]
+        DATA_SVC["DataManagementService"]
+    end
+
+    subgraph DB_FACADE["資料庫對外門面"]
+        DB_INDEX["database/index.ts"]
+        MODE["runtime.ts"]
+    end
+
+    subgraph IDB_BACKEND["IndexedDB 後端"]
+        IDB_DB["TravelDatabase"]
+        IDB_REGION_REPO["RegionRepository"]
+        IDB_PLACE_REPO["PlaceRepository"]
+        IDB_LABEL_REPO["LabelRepository"]
+        IDB_TRIP_REPO["TripRepository"]
+        IDB_ITEM_REPO["ItineraryItemRepository"]
+        IDB_BACKUP_REPO["BackupRepository"]
+    end
+
+    subgraph SUPABASE_BACKEND["Supabase 後端"]
+        SB_REGION_REPO["SupabaseRegionRepository"]
+        SB_LABEL_REPO["SupabaseLabelRepository"]
+        SB_PLACE_REPO["SupabasePlaceRepository"]
+        SB_TRIP_REPO["SupabaseTripRepository"]
+        SB_ITEM_REPO["SupabaseItineraryItemRepository"]
+        SB_BACKUP_REPO["SupabaseBackupRepository"]
+        SB_CLIENT["supabase.client"]
+    end
+
+    subgraph NOTES["便條紙"]
+        N1["N1"]
+        N2["N2"]
+        N3["N3"]
+        N4["N4"]
+        N5["N5"]
+        N6["N6"]
+        N7["N7"]
+        N8["N8"]
+    end
+
+    APP --> PATH
+    APP --> LABEL_MODULE
+    APP --> PLACE_MODULE
+    APP --> REGION_MODULE
+    APP --> ITIN_MODULE
+    APP --> DATA_MODULE
+    APP --> AUTH_GATE
+
+    AUTH_GATE --> AUTH_CONTEXT
+    AUTH_PROVIDER --> AUTH_CONTEXT
+    LAYOUT --> AUTH_CONTEXT
+    LAYOUT --> ROUTER
+    LAYOUT --> REGION_MODULE
+    LAYOUT --> PLACE_MODULE
+    LAYOUT --> LABEL_MODULE
+    LAYOUT --> ITIN_MODULE
+    LAYOUT --> DATA_MODULE
+
+    LABEL_MODULE --> LABEL_CTRL
+    LABEL_CTRL --> LABEL_SVC
+    LABEL_SVC --> DB_INDEX
+
+    PLACE_MODULE --> PLACE_CTRL
+    PLACE_CTRL --> PLACE_SVC
+    PLACE_SVC --> DB_INDEX
+
+    REGION_MODULE --> REGION_CTRL
+    REGION_CTRL --> REGION_SVC
+    REGION_SVC --> DB_INDEX
+
+    ITIN_MODULE --> ITIN_CTRL
+    ITIN_CTRL --> ITIN_SVC
+    ITIN_SVC --> MAP_SVC
+    ITIN_SVC --> DB_INDEX
+    MAP_SVC --> DB_INDEX
+
+    DATA_MODULE --> DATA_CTRL
+    DATA_CTRL --> DATA_SVC
+    DATA_SVC --> DB_INDEX
+
+    DB_INDEX --> MODE
+    MODE --> IDB_REGION_REPO
+    MODE --> IDB_PLACE_REPO
+    MODE --> IDB_LABEL_REPO
+    MODE --> IDB_TRIP_REPO
+    MODE --> IDB_ITEM_REPO
+    MODE --> IDB_BACKUP_REPO
+    DB_INDEX --> SB_REGION_REPO
+    DB_INDEX --> SB_LABEL_REPO
+    DB_INDEX --> SB_PLACE_REPO
+    DB_INDEX --> SB_TRIP_REPO
+    DB_INDEX --> SB_ITEM_REPO
+    DB_INDEX --> SB_BACKUP_REPO
+
+    IDB_REGION_REPO --> IDB_DB
+    IDB_PLACE_REPO --> IDB_DB
+    IDB_LABEL_REPO --> IDB_DB
+    IDB_TRIP_REPO --> IDB_DB
+    IDB_ITEM_REPO --> IDB_DB
+    IDB_BACKUP_REPO --> IDB_DB
+
+    SB_REGION_REPO --> SB_CLIENT
+    SB_LABEL_REPO --> SB_CLIENT
+    SB_PLACE_REPO --> SB_CLIENT
+    SB_TRIP_REPO --> SB_CLIENT
+    SB_ITEM_REPO --> SB_CLIENT
+    SB_BACKUP_REPO --> SB_CLIENT
+
+    APP -.-> N1
+    AUTH_GATE -.-> N2
+    AUTH_PROVIDER -.-> N2
+    LAYOUT -.-> N2
+    LABEL_SVC -.-> N3
+    PLACE_SVC -.-> N4
+    REGION_SVC -.-> N4
+    ITIN_SVC -.-> N5
+    MAP_SVC -.-> N5
+    DATA_SVC -.-> N6
+    DB_INDEX -.-> N7
+    IDB_BACKEND -.-> N8
+    SUPABASE_BACKEND -.-> N8
