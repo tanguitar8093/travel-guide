@@ -10,9 +10,12 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const {
     status,
+    userRole,
+    hasWorkspaceAccess,
     errorMessage: authErrorMessage,
     signInWithPassword,
     signUpWithPassword,
+    signOut,
     clearError,
   } = useAuth()
   const [mode, setMode] = useState<'signIn' | 'signUp'>('signIn')
@@ -78,8 +81,30 @@ export function AuthGate({ children }: AuthGateProps) {
     )
   }
 
-  if (status === 'authenticated') {
+  if (status === 'authenticated' && hasWorkspaceAccess) {
     return <>{children}</>
+  }
+
+  if (status === 'authenticated' && !hasWorkspaceAccess) {
+    return (
+      <div className="auth-shell">
+        <section className="auth-panel" aria-labelledby="auth-pending-title">
+          <p className="auth-eyebrow">TRAVEL PLANNER</p>
+          <h1 id="auth-pending-title">帳號已登入，等待開通工作區權限</h1>
+          <p className="auth-copy">
+            目前角色：{userRole ?? 'basic'}。請聯絡管理員升級為 member 後再使用。
+          </p>
+          {authErrorMessage && (
+            <p className="auth-error" role="alert">
+              {authErrorMessage}
+            </p>
+          )}
+          <button className="auth-secondary" type="button" onClick={() => void signOut()}>
+            登出
+          </button>
+        </section>
+      </div>
+    )
   }
 
   return (

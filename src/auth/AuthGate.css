@@ -106,6 +106,18 @@
   font-weight: 700;
 }
 
+.auth-secondary {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #cbd8cc;
+  border-radius: 12px;
+  color: #3f5345;
+  background: #fff;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
 .auth-switch {
   border: 0;
   padding: 0;
