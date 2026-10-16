@@ -149,7 +149,29 @@ DECLARE
     'trips',
     'itinerary_items'
   ];
+  missing_owner_tables text[];
 BEGIN
+  select coalesce(array_agg(candidate.target_table order by candidate.target_table), '{}'::text[])
+  into missing_owner_tables
+  from (
+    select target_table
+    from unnest(target_tables) as candidate(target_table)
+    where not exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and information_schema.columns.table_name = candidate.target_table
+        and column_name = 'owner_uid'
+    )
+  ) as candidate;
+
+  if array_length(missing_owner_tables, 1) is not null then
+    raise notice
+      'owner_uid is missing on tables: %. Skip business-table policy rebuild. Run docs/supabase-owner-isolation.sql, then rerun this script.',
+      array_to_string(missing_owner_tables, ', ');
+    return;
+  end if;
+
   FOREACH t IN ARRAY target_tables LOOP
     FOR p IN
       select policyname
@@ -159,22 +181,37 @@ BEGIN
       execute format('drop policy if exists %I on public.%I', p.policyname, t);
     END LOOP;
 
-    if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = t and column_name = 'owner_uid') then
-      execute format('create policy %I on public.%I for all to authenticated using (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin())) with check (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin()))', t || '_owner_or_admin', t);
-    end if;
-    -- Without an owner column, leave RLS closed until owner-isolation migration.
+    execute format('create policy %I on public.%I for all to authenticated using (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin())) with check (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin()))', t || '_owner_or_admin', t);
 
   END LOOP;
 END $$;
 
--- Ensure RLS is enabled on all business tables
-alter table public.regions enable row level security;
-alter table public.labels enable row level security;
-alter table public.places enable row level security;
-alter table public.place_regions enable row level security;
-alter table public.place_labels enable row level security;
-alter table public.trips enable row level security;
-alter table public.itinerary_items enable row level security;
+-- Ensure RLS is enabled on all business tables with owner_uid present.
+DO $$
+DECLARE
+  t text;
+  target_tables text[] := array[
+    'regions',
+    'labels',
+    'places',
+    'place_regions',
+    'place_labels',
+    'trips',
+    'itinerary_items'
+  ];
+BEGIN
+  FOREACH t IN ARRAY target_tables LOOP
+    if exists (
+      select 1
+      from information_schema.columns
+      where table_schema = 'public'
+        and information_schema.columns.table_name = t
+        and column_name = 'owner_uid'
+    ) then
+      execute format('alter table public.%I enable row level security', t);
+    end if;
+  END LOOP;
+END $$;
 
 commit;
 

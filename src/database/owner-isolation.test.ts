@@ -55,6 +55,7 @@ beforeAll(async () => {
   `)
   await db.exec(sql('supabase-basic-role-rls.sql'))
   await db.exec(`update public.user_roles set role = 'admin' where user_id = '${admin}'; update public.user_roles set role = 'basic' where user_id = '${basic}';`)
+  await db.exec("set app.legacy_owner_email = 'tanguitar8093@gmail.com';")
   await db.exec(sql('supabase-owner-isolation.sql'))
 }, 30000)
 

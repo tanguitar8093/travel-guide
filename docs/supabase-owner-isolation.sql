@@ -1,6 +1,8 @@
 -- Phase 1 migration. Run after schema + role bootstrap, as the database owner.
 -- Existing unowned regions/places/labels belong to the account confirmed below.
 -- Transactional and re-runnable. Existing trip owners and roles are preserved.
+-- Before running, set the expected legacy owner email in this SQL session:
+--   set local app.legacy_owner_email = 'owner@example.com';
 begin;
 
 alter table public.regions add column if not exists owner_uid uuid;
@@ -9,13 +11,18 @@ alter table public.labels add column if not exists owner_uid uuid;
 
 do $$
 declare
+  legacy_owner_email text := nullif(current_setting('app.legacy_owner_email', true), '');
   legacy_owner uuid;
   t text;
 begin
+  if legacy_owner_email is null then
+    raise exception 'app.legacy_owner_email is required. Run: set local app.legacy_owner_email = ''owner@example.com'';';
+  end if;
+
   select id into legacy_owner from auth.users
-  where lower(email) = 'tanguitar8093@gmail.com';
+  where lower(email) = lower(legacy_owner_email);
   if legacy_owner is null then
-    raise exception 'Legacy owner account tanguitar8093@gmail.com was not found; no changes applied.';
+    raise exception 'Legacy owner account % was not found; no changes applied.', legacy_owner_email;
   end if;
   foreach t in array array['regions', 'places', 'labels'] loop
     execute format('update public.%I set owner_uid = $1 where owner_uid is null', t) using legacy_owner;
@@ -139,6 +146,11 @@ begin
   return new;
 end;
 $$;
+
+drop trigger if exists prevent_non_owner_acl_changes_tg on public.trips;
+create trigger prevent_non_owner_acl_changes_tg
+before update on public.trips
+for each row execute function public.prevent_non_owner_acl_changes();
 
 -- Remove ALL prior permissive policies. A separate permissive policy would bypass isolation.
 do $$

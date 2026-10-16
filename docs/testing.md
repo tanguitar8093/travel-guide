@@ -43,3 +43,16 @@
 ## 雲端資料隔離
 
 `src/database/owner-isolation.test.ts` 以 PGlite 執行 PostgreSQL RLS、遷移與外鍵驗證，不需要雲端連線。`supabase-backup-safety.test.ts` 和 `data-management.service.test.ts` 驗證雲端整批寫入停用、本機操作保留。部署步驟見 [owner-isolation.md](owner-isolation.md)。
+
+### SQL 執行順序（避免資料表被鎖死）
+
+1. 先執行 `docs/supabase-schema-from-indexeddb.sql`。
+2. 再執行 `docs/supabase-basic-role-rls.sql`（建立 user_roles 與角色函式）。
+3. 接著執行 `docs/supabase-owner-isolation.sql`。
+4. 最後再執行一次 `docs/supabase-basic-role-rls.sql`（重建 owner policy）。
+
+執行 `docs/supabase-owner-isolation.sql` 前，先在同一個 SQL session 設定：
+
+`set local app.legacy_owner_email = 'owner@example.com';`
+
+如果缺少 `owner_uid` 欄位，`docs/supabase-basic-role-rls.sql` 會跳過業務表 policy 重建並提示先跑 owner-isolation；不會中斷 user_roles 與角色函式建立。
