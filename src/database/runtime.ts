@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react'
+
 export type DatabaseMode = 'indexeddb' | 'supabase'
 
 const DATABASE_MODE_STORAGE_KEY = 'travel-planner-database-mode'
@@ -44,4 +46,8 @@ export function subscribeDatabaseMode(listener: DatabaseModeListener): () => voi
   return () => {
     listeners.delete(listener)
   }
+}
+
+export function useDatabaseMode(): DatabaseMode {
+  return useSyncExternalStore(subscribeDatabaseMode, getDatabaseMode, () => 'indexeddb')
 }

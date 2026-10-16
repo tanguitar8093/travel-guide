@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { DatabaseMode, TravelBackup } from "../../database";
+import { useDatabaseMode } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
 import "./DataManagementModule.css";
@@ -23,9 +24,7 @@ function formatCount(
 
 function DataManagementModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [databaseMode, setDatabaseMode] = useState<DatabaseMode>(
-    dataManagementController.getDatabaseMode(),
-  );
+  const databaseMode = useDatabaseMode();
   const [backup, setBackup] = useState<TravelBackup>();
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -36,9 +35,7 @@ function DataManagementModule() {
     const nextMode = event.target.value as DatabaseMode;
     if (nextMode === databaseMode) return;
 
-    setDatabaseMode(nextMode);
     dataManagementController.setDatabaseMode(nextMode);
-    window.location.reload();
   }
 
   async function handleExport() {
