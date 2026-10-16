@@ -27,6 +27,7 @@ export {
   getDatabaseMode,
   getDatabaseModeLabel,
   setDatabaseMode,
+  useDatabaseMode,
   type DatabaseMode,
   subscribeDatabaseMode,
 } from './runtime'
@@ -98,9 +99,6 @@ type LabelRepositoryLike = {
   create(input: Parameters<typeof indexedLabels.create>[0]): Promise<string>
   update(id: string, changes: Parameters<typeof indexedLabels.update>[1]): Promise<void>
   delete(id: string): Promise<void>
-  assignToPlace(placeId: string, labelId: string): Promise<void>
-  removeFromPlace(placeId: string, labelId: string): Promise<void>
-  listPlaces(): Promise<Place[]>
 }
 
 type TripRepositoryLike = {
