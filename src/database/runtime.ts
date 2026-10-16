@@ -1,8 +1,12 @@
 import { useSyncExternalStore } from 'react'
 
-export type DatabaseMode = 'indexeddb' | 'supabase'
+import {
+  readDatabaseModePreference,
+  type DatabaseMode,
+  writeDatabaseModePreference,
+} from './database-mode-preference'
 
-const DATABASE_MODE_STORAGE_KEY = 'travel-planner-database-mode'
+export type { DatabaseMode } from './database-mode-preference'
 
 const databaseModeLabels: Record<DatabaseMode, string> = {
   indexeddb: 'Dexie/IndexedDB (單機)',
@@ -14,8 +18,7 @@ type DatabaseModeListener = (mode: DatabaseMode) => void
 const listeners = new Set<DatabaseModeListener>()
 
 function readStoredDatabaseMode(): DatabaseMode {
-  const storedMode = window.localStorage.getItem(DATABASE_MODE_STORAGE_KEY)
-  return storedMode === 'indexeddb' ? 'indexeddb' : 'supabase'
+  return readDatabaseModePreference()
 }
 
 let currentDatabaseMode = readStoredDatabaseMode()
@@ -34,7 +37,7 @@ export function setDatabaseMode(mode: DatabaseMode): DatabaseMode {
   }
 
   currentDatabaseMode = mode
-  window.localStorage.setItem(DATABASE_MODE_STORAGE_KEY, mode)
+  writeDatabaseModePreference(mode)
   for (const listener of listeners) {
     listener(mode)
   }

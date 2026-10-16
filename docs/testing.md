@@ -6,10 +6,14 @@
 
 | 測項 | 目標 | 重點 |
 | --- | --- | --- |
+| `src/database/index.ts` | 資料庫門面匯出 | 驗證公開 API 可正常從 barrel 匯入，避免 export 漏掉 |
 | `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且預設模式是 Supabase |
+| `src/database/database-mode-preference.ts` | 使用者資料庫偏好 | 驗證會讀寫最後使用的資料庫模式 |
 | `src/database/backup.repository.ts` | 備份驗證 | 驗證 `validateImport()` 會接受合法備份並拒絕不合法資料 |
 
 實際測試檔：
+- [src/database/database-mode-preference.test.ts](../src/database/database-mode-preference.test.ts)
+- [src/database/index.test.ts](../src/database/index.test.ts)
 - [src/database/runtime.test.ts](../src/database/runtime.test.ts)
 - [src/database/backup.repository.test.ts](../src/database/backup.repository.test.ts)
 
@@ -21,7 +25,7 @@
 
 ## 推送前檢查
 
-專案已設定 `pre-push` hook。當你執行 `git push` 時，Git 會先跑 `npm run test:run`。
+專案已設定 `pre-push` hook。當你執行 `git push` 時，Git 會先跑 `npm run test:run` 和 `npm run build`。
 
 - 如果測試通過，才會繼續 push。
 - 如果測試失敗，push 會被中止。

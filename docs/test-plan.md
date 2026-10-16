@@ -7,6 +7,7 @@
 | 模組 | 測項 | 要驗證的行為 | 為什麼先測 |
 | --- | --- | --- | --- |
 | `src/database/index.ts` | 資料庫策略切換 | `indexeddb` 與 `supabase` 兩種模式下，`regions / places / labels / trips / itineraryItems / backupRepository` 都會走到對應實作 | 這是 Strategy 的核心，壞掉會直接影響整個資料層 |
+| `src/database/index.ts` | 資料庫門面匯出 | 公開 API 可正常從 barrel 匯入，避免 `runtime` 或 repository export 漏掉 | 可以提早抓到像這次 `useDatabaseMode` / 型別匯出缺失這類回歸 |
 | `src/database/runtime.ts` | 模式觀察與通知 | `setDatabaseMode()` 會更新目前模式、寫入 `localStorage`，且 `subscribeDatabaseMode()` 會收到通知 | 這是 Observer 的核心，會影響資料管理頁與所有依賴模式狀態的畫面 |
 | `src/modules/data-management/data-management.service.ts` | 備份解析與資料搬移 | `parseBackup()` 會拒絕非法 JSON；`replaceAllData()`、`transferLocalToSupabase()`、`transferSupabaseToLocal()` 會回傳正確 counts | 這是資料救援與同步功能，資料損壞成本最高 |
 
