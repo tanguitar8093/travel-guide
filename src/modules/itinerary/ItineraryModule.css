@@ -96,6 +96,7 @@
 .itinerary-items-heading > div { display: flex; align-items: baseline; gap: 9px; }
 .itinerary-items-heading h3 { margin: 0; color: #566159; font-size: 12px; }
 .itinerary-items-heading span { color: #99a49b; font-size: 10px; }
+.itinerary-items-actions { display: flex; align-items: center; gap: 7px; }
 .itinerary-add-button { border-color: #dce8de; color: #52745a; background: #f5f8f5; }
 .itinerary-items-scroll { min-height: 0; flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
 .itinerary-item-list { display: grid; gap: 0; padding: 4px 16px 12px; margin: 0; list-style: none; }

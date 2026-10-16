@@ -178,6 +178,7 @@ function ItineraryModule() {
   const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
+  const [dayOrderDraftIds, setDayOrderDraftIds] = useState<string[]>();
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [mapData, setMapData] = useState<ItineraryMapData>();
@@ -211,13 +212,36 @@ function ItineraryModule() {
     () => new Map(labels.map((label) => [label.id, label])),
     [labels],
   );
-  const dayItems = useMemo(
+  const dayBaseItems = useMemo(
     () =>
       tripItems
         .filter((item) => item.date === selectedDate)
         .sort((left, right) => left.order - right.order),
     [tripItems, selectedDate],
   );
+  const dayItems = useMemo(() => {
+    if (!dayOrderDraftIds?.length) {
+      return dayBaseItems;
+    }
+
+    const idSet = new Set(dayBaseItems.map((item) => item.id));
+    if (
+      dayOrderDraftIds.length !== dayBaseItems.length ||
+      dayOrderDraftIds.some((id) => !idSet.has(id))
+    ) {
+      return dayBaseItems;
+    }
+
+    const itemById = new Map(dayBaseItems.map((item) => [item.id, item]));
+    return dayOrderDraftIds
+      .map((id) => itemById.get(id))
+      .filter((item): item is ItineraryItem => Boolean(item));
+  }, [dayBaseItems, dayOrderDraftIds]);
+  const hasPendingDayReorder = useMemo(() => {
+    if (!dayBaseItems.length || !dayItems.length) return false;
+    if (dayBaseItems.length !== dayItems.length) return false;
+    return dayBaseItems.some((item, index) => item.id !== dayItems[index]?.id);
+  }, [dayBaseItems, dayItems]);
   const previousDraftItem = useMemo(() => {
     if (!itemDraft.date) return undefined;
     const sameDateItems = tripItems
@@ -377,6 +401,22 @@ function ItineraryModule() {
   }, [selectedTripId]);
 
   useEffect(() => {
+    setDayOrderDraftIds(undefined);
+  }, [selectedTripId, selectedDate]);
+
+  useEffect(() => {
+    if (!hasPendingDayReorder) return;
+
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasPendingDayReorder]);
+
+  useEffect(() => {
     if (!deleteTripDialogOpen || saving) return;
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") setDeleteTripDialogOpen(false);
@@ -496,6 +536,12 @@ function ItineraryModule() {
   }, [googleMapMarkers, mountedMapRegionId, visibleMapData?.regionId]);
 
   function selectTrip(trip: Trip) {
+    if (
+      hasPendingDayReorder &&
+      !window.confirm("目前有未儲存的排序變更，切換行程後會遺失。要繼續嗎？")
+    ) {
+      return;
+    }
     setSelectedTripId(trip.id);
     setSelectedDate(trip.startDate);
     setTripDraft(toTripDraft(trip));
@@ -667,6 +713,7 @@ function ItineraryModule() {
         });
       }
       setItems(await itineraryController.listItems(selectedTripId));
+      setDayOrderDraftIds(undefined);
       setSelectedDate(itemDraft.date);
       setAddingItem(false);
       setEditingItemId(undefined);
@@ -688,6 +735,7 @@ function ItineraryModule() {
     try {
       await itineraryController.deleteItem(item.id);
       setItems(await itineraryController.listItems(item.tripId));
+      setDayOrderDraftIds(undefined);
       setNotice(`已從行程移除「${placeName}」。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "移除行程項目失敗。");
@@ -715,6 +763,7 @@ function ItineraryModule() {
         item.id,
       );
       setItems(await itineraryController.listItems(selectedTripId));
+      setDayOrderDraftIds(undefined);
       setNotice(`已計算並儲存路程時間：約 ${minutes} 分鐘。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "計算路程時間失敗。");
@@ -723,7 +772,7 @@ function ItineraryModule() {
     }
   }
 
-  async function moveItem(item: ItineraryItem, direction: -1 | 1) {
+  function moveItem(item: ItineraryItem, direction: -1 | 1) {
     const index = dayItems.findIndex((candidate) => candidate.id === item.id);
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= dayItems.length) return;
@@ -732,20 +781,53 @@ function ItineraryModule() {
       orderedIds[targetIndex],
       orderedIds[index],
     ];
+
+    setDayOrderDraftIds(orderedIds);
+    setNotice("已暫存順序變更，記得按「儲存排序」。");
+  }
+
+  async function saveDayReorder() {
+    if (!selectedTripId || !hasPendingDayReorder) return;
     setSaving(true);
     setError("");
+    setNotice("");
+
     try {
       await itineraryController.reorderItems(
-        item.tripId,
+        selectedTripId,
         selectedDate,
-        orderedIds,
+        dayItems.map((item) => item.id),
       );
-      setItems(await itineraryController.listItems(item.tripId));
+      setItems(await itineraryController.listItems(selectedTripId));
+      setDayOrderDraftIds(undefined);
+      setNotice("當日順序已儲存。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "調整地點順序失敗。");
     } finally {
       setSaving(false);
     }
+  }
+
+  function cancelDayReorder() {
+    setDayOrderDraftIds(undefined);
+    setNotice("");
+    setError("");
+  }
+
+  function changeSelectedDate(date: string) {
+    if (
+      hasPendingDayReorder &&
+      date !== selectedDate &&
+      !window.confirm("目前有未儲存的排序變更，切換日期後會遺失。要繼續嗎？")
+    ) {
+      return;
+    }
+    setSelectedDate(date);
+    setDayOrderDraftIds(undefined);
+    setAddingItem(false);
+    setEditingItemId(undefined);
+    setError("");
+    setNotice("");
   }
 
   const activeItemId = editingItemId;
@@ -1081,13 +1163,7 @@ function ItineraryModule() {
                       key={date}
                       className={date === selectedDate ? "selected" : ""}
                       aria-pressed={date === selectedDate}
-                      onClick={() => {
-                        setSelectedDate(date);
-                        setAddingItem(false);
-                        setEditingItemId(undefined);
-                        setError("");
-                        setNotice("");
-                      }}
+                      onClick={() => changeSelectedDate(date)}
                     >
                       <small>
                         {new Intl.DateTimeFormat("zh-TW", {
@@ -1304,14 +1380,36 @@ function ItineraryModule() {
                     <h3>當日安排</h3>
                     <span>{dayItems.length} 個地點</span>
                   </div>
-                  <button
-                    type="button"
-                    className="itinerary-add-button"
-                    disabled={interactionBusy || itemFormVisible}
-                    onClick={startAddItem}
-                  >
-                    ＋ 加入地點
-                  </button>
+                  <div className="itinerary-items-actions">
+                    {hasPendingDayReorder && (
+                      <>
+                        <button
+                          type="button"
+                          className="itinerary-secondary"
+                          disabled={interactionBusy || itemFormVisible}
+                          onClick={cancelDayReorder}
+                        >
+                          取消排序
+                        </button>
+                        <button
+                          type="button"
+                          className="itinerary-primary"
+                          disabled={interactionBusy || itemFormVisible}
+                          onClick={() => void saveDayReorder()}
+                        >
+                          儲存排序
+                        </button>
+                      </>
+                    )}
+                    <button
+                      type="button"
+                      className="itinerary-add-button"
+                      disabled={interactionBusy || itemFormVisible}
+                      onClick={startAddItem}
+                    >
+                      ＋ 加入地點
+                    </button>
+                  </div>
                 </div>
                 <div className="itinerary-items-scroll">
                   {dayItems.length ? (
