@@ -62,6 +62,8 @@ interface SupabaseItineraryItemRow {
   sort_order: number
 }
 
+const SUPABASE_RPC_NOT_FOUND_CODES = new Set(['PGRST202', '42883'])
+
 function mapSupabaseError(error: SupabaseErrorLike, fallback: string): Error {
   const permissionError = mapSupabasePermissionError(error)
   if (permissionError) {
@@ -1025,36 +1027,59 @@ export class SupabaseItineraryItemRepository {
     const maxCurrentOrder = currentItems.reduce((maximum, item) => Math.max(maximum, item.order), -1)
     const temporaryOrderStart = maxCurrentOrder + 1
 
-    await Promise.all(
-      orderedIds.map(async (itemId, order) => {
-        const { error } = await withSupabaseTimeout(
-          Promise.resolve(
-            supabase
-              .from('itinerary_items')
-              .update({ sort_order: temporaryOrderStart + order })
-              .eq('id', itemId),
-          ),
-          'reorder itinerary items (temporary order)',
-        )
-        if (error) throw mapSupabaseError(error, itemId)
-      }),
-    )
+    const fallbackReorderWithRowUpdates = async () => {
+      await Promise.all(
+        orderedIds.map(async (itemId, order) => {
+          const { error } = await withSupabaseTimeout(
+            Promise.resolve(
+              supabase
+                .from('itinerary_items')
+                .update({ sort_order: temporaryOrderStart + order })
+                .eq('id', itemId),
+            ),
+            'reorder itinerary items (temporary order)',
+          )
+          if (error) throw mapSupabaseError(error, itemId)
+        }),
+      )
 
-    await Promise.all(
-      orderedIds.map(async (itemId, order) => {
-        const updates = {
-          sort_order: order,
-          ...(previousById.get(itemId) !== nextPreviousById.get(itemId)
-            ? { travel_duration_minutes: null }
-            : {}),
-        }
-        const { error } = await withSupabaseTimeout(
-          Promise.resolve(supabase.from('itinerary_items').update(updates).eq('id', itemId)),
-          'reorder itinerary items (final order)',
-        )
-        if (error) throw mapSupabaseError(error, itemId)
-      }),
+      await Promise.all(
+        orderedIds.map(async (itemId, order) => {
+          const updates = {
+            sort_order: order,
+            ...(previousById.get(itemId) !== nextPreviousById.get(itemId)
+              ? { travel_duration_minutes: null }
+              : {}),
+          }
+          const { error } = await withSupabaseTimeout(
+            Promise.resolve(supabase.from('itinerary_items').update(updates).eq('id', itemId)),
+            'reorder itinerary items (final order)',
+          )
+          if (error) throw mapSupabaseError(error, itemId)
+        }),
+      )
+    }
+
+    const { error: rpcError } = await withSupabaseTimeout(
+      Promise.resolve(
+        supabase.rpc('app_reorder_itinerary_items', {
+          p_trip_id: tripId,
+          p_date: date,
+          p_ordered_ids: orderedIds,
+        }),
+      ),
+      'reorder itinerary items (rpc)',
     )
+    if (!rpcError) {
+      return
+    }
+
+    if (SUPABASE_RPC_NOT_FOUND_CODES.has(rpcError.code ?? '')) {
+      await fallbackReorderWithRowUpdates()
+      return
+    }
+
+    throw mapSupabaseError(rpcError, tripId)
   }
 }
 

@@ -306,6 +306,102 @@ begin
 end;
 $$;
 
+create or replace function public.app_reorder_itinerary_items(
+  p_trip_id uuid,
+  p_date date,
+  p_ordered_ids uuid[]
+)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  uid uuid := auth.uid();
+  day_count integer;
+  input_count integer;
+  unique_input_count integer;
+  max_order integer;
+begin
+  if uid is null then
+    raise exception '請先登入。';
+  end if;
+
+  if not public.app_is_member() then
+    raise exception '目前沒有權限執行此操作。';
+  end if;
+
+  if not public.can_edit_trip(p_trip_id) then
+    raise exception '目前沒有權限編輯此行程。';
+  end if;
+
+  input_count := coalesce(array_length(p_ordered_ids, 1), 0);
+
+  select count(*)::integer, coalesce(max(sort_order), -1)
+    into day_count, max_order
+  from public.itinerary_items
+  where trip_id = p_trip_id
+    and date = p_date;
+
+  select count(distinct item_id)::integer
+    into unique_input_count
+  from unnest(coalesce(p_ordered_ids, '{}'::uuid[])) as input(item_id);
+
+  if input_count <> day_count or unique_input_count <> input_count then
+    raise exception 'The reordered itinerary items do not match this trip day.';
+  end if;
+
+  if exists (
+    select 1
+    from unnest(coalesce(p_ordered_ids, '{}'::uuid[])) as input(item_id)
+    left join public.itinerary_items items
+      on items.id = input.item_id
+     and items.trip_id = p_trip_id
+     and items.date = p_date
+    where items.id is null
+  ) then
+    raise exception 'The reordered itinerary items do not match this trip day.';
+  end if;
+
+  with ordered as (
+    select item_id as id, ordinality::integer - 1 as target_order
+    from unnest(p_ordered_ids) with ordinality as input(item_id, ordinality)
+  ),
+  previous_before as (
+    select
+      items.id,
+      lag(items.place_id) over (order by items.sort_order) as previous_place_id
+    from public.itinerary_items items
+    where items.trip_id = p_trip_id
+      and items.date = p_date
+  ),
+  previous_after as (
+    select
+      items.id,
+      lag(items.place_id) over (order by ordered.target_order) as previous_place_id
+    from public.itinerary_items items
+    join ordered on ordered.id = items.id
+  ),
+  temporary_order as (
+    update public.itinerary_items items
+    set sort_order = max_order + 1 + ordered.target_order
+    from ordered
+    where items.id = ordered.id
+    returning items.id
+  )
+  update public.itinerary_items items
+  set sort_order = ordered.target_order,
+      travel_duration_minutes = case
+        when previous_before.previous_place_id is distinct from previous_after.previous_place_id then null
+        else items.travel_duration_minutes
+      end
+  from ordered
+  join previous_before on previous_before.id = ordered.id
+  join previous_after on previous_after.id = ordered.id
+  where items.id = ordered.id;
+end;
+$$;
+
 create or replace function public.prevent_non_owner_acl_changes()
 returns trigger
 language plpgsql
@@ -334,6 +430,9 @@ grant execute on function public.can_edit_trip(uuid) to authenticated;
 
 revoke all on function public.can_manage_trip_acl(uuid) from public;
 grant execute on function public.can_manage_trip_acl(uuid) to authenticated;
+
+revoke all on function public.app_reorder_itinerary_items(uuid, date, uuid[]) from public;
+grant execute on function public.app_reorder_itinerary_items(uuid, date, uuid[]) to authenticated;
 
 drop trigger if exists prevent_trip_range_shrink_tg on public.trips;
 create trigger prevent_trip_range_shrink_tg
