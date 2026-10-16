@@ -11,6 +11,26 @@ interface SupabaseRegionRow {
   zoom: number | string
 }
 
+const SUPABASE_TIMEOUT_MS = 8000
+
+function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => {
+      reject(new Error(`Supabase ${label} request timed out.`))
+    }, SUPABASE_TIMEOUT_MS)
+
+    promise
+      .then((value) => {
+        window.clearTimeout(timer)
+        resolve(value)
+      })
+      .catch((error) => {
+        window.clearTimeout(timer)
+        reject(error)
+      })
+  })
+}
+
 function normalizeRegion(row: SupabaseRegionRow): Region {
   const center = row.center
   return {
@@ -53,11 +73,16 @@ function mapSupabaseError(error: { code?: string; message: string }, fallback: s
 export class SupabaseRegionRepository {
   async create(input: NewRegion): Promise<string> {
     validateRegion(input)
-    const { data, error } = await supabase
-      .from('regions')
-      .insert(toSupabaseRegionInput(input))
-      .select('id')
-      .single()
+    const { data, error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from('regions')
+          .insert(toSupabaseRegionInput(input))
+          .select('id')
+          .single(),
+      ),
+      'create region',
+    )
 
     if (error) throw mapSupabaseError(error, 'new')
     return data.id
@@ -72,10 +97,15 @@ export class SupabaseRegionRepository {
     const next = { ...current, ...changes }
     validateRegion(next)
 
-    const { error } = await supabase
-      .from('regions')
-      .update(toSupabaseRegionInput(next))
-      .eq('id', id)
+    const { error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from('regions')
+          .update(toSupabaseRegionInput(next))
+          .eq('id', id),
+      ),
+      'update region',
+    )
 
     if (error) throw mapSupabaseError(error, id)
   }
@@ -86,31 +116,44 @@ export class SupabaseRegionRepository {
       throw new EntityNotFoundError('Region', id)
     }
 
-    const { error } = await supabase.from('regions').delete().eq('id', id)
+    const { error } = await withTimeout(
+      Promise.resolve(supabase.from('regions').delete().eq('id', id)),
+      'delete region',
+    )
     if (error) throw mapSupabaseError(error, id)
   }
 
   async getById(id: string): Promise<Region | undefined> {
-    const { data, error } = await supabase
-      .from('regions')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle<SupabaseRegionRow>()
+    const { data, error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from('regions')
+          .select('*')
+          .eq('id', id)
+          .maybeSingle<SupabaseRegionRow>(),
+      ),
+      'get region',
+    )
 
     if (error) throw mapSupabaseError(error, id)
     return data ? normalizeRegion(data) : undefined
   }
 
   async list(): Promise<Region[]> {
-    const { data, error } = await supabase
-      .from('regions')
-      .select('*')
-      .order('name', { ascending: true })
-      .returns<SupabaseRegionRow[]>()
+    const { data, error } = await withTimeout(
+      Promise.resolve(
+        supabase
+          .from('regions')
+          .select('*')
+          .order('name', { ascending: true })
+          .returns<SupabaseRegionRow[]>(),
+      ),
+      'list regions',
+    )
 
     if (error) throw mapSupabaseError(error, 'list')
     return (data ?? []).map(normalizeRegion)
   }
 }
 
-export const regions = new SupabaseRegionRepository()
+export const supabaseRegions = new SupabaseRegionRepository()

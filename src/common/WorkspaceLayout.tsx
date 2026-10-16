@@ -205,9 +205,8 @@ export function WorkspaceLayout({
         </nav>
         <div className="workspace-sidebar-foot">
           <div className="workspace-session-card">
-            <div className="workspace-session-status">Supabase 已登入</div>
+            <div className="workspace-session-status">已登入</div>
             <strong>{user?.email ?? "已登入成員"}</strong>
-            <span>資料讀寫將逐步改由 Supabase 控制</span>
             {errorMessage && (
               <p className="workspace-session-error" role="alert">
                 {errorMessage}

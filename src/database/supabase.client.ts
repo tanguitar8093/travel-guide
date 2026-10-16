@@ -9,4 +9,9 @@ if (!supabaseUrl || !supabaseAnonKey) {
   )
 }
 
+const supabaseProjectRef = new URL(supabaseUrl).hostname.split('.')[0]
+
+export const supabaseAuthStorageKey = `sb-${supabaseProjectRef}-auth-token`
+export const supabaseAuthCodeVerifierKey = `${supabaseAuthStorageKey}-code-verifier`
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)

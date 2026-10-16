@@ -26,6 +26,9 @@ create table if not exists public.regions (
   )
 );
 
+alter table public.regions
+  alter column id set default gen_random_uuid();
+
 create table if not exists public.labels (
   id uuid primary key default gen_random_uuid(),
   name text not null check (btrim(name) <> ''),

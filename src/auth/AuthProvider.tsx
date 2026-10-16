@@ -2,12 +2,15 @@ import {
   createContext,
   useContext,
   useEffect,
-  useEffectEvent,
   useState,
   type ReactNode,
 } from 'react'
 import type { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../database/supabase.client'
+import {
+  supabase,
+  supabaseAuthCodeVerifierKey,
+  supabaseAuthStorageKey,
+} from '../database/supabase.client'
 
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated'
 
@@ -32,13 +35,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
-  const applySession = useEffectEvent((nextSession: Session | null) => {
-    setSession(nextSession)
-    setStatus(nextSession ? 'authenticated' : 'unauthenticated')
-  })
-
   useEffect(() => {
     let active = true
+
+    function applySession(nextSession: Session | null) {
+      if (!active) return
+      setSession(nextSession)
+      setStatus(nextSession ? 'authenticated' : 'unauthenticated')
+    }
 
     void supabase.auth.getSession().then(({ data, error }) => {
       if (!active) return
@@ -63,7 +67,19 @@ export function AuthProvider({ children }: AuthProviderProps) {
       active = false
       subscription.unsubscribe()
     }
-  }, [applySession])
+  }, [])
+
+  function clearLocalAuthState() {
+    setSession(null)
+    setStatus('unauthenticated')
+    setErrorMessage(null)
+
+    const storageKeys = [supabaseAuthStorageKey, supabaseAuthCodeVerifierKey]
+    for (const storageKey of storageKeys) {
+      window.localStorage.removeItem(storageKey)
+      window.sessionStorage.removeItem(storageKey)
+    }
+  }
 
   async function signInWithPassword(email: string, password: string): Promise<void> {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -75,12 +91,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   async function signOut(): Promise<void> {
-    const { error } = await supabase.auth.signOut()
-    if (error) {
+    clearLocalAuthState()
+
+    void supabase.auth.signOut({ scope: 'local' }).catch((error: Error) => {
       setErrorMessage(error.message)
-      throw error
-    }
-    setErrorMessage(null)
+    })
   }
 
   function clearError() {

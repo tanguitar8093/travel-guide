@@ -37,7 +37,6 @@ export function AuthGate({ children }: AuthGateProps) {
         <section className="auth-panel auth-panel-loading" aria-live="polite">
           <p className="auth-eyebrow">TRAVEL PLANNER</p>
           <h1>正在確認登入狀態</h1>
-          <p>稍候片刻，正在向 Supabase 取得工作階段。</p>
         </section>
       </div>
     )
@@ -52,9 +51,6 @@ export function AuthGate({ children }: AuthGateProps) {
       <section className="auth-panel" aria-labelledby="auth-title">
         <p className="auth-eyebrow">TRAVEL PLANNER</p>
         <h1 id="auth-title">登入後才能使用資料</h1>
-        <p className="auth-copy">
-          目前專案已切入 Supabase Auth 基礎。只有已受邀成員可以登入；若尚未收到邀請，請先由管理員在 Supabase 建立使用者。
-        </p>
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">

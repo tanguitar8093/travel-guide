@@ -334,7 +334,14 @@ function RegionModule() {
     try {
       await regionController.delete(selectedRegion.id);
       setDeleteDialogOpen(false);
+      setEditing(false);
+      setCreating(false);
       await refresh();
+      setSelectedId(undefined);
+      setDraft(emptyDraft);
+      setGoogleDetails(undefined);
+      setGoogleDetailsForId(undefined);
+      setGoogleDetailsErrorForId(undefined);
       setNotice(`區域「${selectedRegion.name}」已刪除。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "刪除區域失敗。");
