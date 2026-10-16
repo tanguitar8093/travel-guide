@@ -272,37 +272,38 @@ $$;
 
 create or replace function public.can_edit_trip(p_trip_id uuid)
 returns boolean
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
-  select exists (
+begin
+  return exists (
     select 1
     from public.trips t
     where t.id = p_trip_id
       and (
-        t.owner_uid = auth.uid()
-        or (
-          t.edit_mode = 'shared'
-          and auth.uid() is not null
-          and auth.uid() = any(t.editor_uids)
-        )
+        public.app_is_member()
+        and (t.owner_uid = auth.uid() or public.app_is_admin())
       )
   );
+end;
 $$;
 
 create or replace function public.can_manage_trip_acl(p_trip_id uuid)
 returns boolean
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
-  select exists (
+begin
+  return exists (
     select 1
     from public.trips t
     where t.id = p_trip_id
-      and t.owner_uid = auth.uid()
+      and public.app_is_member()
+      and (t.owner_uid = auth.uid() or public.app_is_admin())
   );
+end;
 $$;
 
 create or replace function public.prevent_non_owner_acl_changes()
@@ -311,7 +312,10 @@ language plpgsql
 security invoker
 as $$
 begin
-  if old.owner_uid is distinct from auth.uid() then
+  if new.owner_uid is distinct from old.owner_uid then
+    raise exception 'Changing a trip owner is not supported.';
+  end if;
+  if old.owner_uid is distinct from auth.uid() and not public.app_is_admin() then
     if (
       new.owner_uid is distinct from old.owner_uid
       or new.edit_mode is distinct from old.edit_mode
@@ -371,107 +375,22 @@ grant select, insert, update, delete on public.trips to authenticated;
 grant select, insert, update, delete on public.itinerary_items to authenticated;
 
 drop policy if exists regions_authenticated_all on public.regions;
-create policy regions_authenticated_all
-on public.regions
-for all
-to authenticated
-using (true)
-with check (true);
-
+-- No broad authenticated policies are installed by this schema bootstrap.
+-- Apply supabase-basic-role-rls.sql and supabase-owner-isolation.sql next.
+-- Remove previous broad policies on upgrades; owner-isolation policies survive reruns.
 drop policy if exists labels_authenticated_all on public.labels;
-create policy labels_authenticated_all
-on public.labels
-for all
-to authenticated
-using (true)
-with check (true);
-
 drop policy if exists places_authenticated_all on public.places;
-create policy places_authenticated_all
-on public.places
-for all
-to authenticated
-using (true)
-with check (true);
-
 drop policy if exists place_regions_authenticated_all on public.place_regions;
-create policy place_regions_authenticated_all
-on public.place_regions
-for all
-to authenticated
-using (true)
-with check (true);
-
 drop policy if exists place_labels_authenticated_all on public.place_labels;
-create policy place_labels_authenticated_all
-on public.place_labels
-for all
-to authenticated
-using (true)
-with check (true);
-
 drop policy if exists trips_authenticated_all on public.trips;
 drop policy if exists authenticated_read_trips on public.trips;
 drop policy if exists owner_create_trips on public.trips;
 drop policy if exists editors_update_trips on public.trips;
 drop policy if exists owner_delete_trips on public.trips;
-create policy authenticated_read_trips
-on public.trips
-for select
-to authenticated
-using (auth.uid() is not null);
-
-create policy owner_create_trips
-on public.trips
-for insert
-to authenticated
-with check (
-  owner_uid = auth.uid()
-  and edit_mode = 'private'
-  and cardinality(editor_uids) = 0
-);
-
-create policy editors_update_trips
-on public.trips
-for update
-to authenticated
-using (public.can_edit_trip(id))
-with check (public.can_edit_trip(id));
-
-create policy owner_delete_trips
-on public.trips
-for delete
-to authenticated
-using (owner_uid = auth.uid());
-
 drop policy if exists itinerary_items_authenticated_all on public.itinerary_items;
 drop policy if exists authenticated_read_itinerary_items on public.itinerary_items;
 drop policy if exists editors_insert_itinerary_items on public.itinerary_items;
 drop policy if exists editors_update_itinerary_items on public.itinerary_items;
 drop policy if exists editors_delete_itinerary_items on public.itinerary_items;
-create policy authenticated_read_itinerary_items
-on public.itinerary_items
-for select
-to authenticated
-using (auth.uid() is not null);
-
-create policy editors_insert_itinerary_items
-on public.itinerary_items
-for insert
-to authenticated
-with check (public.can_edit_trip(trip_id));
-
-create policy editors_update_itinerary_items
-on public.itinerary_items
-for update
-to authenticated
-using (public.can_edit_trip(trip_id))
-with check (public.can_edit_trip(trip_id));
-
-create policy editors_delete_itinerary_items
-on public.itinerary_items
-for delete
-to authenticated
-using (public.can_edit_trip(trip_id));
 
 commit;

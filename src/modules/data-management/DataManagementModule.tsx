@@ -103,7 +103,7 @@ function DataManagementModule() {
   }
 
   async function handleImport() {
-    if (!backup) return;
+    if (!backup || databaseMode === "supabase") return;
     const summary = formatCount({
       regions: backup.data.regions.length,
       places: backup.data.places.length,
@@ -138,6 +138,7 @@ function DataManagementModule() {
   }
 
   async function handleClearAllData() {
+    if (databaseMode === "supabase") return;
     if (
       !window.confirm(
         "即將清空此瀏覽器中的全部資料庫內容。\n\n包括：區域、地點、標籤、行程與每日行程項目。\n\n此操作無法撤銷，請先確認是否已備份。確定要清空嗎？",
@@ -156,28 +157,6 @@ function DataManagementModule() {
       setNotice("資料庫已清空，所有旅遊資料已移除。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "清空資料失敗。");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function handleTransferLocalToSupabase() {
-    if (
-      !window.confirm(
-        "即將用本機資料覆蓋 Supabase 雲端資料庫中的全部資料。\n\n此操作會以本機目前內容取代雲端內容，且無法從本程式復原。確定繼續嗎？",
-      )
-    ) {
-      return;
-    }
-
-    setBusy(true);
-    setError("");
-    setNotice("");
-    try {
-      const counts = await dataManagementController.transferLocalToSupabase();
-      setNotice(`已將本機資料搬到 Supabase：${formatCount(counts)}。`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "搬移到 Supabase 失敗。");
     } finally {
       setBusy(false);
     }
@@ -222,7 +201,7 @@ function DataManagementModule() {
               備份、搬移與還原你的旅行資料
             </div>
             <h1>資料</h1>
-            <p>匯出所有模組資料，或從備份檔完整取代此瀏覽器中的資料。</p>
+            <p>匯出可存取的旅行資料；單機模式可匯入備份或清空本機資料。</p>
           </div>
         </div>
 
@@ -261,16 +240,8 @@ function DataManagementModule() {
           <section className="data-management-card data-management-transfer-card">
             <div className="data-management-card-icon">⇄</div>
             <h2>資料搬移</h2>
-            <p>把目前的資料完整搬到另一個資料庫版本，會覆蓋目標端現有資料。</p>
+            <p>將雲端可存取的資料匯回本機，會覆蓋本機現有資料。本機搬移至雲端暫停使用。</p>
             <div className="data-management-actions data-management-transfer-actions">
-              <button
-                type="button"
-                className="data-management-secondary"
-                disabled={busy}
-                onClick={() => void handleTransferLocalToSupabase()}
-              >
-                從本機搬到 Supabase
-              </button>
               <button
                 type="button"
                 className="data-management-secondary"
@@ -298,7 +269,7 @@ function DataManagementModule() {
             </button>
           </section>
 
-          <section className="data-management-card data-management-import-card">
+          {databaseMode === "indexeddb" && (<section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">↑</div>
             <h2>匯入並覆蓋</h2>
             <p>
@@ -341,9 +312,9 @@ function DataManagementModule() {
             <div className="data-management-warning" role="note">
               匯入會取代此瀏覽器的全部旅行資料，不會合併。請確認已選對備份檔，並先匯出目前資料以免遺失。
             </div>
-          </section>
+          </section>)}
 
-          <section className="data-management-card data-management-import-card">
+          {databaseMode === "indexeddb" && (<section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">⌫</div>
             <h2>清空資料庫</h2>
             <p>
@@ -362,7 +333,10 @@ function DataManagementModule() {
             <div className="data-management-warning" role="note">
               這是破壞性操作，且不會保留可回復內容。建議先匯出備份後再執行。
             </div>
-          </section>
+          </section>)}
+          {databaseMode === "supabase" && (
+            <p role="note">雲端覆蓋匯入與整批清空暫停使用。需要刪除資料時，請到各模組逐筆刪除。</p>
+          )}
         </div>
       </section>
     </WorkspaceLayout>

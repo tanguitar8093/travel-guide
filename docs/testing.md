@@ -39,3 +39,7 @@
 ## 備註
 
 目前測試只挑最關鍵的核心路徑，避免一開始就鋪太多測項。之後可以再慢慢擴充，但先保住資料層與備份安全是最重要的。
+
+## 雲端資料隔離
+
+`src/database/owner-isolation.test.ts` 以 PGlite 執行 PostgreSQL RLS、遷移與外鍵驗證，不需要雲端連線。`supabase-backup-safety.test.ts` 和 `data-management.service.test.ts` 驗證雲端整批寫入停用、本機操作保留。部署步驟見 [owner-isolation.md](owner-isolation.md)。

@@ -5,6 +5,7 @@ import {
   setDatabaseMode,
   supabaseBackupRepository,
 } from '../../database'
+import { ValidationError } from '../../database'
 import type { BackupCounts, DatabaseMode, TravelBackup } from '../../database'
 
 export class DataManagementService {
@@ -31,8 +32,7 @@ export class DataManagementService {
   }
 
   async transferLocalToSupabase(): Promise<BackupCounts> {
-    const backup = await indexedBackupRepository.exportAll()
-    return supabaseBackupRepository.replaceAll(backup)
+    throw new ValidationError('本機搬移至雲端暫停使用，避免覆蓋雲端資料。')
   }
 
   async transferSupabaseToLocal(): Promise<BackupCounts> {

@@ -1,3 +1,5 @@
+-- LEGACY collaboration test: incompatible with phase-one private isolation.
+-- Use src/database/owner-isolation.test.ts for the active permission contract.
 -- Re-runnable RLS smoke test for trips/itinerary ACL.
 -- Run with:
 --   supabase db query --linked --file docs/supabase-rls-smoke-test.sql

@@ -1,7 +1,7 @@
 -- Supabase RBAC bootstrap for signup-based default basic role
 -- Goal:
 -- 1) New signup users are assigned role=basic
--- 2) Only member/admin can access business tables
+-- 2) Member accesses own business data; admin accesses all business data
 -- 3) Admin can manage role assignments
 
 begin;
@@ -96,6 +96,8 @@ $$;
 
 -- 4) RLS for user_roles
 alter table public.user_roles enable row level security;
+revoke all on public.user_roles from anon;
+grant select, insert, update, delete on public.user_roles to authenticated;
 
 -- Drop all existing policies on user_roles to avoid permissive leftovers
 DO $$
@@ -132,7 +134,7 @@ on public.user_roles
 for delete
 using (public.app_is_admin());
 
--- 5) Rebuild business-table policies: only member/admin can access
+-- 5) Rebuild owner-scoped business policies. Safe to re-run after isolation.
 -- NOTE: this intentionally removes existing policies for these tables.
 DO $$
 DECLARE
@@ -157,10 +159,11 @@ BEGIN
       execute format('drop policy if exists %I on public.%I', p.policyname, t);
     END LOOP;
 
-    execute format('create policy %I on public.%I for select using (public.app_is_member())', t || '_select_member', t);
-    execute format('create policy %I on public.%I for insert with check (public.app_is_member())', t || '_insert_member', t);
-    execute format('create policy %I on public.%I for update using (public.app_is_member()) with check (public.app_is_member())', t || '_update_member', t);
-    execute format('create policy %I on public.%I for delete using (public.app_is_member())', t || '_delete_member', t);
+    if exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = t and column_name = 'owner_uid') then
+      execute format('create policy %I on public.%I for all to authenticated using (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin())) with check (public.app_is_member() and (owner_uid = auth.uid() or public.app_is_admin()))', t || '_owner_or_admin', t);
+    end if;
+    -- Without an owner column, leave RLS closed until owner-isolation migration.
+
   END LOOP;
 END $$;
 
