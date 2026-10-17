@@ -7,6 +7,7 @@ import { LocalSyncStore } from './local-sync.store'
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
 import { syncHybridManually } from './sync-engine'
+import { prepareConflictReview, resolveConflictReview } from './sync-conflicts'
 import type { CloudSyncSnapshot, CloudSyncPull, CloudSyncPush } from './sync-cloud.adapter'
 
 const db = new PGlite()
@@ -81,7 +82,18 @@ describe('cloud sync migration', () => {
       })
       await syncHybridManually(store, adapter, async (_name, work) => { await work() })
       expect(await store.listTasks()).toEqual([])
+      await store.mutate('region.rename-local', (repositories) => repositories.regions.update(region, { name: 'Keep this local' }))
+      await asUser(other, () => db.query('update public.regions set name=$1 where id=$2', ['Conflicting cloud', region]))
+      await expect(syncHybridManually(store, adapter, async (_name, work) => { await work() })).rejects.toThrow('衝突')
+      const review = await prepareConflictReview(store, adapter, async (_name, work) => { await work() })
+      await resolveConflictReview(store, review.token, 'local', adapter, async (_name, work) => { await work() })
+      await syncHybridManually(store, adapter, async (_name, work) => { await work() })
+      expect((await db.query<{ name: string }>('select name from public.regions where id=$1', [region])).rows[0].name).toBe('Keep this local')
+      await store.mutate('place.rename-local', (repositories) => repositories.places.update(setup.place, { name: 'Discard local name' }))
       await asUser(other, () => db.query('update public.places set name=$1 where id=$2', ['Remote Cafe', setup.place]))
+      await expect(syncHybridManually(store, adapter, async (_name, work) => { await work() })).rejects.toThrow('衝突')
+      const cloudReview = await prepareConflictReview(store, adapter, async (_name, work) => { await work() })
+      await resolveConflictReview(store, cloudReview.token, 'cloud', adapter, async (_name, work) => { await work() })
       await syncHybridManually(store, adapter, async (_name, work) => { await work() })
       expect(await storage.places.get(setup.place)).toMatchObject({ name: 'Remote Cafe', regionIds: [region] })
       await store.mutate('trip.delete', (repositories) => repositories.trips.delete(setup.trip))

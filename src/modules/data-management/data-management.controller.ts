@@ -22,6 +22,12 @@ export class DataManagementController {
     return this.service.syncHybridManually()
   }
 
+  getSavedConflictReview() { return this.service.getSavedConflictReview() }
+  prepareConflictReview() { return this.service.prepareConflictReview() }
+  resolveConflictReview(token: string, choice: 'local' | 'cloud') {
+    return this.service.resolveConflictReview(token, choice)
+  }
+
   parseBackup(contents: string) {
     return this.service.parseBackup(contents)
   }

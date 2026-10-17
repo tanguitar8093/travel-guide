@@ -1,13 +1,14 @@
 import type { Table } from 'dexie'
 import { TravelDatabase } from './database'
 import { getSyncDatabaseName, validateSyncAccount } from './sync-account-context'
-import type { SyncAccount, SyncBaseline, SyncMetadata, SyncTask } from './sync.types'
+import type { SyncAccount, SyncBaseline, SyncConflictReview, SyncMetadata, SyncTask } from './sync.types'
 
 export class SyncDatabase extends TravelDatabase {
   readonly account: SyncAccount
   outbox!: Table<SyncTask, number>
   syncMetadata!: Table<SyncMetadata, string>
   syncBaselines!: Table<SyncBaseline, [string, string]>
+  syncConflicts!: Table<SyncConflictReview, string>
 
   constructor(account: SyncAccount) {
     super(getSyncDatabaseName(account))
@@ -22,5 +23,6 @@ export class SyncDatabase extends TravelDatabase {
       syncMetadata: '&id',
       syncBaselines: '[entity+id]',
     })
+    this.version(6).stores({ syncConflicts: '&id' })
   }
 }

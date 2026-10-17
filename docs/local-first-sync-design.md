@@ -199,7 +199,7 @@ Outbox 記錄至少包含：帳號範圍、裝置 ID、操作 ID、佇列順序�
 核准紀錄：使用者表示「暫時看不出問題 開始做第二步」，接受本設計作為第二階段依據。清單保留供後續回顧。
 更新：使用者第二階段驗證通過後指示「開始用」，已授權第三階段。交付見 [第三階段 Review](local-first-sync-phase3-review.md)。
 更新：使用者表示「測試完成 請繼續」，授權第四階段隔離實作；交付見 [第四階段 Review](local-first-sync-phase4-review.md)。
-更新：使用者表示「開始下一步吧」，授權第五階段；之後指示繼續下一步。已交付 5A 唯讀預覽與 5B DEV 手動初始化／雙向同步，5C 衝突選擇介面尚未完成；見 [第五階段進度](local-first-sync-phase5-review.md)。實際雲端 SQL 套用仍須另行授權。
+更新：使用者表示「開始下一步吧」，授權第五階段；之後指示繼續下一步。已交付 5A 唯讀預覽、5B DEV 手動初始化／雙向同步及 5C 整批衝突選擇；5B 基本雙向同步人工驗收通過，5C 尚待人工驗收。見 [第五階段進度](local-first-sync-phase5-review.md)。
 
 第二階段交付與驗收見 [本地同步基礎 Review](local-first-sync-phase2-review.md)。
 

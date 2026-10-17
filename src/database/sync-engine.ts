@@ -5,7 +5,7 @@ import { syncCloudAdapter } from './sync-cloud.adapter'
 type SyncCloud = typeof syncCloudAdapter
 export type SyncLock = (name: string, work: () => Promise<void>) => Promise<void>
 
-const browserLock: SyncLock = async (name, work) => {
+export const browserSyncLock: SyncLock = async (name, work) => {
   if (!navigator.locks) throw new ValidationError('此瀏覽器不支援安全的跨分頁同步鎖，請使用新版瀏覽器。')
   await navigator.locks.request(`sync:${name}`, { ifAvailable: true }, async (lock) => {
     if (!lock) throw new ValidationError('另一個分頁正在同步，請稍後再試。')
@@ -16,7 +16,7 @@ const browserLock: SyncLock = async (name, work) => {
 export async function syncHybridManually(
   store: LocalSyncStore,
   cloud: SyncCloud = syncCloudAdapter,
-  lock: SyncLock = browserLock,
+  lock: SyncLock = browserSyncLock,
 ): Promise<void> {
   const assertCurrent = store.captureAccount()
   await lock(store.getSyncLockName(), async () => {
@@ -26,7 +26,7 @@ export async function syncHybridManually(
       const snapshot = await cloud.snapshot()
       assertCurrent()
       if (!await store.applyRemote(snapshot.records, { cursor: snapshot.cursor, initialize: true })) {
-        throw new ValidationError('初始化遇到資料衝突，未覆蓋本機資料。請先保留備份，等待衝突處理功能。')
+        throw new ValidationError('初始化遇到資料衝突，未覆蓋本機資料。請在資料管理檢視並處理衝突。')
       }
       metadata = await store.getSyncMetadata()
     }
@@ -38,7 +38,7 @@ export async function syncHybridManually(
         const response = await cloud.push(task)
         assertCurrent()
         if (response.status === 'conflict') {
-          await store.markUpload(task, 'conflict', '雲端版本已改變，未覆蓋資料。')
+          await store.recordPushConflict(task, response.conflicts)
           throw new ValidationError('同步遇到衝突，已停止；本機資料與待同步操作仍保留。')
         }
         await store.applyRemote(response.changes, { acknowledge: task })

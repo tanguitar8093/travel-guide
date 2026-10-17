@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { dataManagementController } from './data-management.controller'
 import type { SyncPreview } from '../../database/sync-preview'
 import { useHybridStatus } from '../../database/useHybridStatus'
+import { HybridConflictReview } from './HybridConflictReview'
 
 const entityLabels = { regions: '區域', places: '地點', labels: '標籤', trips: '行程', itineraryItems: '行程項目' }
 const differenceLabels = { 'local-only': '僅本機有', 'cloud-only': '僅雲端有', different: '內容不同', same: '內容相同／兩邊皆已刪除' }
@@ -55,6 +56,7 @@ export function HybridSyncPreview() {
     </button>
     {notice && <p role="status">{notice}</p>}
     {error && <p role="alert">{error}</p>}
+    <HybridConflictReview disabled={busy || !status.ready} />
     {preview && <div role="status">
       <p>比對時間：{new Date(preview.checkedAt).toLocaleString()}。待同步 {preview.pendingOperations} 筆操作；可能衝突 {preview.rows.filter((row) => row.conflict).length} 筆資料。</p>
       <p>本機獨有 {preview.rows.filter((row) => row.difference === 'local-only').length} 筆、雲端獨有 {preview.rows.filter((row) => row.difference === 'cloud-only').length} 筆、內容不同 {preview.rows.filter((row) => row.difference === 'different').length} 筆。</p>

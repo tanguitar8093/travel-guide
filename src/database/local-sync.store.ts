@@ -173,6 +173,32 @@ export class LocalSyncStore {
     })
   }
 
+  async syncTransaction<Result>(work: (database: SyncDatabase) => Promise<Result>): Promise<Result> {
+    const assertCurrent = this.captureAccount()
+    return this.database.transaction('rw', this.database.tables, async (transaction) => {
+      assertCurrent()
+      this.remoteTransactions.add(transaction)
+      try {
+        const result = await work(this.database)
+        assertCurrent()
+        return result
+      } finally {
+        this.remoteTransactions.delete(transaction)
+      }
+    })
+  }
+
+  async recordPushConflict(task: SyncTask, records: SyncTask['conflictRecords']): Promise<void> {
+    await this.syncTransaction(async (database) => {
+      const current = await database.outbox.get(task.sequence!)
+      if (current?.operationId !== task.operationId) throw new ValidationError('待同步操作已改變。')
+      await database.outbox.update(task.sequence!, {
+        status: 'conflict', error: '雲端版本已改變，未覆蓋資料。', conflictRecords: records,
+      })
+      await database.syncConflicts.clear()
+    })
+  }
+
   async applyRemote(
     incoming: CloudSyncRecord[],
     options: { cursor?: string; initialize?: boolean; acknowledge?: SyncTask } = {},
@@ -221,8 +247,12 @@ export class LocalSyncStore {
       }
       if (conflictTasks.size) {
         for (const sequence of conflictTasks) {
-          await this.database.outbox.update(sequence, { status: 'conflict', error: '雲端與本機版本不同，未覆蓋任何資料。' })
+          await this.database.outbox.update(sequence, {
+            status: 'conflict', error: '雲端與本機版本不同，未覆蓋任何資料。',
+            conflictRecords: [...final.values()],
+          })
         }
+        await this.database.syncConflicts.clear()
         assertCurrent()
         return false
       }

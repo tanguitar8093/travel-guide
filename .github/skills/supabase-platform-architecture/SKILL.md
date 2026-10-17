@@ -97,8 +97,14 @@ environment-specific secrets in this skill, source control, logs, or chat.
   payloads before requests and acknowledges only complete success responses.
   Push receipt cursors do not advance the pull cursor; event sequences prevent
   replay from regressing newer baselines. Web Locks prevent concurrent sync
-  in the same browser across tabs. Conflict-resolution UI and automatic sync
-  remain unimplemented. Live SQL apply still needs separate approval.
+  in the same browser across tabs. Automatic sync remains unimplemented.
+  Future live SQL changes still need separate approval.
+- Phase 5C now provides persisted whole-pending-batch conflict reviews and
+  explicit local/cloud choices, not per-record merging. Cloud choice discards
+  all pending operations; local choice creates a new version-checked task.
+  Both revalidate the local state and cloud snapshot before atomic local
+  changes; uncertain upload outcomes block resolution. Automatic sync remains
+  unimplemented. This phase does not change live SQL.
 - Existing standalone IndexedDB has no per-user data authorization. Phase 2
   adds separate project/user IndexedDB databases, account-context guards and
   persistent outboxes. This is application-managed cache isolation, not RLS,

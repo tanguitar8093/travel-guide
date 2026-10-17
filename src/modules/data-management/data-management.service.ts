@@ -13,8 +13,20 @@ import type { CloudBackupPreview } from '../../database/supabase.repositories'
 import { requireHybridStore } from '../../database/hybrid.runtime'
 import { previewHybridSync } from '../../database/sync-preview'
 import { syncHybridManually } from '../../database/sync-engine'
+import { getSavedConflictReview, prepareConflictReview, resolveConflictReview } from '../../database/sync-conflicts'
 
 export class DataManagementService {
+  private conflictStore() {
+    if (getDatabaseMode() !== 'hybrid') throw new Error('請先切換到混合測試模式。')
+    return requireHybridStore()
+  }
+
+  getSavedConflictReview() { return getSavedConflictReview(this.conflictStore()) }
+  prepareConflictReview() { return prepareConflictReview(this.conflictStore()) }
+  resolveConflictReview(token: string, choice: 'local' | 'cloud') {
+    return resolveConflictReview(this.conflictStore(), token, choice)
+  }
+
   syncHybridManually() {
     if (getDatabaseMode() !== 'hybrid') throw new Error('請先切換到混合測試模式。')
     return syncHybridManually(requireHybridStore())

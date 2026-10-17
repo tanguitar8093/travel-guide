@@ -48,8 +48,11 @@ parallel framework.
   behind the DEV-only hybrid facade. Read `docs/local-first-sync-phase5-review.md`.
   The engine uses a cross-tab Web Lock, transaction-scoped remote writes,
   version checks, frozen retry payloads and account guards. Conflicts stop the
-  queue without overwriting; resolution UI (5C) and automatic sync (phase 6)
-  remain unimplemented. Live SQL apply still requires separate approval.
+  queue without overwriting. Phase 5C persists conflict reviews and provides
+  explicit whole-pending-batch local/cloud choices with stale-review checks;
+  cloud choice discards all pending operations, local choice queues a new
+  version-checked task without uploading immediately. Read phase 5 review for
+  scope and limits. Automatic sync (phase 6) remains unimplemented.
 - Keep shared domain interfaces and `New*`/`*Changes` types in
   `src/database/models.ts`.
 - Keep persistence, indexes, transactions, referential integrity, and

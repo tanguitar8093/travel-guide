@@ -40,6 +40,20 @@ export interface SyncTask {
   attempts: number
   error?: string
   uploadChanges?: SyncChange[]
+  conflictRecords?: Array<{ entity: SyncEntityName; id: string; version: string | null; record: SyncRecord | null }>
+}
+
+export interface SyncConflictReview {
+  id: 'workspace'
+  token: string
+  createdAt: string
+  localFingerprint: string
+  cloudFingerprint: string
+  cursor: string
+  pendingOperations: number
+  rows: Array<{ entity: SyncEntityName; id: string; local: SyncRecord | null; cloud: SyncRecord | null }>
+  cloudRecords: Array<{ entity: SyncEntityName; id: string; version: string; record: SyncRecord | null }>
+  localChoiceChanges: SyncChange[]
 }
 
 export interface SyncMetadata {
