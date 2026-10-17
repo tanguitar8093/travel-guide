@@ -8,7 +8,7 @@ import {
   type SyncMode,
   writeSyncModePreference,
 } from './sync-mode-preference'
-import { getHybridStatus } from './hybrid.runtime'
+import { getHybridStatus, scheduleHybridAutoSync, stopHybridAutoSync } from './hybrid.runtime'
 import { ValidationError } from './errors'
 
 export type { DatabaseMode } from './database-mode-preference'
@@ -17,12 +17,12 @@ export type { SyncMode } from './sync-mode-preference'
 const databaseModeLabels: Record<DatabaseMode, string> = {
   indexeddb: 'Dexie/IndexedDB (單機)',
   supabase: 'Supabase (雲端)',
-  hybrid: '混合測試（本機優先，手動同步）',
+  hybrid: '混合測試（本機優先，自動同步）',
 }
 
 const syncModeLabels: Record<SyncMode, string> = {
   manual: '手動同步',
-  auto: '自動同步（尚未開放）',
+  auto: '自動同步',
 }
 
 type DatabaseModeListener = (mode: DatabaseMode) => void
@@ -88,6 +88,11 @@ export function setSyncMode(mode: SyncMode): SyncMode {
 
   currentSyncMode = mode
   writeSyncModePreference(mode)
+  if (mode === 'manual') {
+    stopHybridAutoSync()
+  } else if (getHybridStatus().ready) {
+    scheduleHybridAutoSync()
+  }
   for (const listener of syncModeListeners) {
     listener(mode)
   }

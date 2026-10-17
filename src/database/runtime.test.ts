@@ -48,4 +48,14 @@ describe('database runtime', () => {
 
     unsubscribe()
   })
+
+  it('exposes auto sync as an enabled mode', async () => {
+    const runtime = await import('./runtime')
+
+    expect(runtime.getSyncMode()).toBe('manual')
+    expect(runtime.getSyncModeLabel()).toBe('手動同步')
+    expect(runtime.setSyncMode('auto')).toBe('auto')
+    expect(runtime.getSyncMode()).toBe('auto')
+    expect(runtime.getSyncModeLabel()).toBe('自動同步')
+  })
 })

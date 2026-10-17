@@ -65,7 +65,7 @@ function DataManagementModule() {
     if (nextMode === syncMode) return;
 
     setSyncMode(nextMode);
-    setNotice(nextMode === 'auto' ? '自動同步已選擇，但本階段仍維持手動同步行為，尚未啟用背景同步。' : '已切回手動同步模式。');
+    setNotice(nextMode === 'auto' ? '已切換至自動同步模式。' : '已切回手動同步模式。');
   }
 
   async function handleExport() {
@@ -346,7 +346,7 @@ function DataManagementModule() {
             >
               <option value="indexeddb">Dexie/IndexedDB（單機）</option>
               <option value="supabase">Supabase（雲端）</option>
-              {import.meta.env.DEV && <option value="hybrid" disabled={!hybridStatus.ready}>混合測試（本機優先，手動同步）</option>}
+              {import.meta.env.DEV && <option value="hybrid" disabled={!hybridStatus.ready}>混合測試（本機優先，自動同步）</option>}
             </select>
           </label>
 
@@ -358,7 +358,7 @@ function DataManagementModule() {
               onChange={handleSyncModeChange}
             >
               <option value="manual">手動同步</option>
-              <option value="auto" disabled>自動同步（尚未開放）</option>
+              <option value="auto">自動同步</option>
             </select>
           </label>
         </section>

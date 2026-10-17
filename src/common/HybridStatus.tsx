@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { RouterLink } from '../router'
 import { routes } from '../routes'
 import { useDatabaseMode } from '../database/useDatabaseMode'
@@ -8,10 +9,23 @@ export function HybridStatus() {
   const mode = useDatabaseMode()
   const syncMode = useSyncMode()
   const status = useHybridStatus()
-  if (mode !== 'hybrid') return null
-
   const hasConflicts = (status.summary?.conflictCount ?? 0) > 0
-  const syncLabel = syncMode === 'auto' ? '自動同步（尚未開放）' : '手動同步'
+  const hasPending = (status.summary?.pendingCount ?? 0) > 0
+  const syncLabel = syncMode === 'auto' ? '自動同步' : '手動同步'
+
+  useEffect(() => {
+    if (mode !== 'hybrid' || (!hasConflicts && !hasPending)) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [mode, hasConflicts, hasPending])
+
+  if (mode !== 'hybrid') return null
 
   return <div role="status" style={{ padding: '12px 24px', background: '#fff4d5', color: '#493300' }}>
     <div>混合測試：操作先儲存本機，需到資料管理同步雲端。同步模式：{syncLabel}。</div>

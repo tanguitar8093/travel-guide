@@ -34,6 +34,15 @@
 
 ## 推送前檢查
 
+### 自動同步正向回歸（2026-10-18）
+
+- 測試：`src/database/auto-sync.integration.test.ts`。
+- 以 admin、可見頁面與 auto 模式，從應用程式資料庫 facade 新增區域、標籤、地點、行程與行程項目。
+- 實際推進計時器：1999 ms 不呼叫 RPC，2000 ms 開始同步；驗證真實 Dexie outbox、同步引擎、cloud adapter 與 PGlite 中的正式 SQL RPC。
+- 驗證 SQL 資料、owner、地點標籤關聯、行程項目，以及 outbox 清空、完整同步時間；再次修改地點後也會自動寫入，重新啟用本機帳號後資料仍保留。
+- 僅替換 HTTP 傳輸與瀏覽器 Web Lock 邊界；未連線正式 Supabase，不能視為真實登入或跨裝置驗證。
+- 舊 debounce 測試曾直接呼叫已取消的 timer callback，無法抓到排程被取消；已改用實際時鐘推進。前景輪詢只能清除自己的 timer，不能清除 debounce/retry。
+
 專案建議採用「輕量 pre-push」策略，避免高成本阻塞：
 
 - 預設先跑：`git diff --check`、`npm run lint`

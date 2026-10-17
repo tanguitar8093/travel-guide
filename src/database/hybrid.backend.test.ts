@@ -5,16 +5,50 @@ import { hybridBackend } from './hybrid.backend'
 import {
   activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore,
 } from './hybrid.runtime'
+import { setSyncMode } from './runtime'
+import * as syncEngine from './sync-engine'
+
+function createLocalStorageMock() {
+  const store = new Map<string, string>()
+  return {
+    getItem(key: string) {
+      return store.has(key) ? store.get(key) ?? null : null
+    },
+    setItem(key: string, value: string) {
+      store.set(key, value)
+    },
+    removeItem(key: string) {
+      store.delete(key)
+    },
+  }
+}
 
 describe('hybrid development backend', () => {
   const accounts: { projectId: string; userId: string }[] = []
 
   beforeEach(() => {
+    const noOpListener = () => {}
+    vi.stubGlobal('window', {
+      localStorage: createLocalStorageMock(),
+      addEventListener: noOpListener,
+      removeEventListener: noOpListener,
+    })
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        visibilityState: 'visible',
+        addEventListener: noOpListener,
+        removeEventListener: noOpListener,
+      },
+      configurable: true,
+      writable: true,
+    })
     vi.stubEnv('DEV', true)
     accounts.length = 0
   })
 
   afterEach(async () => {
+    vi.useRealTimers()
+    vi.clearAllTimers()
     deactivateHybridAccount()
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
@@ -95,5 +129,67 @@ describe('hybrid development backend', () => {
     expect(network).not.toHaveBeenCalled()
     expect(await requireHybridStore().listTasks()).toHaveLength(3)
     facade.setDatabaseMode('supabase')
+  })
+
+  it('runs auto sync after the debounce window but not in manual mode', async () => {
+    const syncSpy = vi.spyOn(syncEngine, 'syncHybridManually').mockResolvedValue()
+
+    await login()
+    setSyncMode('manual')
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    setSyncMode('auto')
+
+    await vi.advanceTimersByTimeAsync(1999)
+    expect(syncSpy).not.toHaveBeenCalled()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(syncSpy).toHaveBeenCalledTimes(1)
+
+    setSyncMode('manual')
+    await hybridBackend.regions.create({ name: 'Manual only', zoom: 12, googlePlaceId: 'manual-1' })
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(syncSpy).toHaveBeenCalledTimes(1)
+
+    syncSpy.mockRestore()
+  })
+
+  it('re-syncs when the tab becomes visible again in auto mode', async () => {
+    const syncSpy = vi.spyOn(syncEngine, 'syncHybridManually').mockResolvedValue()
+    const handlers = new Map<string, Set<() => void>>()
+    const addListener = (type: string, handler: () => void) => {
+      const current = handlers.get(type) ?? new Set<() => void>()
+      current.add(handler)
+      handlers.set(type, current)
+    }
+    const documentState = { visibilityState: 'hidden' }
+    vi.stubGlobal('window', {
+      localStorage: createLocalStorageMock(),
+      addEventListener: addListener,
+      removeEventListener: (type: string, handler: () => void) => handlers.get(type)?.delete(handler),
+    })
+    Object.defineProperty(globalThis, 'document', {
+      value: {
+        get visibilityState() {
+          return documentState.visibilityState
+        },
+        set visibilityState(value: string) {
+          documentState.visibilityState = value
+        },
+        addEventListener: addListener,
+        removeEventListener: (type: string, handler: () => void) => handlers.get(type)?.delete(handler),
+      },
+      configurable: true,
+      writable: true,
+    })
+
+    await login()
+    setSyncMode('auto')
+    documentState.visibilityState = 'visible'
+
+    const visibilityHandler = [...(handlers.get('visibilitychange') ?? [])][0]
+    expect(visibilityHandler).toBeDefined()
+    visibilityHandler()
+    await Promise.resolve()
+    expect(syncSpy).toHaveBeenCalledTimes(1)
+    syncSpy.mockRestore()
   })
 })
