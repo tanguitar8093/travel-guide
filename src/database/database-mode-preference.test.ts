@@ -16,6 +16,15 @@ function createLocalStorageMock() {
 }
 
 describe('database mode preference', () => {
+  it('restores hybrid only in development', async () => {
+    const preference = await import('./database-mode-preference')
+    preference.writeDatabaseModePreference('hybrid')
+    vi.stubEnv('DEV', true)
+    expect(preference.readDatabaseModePreference()).toBe('hybrid')
+    vi.stubEnv('DEV', false)
+    expect(preference.readDatabaseModePreference()).toBe('supabase')
+    vi.unstubAllEnvs()
+  })
   beforeEach(() => {
     vi.resetModules()
     vi.stubGlobal('window', {

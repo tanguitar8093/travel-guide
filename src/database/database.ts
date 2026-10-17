@@ -8,8 +8,8 @@ export class TravelDatabase extends Dexie {
   trips!: Table<Trip, string>
   itineraryItems!: Table<ItineraryItem, string>
 
-  constructor() {
-    super('travel-planner')
+  constructor(name = 'travel-planner') {
+    super(name)
 
     this.version(1).stores({
       regions: '&id, name',

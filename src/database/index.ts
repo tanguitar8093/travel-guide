@@ -56,6 +56,7 @@ import type { BackupCounts, TravelBackup } from './backup.repository'
 import { labels as indexedLabels } from './label.repository'
 import { itineraryItems as indexedItineraryItems, places as indexedPlaces, regions as indexedRegions, trips as indexedTrips } from './repositories'
 import { getDatabaseMode, type DatabaseMode } from './runtime'
+import { hybridBackend } from './hybrid.backend'
 import {
   supabaseBackupRepository,
   supabaseItineraryItems,
@@ -156,6 +157,7 @@ const supabaseBackend: DatabaseBackend = {
 const databaseBackends: Record<DatabaseMode, DatabaseBackend> = {
   indexeddb: indexedDbBackend,
   supabase: supabaseBackend,
+  hybrid: hybridBackend,
 }
 
 function activeBackend(): DatabaseBackend {

@@ -5,6 +5,9 @@ import { useDatabaseMode } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
 import "./DataManagementModule.css";
+import { useHybridStatus } from '../../database/useHybridStatus';
+import { getDatabaseModeLabel } from '../../database/runtime';
+import { HybridSyncPreview } from './HybridSyncPreview';
 
 const countLabels = [
   ["regions", "區域"],
@@ -34,6 +37,7 @@ function formatPreviewCounts(
 function DataManagementModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const databaseMode = useDatabaseMode();
+  const hybridStatus = useHybridStatus();
   const [backup, setBackup] = useState<TravelBackup>();
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -44,7 +48,15 @@ function DataManagementModule() {
     const nextMode = event.target.value as DatabaseMode;
     if (nextMode === databaseMode) return;
 
-    dataManagementController.setDatabaseMode(nextMode);
+    try {
+      dataManagementController.setDatabaseMode(nextMode);
+      setBackup(undefined);
+      setFileName('');
+      setError('');
+      setNotice(nextMode === 'hybrid' ? '混合測試從獨立本地資料開始，不會自動搬移或上傳雲端資料。' : '');
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '切換失敗。');
+    }
   }
 
   async function handleExport() {
@@ -302,7 +314,7 @@ function DataManagementModule() {
     >
       <header className="data-management-topbar">
         <span>工作區　/　資料</span>
-        <span>{databaseMode === "supabase" ? "Supabase (雲端)" : "Dexie/IndexedDB (單機)"}</span>
+        <span>{getDatabaseModeLabel(databaseMode)}</span>
       </header>
       <section className="data-management-content">
         <div className="data-management-heading">
@@ -325,6 +337,7 @@ function DataManagementModule() {
             >
               <option value="indexeddb">Dexie/IndexedDB（單機）</option>
               <option value="supabase">Supabase（雲端）</option>
+              {import.meta.env.DEV && <option value="hybrid" disabled={!hybridStatus.ready}>混合測試（本機優先，手動同步）</option>}
             </select>
           </label>
         </section>
@@ -347,7 +360,8 @@ function DataManagementModule() {
         )}
 
         <div className="data-management-cards">
-          <section className="data-management-card data-management-transfer-card">
+          {databaseMode === 'hybrid' && <HybridSyncPreview />}
+          {databaseMode !== 'hybrid' && <section className="data-management-card data-management-transfer-card">
             <div className="data-management-card-icon">⇄</div>
             <h2>資料搬移</h2>
             <p>可在本機與雲端間執行帳號範圍內的覆蓋搬移。每次都會先預覽再確認。</p>
@@ -369,7 +383,7 @@ function DataManagementModule() {
                 從 Supabase 匯回本機
               </button>
             </div>
-          </section>
+          </section>}
 
           <section className="data-management-card">
             <div className="data-management-card-icon">↓</div>
@@ -387,7 +401,7 @@ function DataManagementModule() {
             </button>
           </section>
 
-          <section className="data-management-card data-management-import-card">
+          {databaseMode !== 'hybrid' && <section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">↑</div>
             <h2>匯入並覆蓋</h2>
             <p>
@@ -438,9 +452,9 @@ function DataManagementModule() {
                 ? "雲端覆蓋只作用於目前登入帳號，且會檢查預覽快照是否過期。"
                 : "匯入會取代此瀏覽器的全部旅行資料，不會合併。請確認已選對備份檔，並先匯出目前資料以免遺失。"}
             </div>
-          </section>
+          </section>}
 
-          <section className="data-management-card data-management-import-card">
+          {databaseMode !== 'hybrid' && <section className="data-management-card data-management-import-card">
             <div className="data-management-card-icon">⌫</div>
             <h2>清空資料庫</h2>
             <p>
@@ -467,7 +481,7 @@ function DataManagementModule() {
                 ? "僅影響目前登入帳號，且會阻擋可能破壞分享/協作設定的情況。"
                 : "這是破壞性操作，且不會保留可回復內容。建議先匯出備份後再執行。"}
             </div>
-          </section>
+          </section>}
           {databaseMode === "supabase" && (
             <p role="note">雲端操作只作用於目前登入帳號，且採預覽確認與交易回滾保護。</p>
           )}

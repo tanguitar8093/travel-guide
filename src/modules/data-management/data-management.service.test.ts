@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { DataManagementCloudAdapter } from './data-management.cloud-adapter'
 
 const repositories = vi.hoisted(() => ({
-  mode: 'supabase' as 'supabase' | 'indexeddb',
+  mode: 'supabase' as 'supabase' | 'indexeddb' | 'hybrid',
   local: { exportAll: vi.fn(), replaceAll: vi.fn(), clearAllData: vi.fn() },
 }))
 
@@ -37,6 +37,16 @@ function createService() {
 }
 
 describe('safe data management', () => {
+  it('blocks cloud transfer and replacement in hybrid before any API call', async () => {
+    repositories.mode = 'hybrid'
+    const service = createService()
+    await expect(service.previewLocalToSupabaseTransfer()).rejects.toThrow('尚未開放')
+    await expect(service.transferSupabaseToLocal()).rejects.toThrow('尚未開放')
+    await expect(service.applySupabaseClearAllData('token')).rejects.toThrow('尚未開放')
+    expect(cloudAdapter.previewLocalToCloudTransfer).not.toHaveBeenCalled()
+    expect(cloudAdapter.transferCloudToLocal).not.toHaveBeenCalled()
+    expect(cloudAdapter.applyClearAllData).not.toHaveBeenCalled()
+  })
   it('restores local-to-cloud transfer with preview token flow', async () => {
     const backup = { data: 'local-backup' }
     cloudAdapter.previewLocalToCloudTransfer.mockResolvedValue({

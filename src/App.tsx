@@ -6,8 +6,9 @@ import { ItineraryModule } from './modules/itinerary'
 import { DataManagementModule } from './modules/data-management'
 import { routes } from './routes'
 import { usePathname } from './usePathname'
+import { useDatabaseMode } from './database/useDatabaseMode'
 
-function App() {
+function RoutedApp() {
   const pathname = usePathname().replace(/\/+$/, '') || '/'
 
   if (pathname === routes.labels) {
@@ -31,6 +32,11 @@ function App() {
   }
 
   return <ItineraryModule />
+}
+
+function App() {
+  const mode = useDatabaseMode()
+  return <RoutedApp key={mode} />
 }
 
 export default App

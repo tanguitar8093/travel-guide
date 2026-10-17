@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { activateHybridAccount, deactivateHybridAccount } from '../database/hybrid.runtime'
 import {
   AuthContext,
   type AuthContextValue,
@@ -26,12 +27,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [userRole, setUserRole] = useState<AuthContextValue['userRole']>(null)
   const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const sessionGeneration = useRef(0)
 
   useEffect(() => {
     let active = true
 
     async function applySession(nextSession: AuthContextValue['session']) {
       if (!active) return
+      const generation = ++sessionGeneration.current
+      deactivateHybridAccount()
 
       setSession(nextSession)
       if (!nextSession) {
@@ -44,7 +48,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setStatus('loading')
       const { role, error } = await fetchUserRole(nextSession.user.id)
 
-      if (!active) return
+      if (!active || generation !== sessionGeneration.current) return
 
       if (error) {
         setErrorMessage('無法讀取使用者權限，請稍後再試。')
@@ -63,12 +67,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setUserRole(role)
+      if (import.meta.env.DEV && (role === 'member' || role === 'admin')) {
+        try {
+          await activateHybridAccount({
+            projectId: new URL(import.meta.env.VITE_SUPABASE_URL ?? '').origin,
+            userId: nextSession.user.id,
+          }, role)
+        } catch {
+          if (active && generation === sessionGeneration.current) setErrorMessage('本地混合模式準備失敗；仍可使用原有模式。')
+        }
+      }
+      if (!active || generation !== sessionGeneration.current) return
       setHasWorkspaceAccess(role === 'member' || role === 'admin')
       setStatus('authenticated')
     }
 
+    const initialGeneration = sessionGeneration.current
     void fetchCurrentSession().then(({ session: currentSession, error }) => {
-      if (!active) return
+      if (!active || initialGeneration !== sessionGeneration.current) return
       if (error) {
         setErrorMessage('無法讀取登入狀態，請重新整理頁面。')
         setSession(null)
@@ -88,11 +104,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => {
       active = false
+      sessionGeneration.current += 1
+      deactivateHybridAccount()
       unsubscribe()
     }
   }, [])
 
   function clearLocalAuthState() {
+    sessionGeneration.current += 1
+    deactivateHybridAccount()
     setSession(null)
     setStatus('unauthenticated')
     setUserRole(null)

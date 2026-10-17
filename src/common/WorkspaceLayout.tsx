@@ -4,6 +4,7 @@ import { RouterLink } from "../router";
 import { routes } from "../routes";
 import { useAuth } from "../auth/useAuth";
 import "./WorkspaceLayout.css";
+import { HybridStatus } from './HybridStatus';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "data";
 
@@ -238,6 +239,7 @@ export function WorkspaceLayout({
       </button>
 
       <main className={`workspace-main ${mainClassName}`.trim()}>
+        <HybridStatus />
         {children}
       </main>
     </div>

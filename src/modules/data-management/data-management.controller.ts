@@ -14,6 +14,14 @@ export class DataManagementController {
     return this.service.exportBackup()
   }
 
+  previewHybridSync() {
+    return this.service.previewHybridSync()
+  }
+
+  syncHybridManually() {
+    return this.service.syncHybridManually()
+  }
+
   parseBackup(contents: string) {
     return this.service.parseBackup(contents)
   }

@@ -26,9 +26,27 @@ parallel framework.
 
 ### Data layer
 
-- Persist application records through the existing Dexie database in
-  `src/database/`; the database is named `travel-planner` and runs in the
-  browser's IndexedDB.
+- Persist records through the facade in `src/database/index.ts`, which selects
+  standalone Dexie/IndexedDB or direct Supabase repositories. Do not force
+  all modules to use Dexie or import storage SDKs from feature UI.
+- Standalone IndexedDB uses `travel-planner` and has no per-user data
+  authorization. Supabase enforces member-owner/admin/basic rules through RLS.
+- Local-first phase 2 adds separate project/user databases, outbox transactions
+  and account guards in `sync.database.ts`, `sync-account-context.ts` and
+  `local-sync.store.ts`. Repositories support database injection. This is
+  application-managed isolation, not IndexedDB roles or RLS.
+- Phase 3 connects login/account context and a DEV-only hybrid mode using the
+  existing facade and UI. Production keeps original modes. Read
+  `docs/local-first-sync-design.md` and `docs/local-first-sync-phase2-review.md`
+  and `docs/local-first-sync-phase3-review.md` before sync work; proceed only
+  within the user-authorized phase. Phase 4 sync RPCs/migrations are tested
+  locally but not deployed. Read `docs/local-first-sync-phase4-review.md`.
+  Phase 5 includes 5A read-only preview and 5B manual initialization/push/pull
+  behind the DEV-only hybrid facade. Read `docs/local-first-sync-phase5-review.md`.
+  The engine uses a cross-tab Web Lock, transaction-scoped remote writes,
+  version checks, frozen retry payloads and account guards. Conflicts stop the
+  queue without overwriting; resolution UI (5C) and automatic sync (phase 6)
+  remain unimplemented. Live SQL apply still requires separate approval.
 - Keep shared domain interfaces and `New*`/`*Changes` types in
   `src/database/models.ts`.
 - Keep persistence, indexes, transactions, referential integrity, and
@@ -92,7 +110,10 @@ parallel framework.
   derive a reference arrival time from the previous item's planned arrival plus
   this leg's estimate, and do not persist that derived value separately.
 - `src/modules/data-management/` provides versioned JSON export and full
-  replacement import for every persisted table. Keep parsing, schema and
+  replacement import. Cloud replacement/clear uses account-scoped preview and
+  token-guarded RPCs; local/cloud transfers overwrite the destination rather
+  than merge changes. Do not reuse UUID-remapping imports as incremental sync.
+  Keep parsing, schema and
   reference validation, and atomic replacement in the database/operation
   layers; never clear live data until the complete backup is validated, and
   require explicit confirmation in the UI before replacing it.

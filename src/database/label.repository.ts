@@ -1,4 +1,4 @@
-import { database } from './database'
+import { database, type TravelDatabase } from './database'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { Label, LabelChanges, NewLabel } from './models'
 import { validateLabel } from './validation'
@@ -15,41 +15,47 @@ function requiredLabel(value: Label | undefined, id: string): Label {
 }
 
 export class LabelRepository {
+  private readonly database: TravelDatabase
+
+  constructor(storage: TravelDatabase = database) {
+    this.database = storage
+  }
+
   async create(input: NewLabel): Promise<string> {
     validateLabel(input)
     const id = createId()
 
-    await database.transaction('rw', database.labels, async () => {
+    await this.database.transaction('rw', this.database.labels, async () => {
       await this.assertParentExists(input.parentId)
-      await database.labels.add({ ...input, id })
+      await this.database.labels.add({ ...input, id })
     })
 
     return id
   }
 
   async update(id: string, changes: LabelChanges): Promise<void> {
-    await database.transaction('rw', database.labels, async () => {
-      const current = requiredLabel(await database.labels.get(id), id)
+    await this.database.transaction('rw', this.database.labels, async () => {
+      const current = requiredLabel(await this.database.labels.get(id), id)
       const next = { ...current, ...changes }
 
       validateLabel(next)
       await this.assertParentExists(next.parentId)
       await this.assertNoParentCycle(id, next.parentId)
-      await database.labels.put(next)
+      await this.database.labels.put(next)
     })
   }
 
   async delete(id: string): Promise<void> {
-    await database.transaction(
+    await this.database.transaction(
       'rw',
-      database.labels,
-      database.places,
+      this.database.labels,
+      this.database.places,
       async () => {
-        requiredLabel(await database.labels.get(id), id)
+        requiredLabel(await this.database.labels.get(id), id)
 
         const [childCount, placeCount] = await Promise.all([
-          database.labels.where('parentId').equals(id).count(),
-          database.places.where('labelIds').equals(id).count(),
+          this.database.labels.where('parentId').equals(id).count(),
+          this.database.places.where('labelIds').equals(id).count(),
         ])
 
         if (childCount > 0 || placeCount > 0) {
@@ -60,23 +66,23 @@ export class LabelRepository {
           )
         }
 
-        await database.labels.delete(id)
+        await this.database.labels.delete(id)
       },
     )
   }
 
   getById(id: string): Promise<Label | undefined> {
-    return database.labels.get(id)
+    return this.database.labels.get(id)
   }
 
   list(): Promise<Label[]> {
-    return database.labels.orderBy('name').toArray()
+    return this.database.labels.orderBy('name').toArray()
   }
 
   async getDescendantIds(id: string): Promise<string[]> {
-    requiredLabel(await database.labels.get(id), id)
+    requiredLabel(await this.database.labels.get(id), id)
 
-    const labels = await database.labels.toArray()
+    const labels = await this.database.labels.toArray()
     const descendants: string[] = []
     const visited = new Set([id])
     let parentIds = [id]
@@ -99,7 +105,7 @@ export class LabelRepository {
   }
 
   private async assertParentExists(parentId: string | undefined): Promise<void> {
-    if (parentId !== undefined && !(await database.labels.get(parentId))) {
+    if (parentId !== undefined && !(await this.database.labels.get(parentId))) {
       throw new EntityNotFoundError('Parent label', parentId)
     }
   }
@@ -114,7 +120,7 @@ export class LabelRepository {
       }
 
       visited.add(currentId)
-      currentId = (await database.labels.get(currentId))?.parentId
+      currentId = (await this.database.labels.get(currentId))?.parentId
     }
   }
 }
