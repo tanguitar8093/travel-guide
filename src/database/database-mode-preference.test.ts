@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { readSyncModePreference, writeSyncModePreference } from './sync-mode-preference'
+
 function createLocalStorageMock() {
   const store = new Map<string, string>()
   return {
@@ -49,5 +51,16 @@ describe('database mode preference', () => {
 
     expect(window.localStorage.getItem('travel-planner-database-mode')).toBe('indexeddb')
     expect(preference.readDatabaseModePreference()).toBe('indexeddb')
+  })
+
+  it('defaults sync mode to manual and persists the choice', async () => {
+    expect(readSyncModePreference()).toBe('manual')
+
+    writeSyncModePreference('auto')
+    expect(window.localStorage.getItem('travel-planner-sync-mode')).toBe('auto')
+    expect(readSyncModePreference()).toBe('auto')
+
+    writeSyncModePreference('manual')
+    expect(readSyncModePreference()).toBe('manual')
   })
 })

@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { DatabaseMode, TravelBackup } from "../../database";
-import { useDatabaseMode } from "../../database";
+import type { DatabaseMode, SyncMode, TravelBackup } from "../../database";
+import { setSyncMode, useDatabaseMode, useSyncMode } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
 import "./DataManagementModule.css";
@@ -37,6 +37,7 @@ function formatPreviewCounts(
 function DataManagementModule() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const databaseMode = useDatabaseMode();
+  const syncMode = useSyncMode();
   const hybridStatus = useHybridStatus();
   const [backup, setBackup] = useState<TravelBackup>();
   const [fileName, setFileName] = useState("");
@@ -57,6 +58,14 @@ function DataManagementModule() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '切換失敗。');
     }
+  }
+
+  function handleSyncModeChange(event: ChangeEvent<HTMLSelectElement>) {
+    const nextMode = event.target.value as SyncMode;
+    if (nextMode === syncMode) return;
+
+    setSyncMode(nextMode);
+    setNotice(nextMode === 'auto' ? '自動同步已選擇，但本階段仍維持手動同步行為，尚未啟用背景同步。' : '已切回手動同步模式。');
   }
 
   async function handleExport() {
@@ -338,6 +347,18 @@ function DataManagementModule() {
               <option value="indexeddb">Dexie/IndexedDB（單機）</option>
               <option value="supabase">Supabase（雲端）</option>
               {import.meta.env.DEV && <option value="hybrid" disabled={!hybridStatus.ready}>混合測試（本機優先，手動同步）</option>}
+            </select>
+          </label>
+
+          <label className="data-management-switcher-field">
+            <span>同步模式</span>
+            <select
+              value={syncMode}
+              disabled={busy}
+              onChange={handleSyncModeChange}
+            >
+              <option value="manual">手動同步</option>
+              <option value="auto" disabled>自動同步（尚未開放）</option>
             </select>
           </label>
         </section>

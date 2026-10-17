@@ -26,11 +26,17 @@ export {
 export {
   getDatabaseMode,
   getDatabaseModeLabel,
+  getSyncMode,
+  getSyncModeLabel,
   setDatabaseMode,
+  setSyncMode,
   type DatabaseMode,
+  type SyncMode,
   subscribeDatabaseMode,
+  subscribeSyncMode,
 } from './runtime'
 export { useDatabaseMode } from './useDatabaseMode'
+export { useSyncMode } from './useSyncMode'
 export type {
   ItineraryItem,
   ItineraryItemChanges,
