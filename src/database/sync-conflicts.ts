@@ -113,6 +113,8 @@ export async function prepareConflictReview(
       id: 'workspace', token: crypto.randomUUID(), createdAt: new Date().toISOString(),
       localFingerprint: fingerprint(state), cloudFingerprint: cloudFingerprint(snapshot), cursor: snapshot.cursor,
       pendingOperations: state.tasks.length, rows, cloudRecords: [...remote.values()], localChoiceChanges: ordered,
+      localNames: state.records.flatMap(({ entity, records }) => records.flatMap((record) =>
+        'name' in record ? [{ entity, id: record.id, name: record.name }] : [])),
     }
     await store.syncTransaction(async (database) => {
       if (fingerprint(await store.inspectSyncState()) !== review!.localFingerprint) throw new ValidationError('本機資料已改變，請重新檢視衝突。')

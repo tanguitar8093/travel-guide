@@ -51,6 +51,7 @@ export interface SyncConflictReview {
   cloudFingerprint: string
   cursor: string
   pendingOperations: number
+  localNames?: Array<{ entity: SyncEntityName; id: string; name: string }>
   rows: Array<{ entity: SyncEntityName; id: string; local: SyncRecord | null; cloud: SyncRecord | null }>
   cloudRecords: Array<{ entity: SyncEntityName; id: string; version: string; record: SyncRecord | null }>
   localChoiceChanges: SyncChange[]

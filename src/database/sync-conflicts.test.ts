@@ -49,10 +49,12 @@ describe('durable conflict resolution', () => {
     expect((await store.listTasks())[0].conflictRecords?.[0].record).toMatchObject({ name: 'Cloud' })
     const review = await prepareConflictReview(store, cloud(), lock)
     expect(review.rows[0]).toMatchObject({ local: { name: 'Local' }, cloud: { name: 'Cloud' } })
+    expect(review.localNames).toContainEqual({ entity: 'regions', id: remote.id, name: 'Local' })
     database.close()
     database = new SyncDatabase(database.account)
     store = new LocalSyncStore(database, context)
     expect((await getSavedConflictReview(store))?.token).toBe(review.token)
+    expect((await getSavedConflictReview(store))?.localNames).toEqual(review.localNames)
   })
 
   it('keeps local final values in a new version-checked operation, without immediate upload', async () => {

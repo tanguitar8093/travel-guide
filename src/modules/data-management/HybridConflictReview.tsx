@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { dataManagementController } from './data-management.controller'
 import type { SyncConflictReview } from '../../database/sync.types'
+import { ConflictRecordValue, ConflictRecordTitle } from './ConflictRecordValue'
 
 const names = { regions: '區域', labels: '標籤', places: '地點', trips: '行程', itineraryItems: '行程項目' }
 const fields: Record<string, string> = { name: '名稱', id: '資料 ID', zoom: '地圖縮放', googlePlaceId: 'Google 地點 ID', center: '中心位置', color: '顏色', parentId: '上層標籤', icon: '圖示', mapsUrl: '地圖網址', notes: '備註', regionIds: '關聯區域', labelIds: '關聯標籤', regionId: '行程區域', startDate: '開始日期', endDate: '結束日期', tripId: '所屬行程', placeId: '地點', date: '日期', order: '順序', arrivalTime: '抵達時間', durationMinutes: '停留分鐘', transport: '交通方式', travelDurationMinutes: '交通分鐘', note: '備註' }
@@ -51,11 +52,13 @@ export function HybridConflictReview({ disabled }: { disabled: boolean }) {
     {review && <div>
       <p>預覽時間：{new Date(review.createdAt).toLocaleString()}。影響 {review.pendingOperations} 筆操作、{review.rows.length} 筆資料。兩邊又有修改時必須重新預覽。</p>
       {review.rows.map((row) => <details key={`${row.entity}:${row.id}`}>
-        <summary>{names[row.entity]}：{row.local && 'name' in row.local ? row.local.name : row.cloud && 'name' in row.cloud ? row.cloud.name : row.id}</summary>
+        <summary>{names[row.entity]}：<ConflictRecordTitle review={review} row={row} /></summary>
         <p>本機：{row.local ? '資料存在' : '已刪除／不存在'}；雲端：{row.cloud ? '資料存在' : '已刪除／不存在'}</p>
         <table><thead><tr><th>欄位</th><th>本機</th><th>雲端</th></tr></thead><tbody>
           {[...new Set([...Object.keys(row.local ?? {}), ...Object.keys(row.cloud ?? {})])].map((field) => <tr key={field}>
-            <td>{fields[field] ?? field}</td><td>{JSON.stringify((row.local as unknown as Record<string, unknown> | null)?.[field]) ?? '未設定'}</td><td>{JSON.stringify((row.cloud as unknown as Record<string, unknown> | null)?.[field]) ?? '未設定'}</td>
+            <td>{field === 'id' ? '資料' : fields[field] ?? field}</td>
+            <td><ConflictRecordValue review={review} row={row} side="local" field={field} /></td>
+            <td><ConflictRecordValue review={review} row={row} side="cloud" field={field} /></td>
           </tr>)}
         </tbody></table>
       </details>)}
