@@ -90,12 +90,14 @@ describe('hybrid development backend', () => {
     expect(await requireHybridStore().listTasks()).toHaveLength(1)
   })
 
-  it('rejects basic accounts and disables hybrid in production', async () => {
+  it('rejects basic accounts but allows members in production', async () => {
     await expect(login('basic', 'basic')).rejects.toThrow('沒有混合模式權限')
     vi.stubEnv('DEV', false)
     await activateHybridAccount({ projectId: 'unused', userId: 'unused' }, 'member')
-    expect(getHybridStatus().ready).toBe(false)
-    expect(() => requireHybridStore()).toThrow('尚未準備好')
+    expect(getHybridStatus().ready).toBe(true)
+    expect(requireHybridStore()).toBeDefined()
+    deactivateHybridAccount()
+    await new SyncDatabase({ projectId: 'unused', userId: 'unused' }).delete()
   })
 
   it('rejects destructive backup APIs', async () => {

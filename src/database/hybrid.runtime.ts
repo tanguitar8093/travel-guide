@@ -70,7 +70,7 @@ function computeRetryDelayMs(): number {
 }
 
 export function scheduleForegroundPoll(): void {
-  if (!import.meta.env.DEV || !activeStore || readSyncModePreference() !== 'auto') return
+  if (!activeStore || readSyncModePreference() !== 'auto') return
   if ((status.summary?.conflictCount ?? 0) > 0) return
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   // Polling must not cancel a queued mutation or failure retry.
@@ -127,7 +127,7 @@ async function triggerAutoSync(): Promise<void> {
 }
 
 export function scheduleHybridAutoSync(): void {
-  if (!import.meta.env.DEV || !activeStore || readSyncModePreference() !== 'auto') return
+  if (!activeStore || readSyncModePreference() !== 'auto') return
   if ((status.summary?.conflictCount ?? 0) > 0) return
   const generation = ++autoSyncGeneration
   clearAutoSyncTimers()
@@ -218,7 +218,6 @@ export function deactivateHybridAccount(): void {
 
 export async function activateHybridAccount(account: SyncAccount, role: string): Promise<void> {
   deactivateHybridAccount()
-  if (!import.meta.env.DEV) return
   if (role !== 'member' && role !== 'admin') throw new ValidationError('目前帳號沒有混合模式權限。')
   const currentGeneration = generation
   context.activate(account)
@@ -254,7 +253,7 @@ export async function activateHybridAccount(account: SyncAccount, role: string):
 }
 
 export function requireHybridStore(): LocalSyncStore {
-  if (!import.meta.env.DEV || !activeStore) throw new ValidationError('混合測試模式尚未準備好，請確認登入狀態。')
+  if (!activeStore) throw new ValidationError('混合模式尚未準備好，請確認登入狀態。')
   return activeStore
 }
 

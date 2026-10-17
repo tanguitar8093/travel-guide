@@ -36,6 +36,10 @@
 
 ### 自動同步正向回歸（2026-10-18）
 
+- 混合模式現已解除 DEV-only 限制：正式版也會在 member/admin 驗證後準備帳號隔離的本機資料庫，顯示混合模式選項並恢復既存偏好。
+- 正向整合測試以 `DEV=false` 執行；另驗證正式環境 member 可初始化，basic 仍被拒絕。原本預設 Supabase 與手動同步偏好不變，使用者需自行選擇混合模式及自動同步。
+- 此次不變更正式資料庫 SQL、不自動搬移單機資料，亦不解除混合模式的覆蓋匯入／清空限制。發布後仍需驗證真實登入及跨裝置行為。
+
 - 測試：`src/database/auto-sync.integration.test.ts`。
 - 以 admin、可見頁面與 auto 模式，從應用程式資料庫 facade 新增區域、標籤、地點、行程與行程項目。
 - 實際推進計時器：1999 ms 不呼叫 RPC，2000 ms 開始同步；驗證真實 Dexie outbox、同步引擎、cloud adapter 與 PGlite 中的正式 SQL RPC。

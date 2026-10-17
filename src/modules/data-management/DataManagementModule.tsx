@@ -346,7 +346,7 @@ function DataManagementModule() {
             >
               <option value="indexeddb">Dexie/IndexedDB（單機）</option>
               <option value="supabase">Supabase（雲端）</option>
-              {import.meta.env.DEV && <option value="hybrid" disabled={!hybridStatus.ready}>混合測試（本機優先，自動同步）</option>}
+              <option value="hybrid" disabled={!hybridStatus.ready}>混合模式（本機優先）</option>
             </select>
           </label>
 

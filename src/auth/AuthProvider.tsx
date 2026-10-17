@@ -67,7 +67,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setUserRole(role)
-      if (import.meta.env.DEV && (role === 'member' || role === 'admin')) {
+      if (role === 'member' || role === 'admin') {
         try {
           await activateHybridAccount({
             projectId: new URL(import.meta.env.VITE_SUPABASE_URL ?? '').origin,

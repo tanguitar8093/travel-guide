@@ -5,7 +5,7 @@ const DATABASE_MODE_STORAGE_KEY = 'travel-planner-database-mode'
 export function readDatabaseModePreference(): DatabaseMode {
   if (typeof window === 'undefined' || !window.localStorage) return 'supabase'
   const storedMode = window.localStorage.getItem(DATABASE_MODE_STORAGE_KEY)
-  if (storedMode === 'hybrid' && import.meta.env.DEV) return 'hybrid'
+  if (storedMode === 'hybrid') return 'hybrid'
   return storedMode === 'indexeddb' ? 'indexeddb' : 'supabase'
 }
 

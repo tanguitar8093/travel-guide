@@ -41,7 +41,7 @@ afterEach(async () => {
 
 afterAll(async () => { await sql.close() })
 
-it('automatically persists an admin label, place and itinerary item through the real engine and SQL RPCs', async () => {
+it('automatically persists an admin label, place and itinerary item in production through the real engine and SQL RPCs', async () => {
   const saved = new Map<string, string>()
   vi.stubGlobal('window', Object.assign(new EventTarget(), {
     setTimeout: (...args: Parameters<typeof setTimeout>) => globalThis.setTimeout(...args),
@@ -55,7 +55,7 @@ it('automatically persists an admin label, place and itinerary item through the 
   vi.stubGlobal('navigator', { locks: {
     request: async (_name: string, _options: unknown, work: (lock: object) => Promise<void>) => work({}),
   } })
-  vi.stubEnv('DEV', true)
+  vi.stubEnv('DEV', false)
 
   // Replace only the HTTP boundary: keep the adapter, engine, outbox and SQL real.
   const rpc = vi.spyOn(supabase, 'rpc').mockImplementation((async (name: string, args?: Record<string, unknown>) => {
