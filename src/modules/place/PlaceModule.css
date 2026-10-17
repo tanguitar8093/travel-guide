@@ -439,9 +439,18 @@
 
 .place-readonly,
 .place-form {
-  height: 100%;
   box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   padding: 0 20px;
+}
+
+.place-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
 }
 
 .place-detail-heading {
@@ -461,6 +470,11 @@
   color: #3c453f;
   font-size: 17px;
   font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.place-detail-heading > div:first-child {
+  min-width: 0;
 }
 
 .place-name-icon {
@@ -610,13 +624,19 @@
 }
 
 .place-form-grid {
-  flex: 1;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-content: start;
   gap: 16px 17px;
   padding: 18px 0;
-  overflow: auto;
+}
+
+.place-form-grid > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+  overflow-wrap: anywhere;
 }
 
 .place-app-shell .form-field {
@@ -644,6 +664,7 @@
 .place-app-shell .parent-select-field select {
   width: 100%;
   min-width: 0;
+  max-width: 100%;
   box-sizing: border-box;
   padding: 8px 9px;
   border: 1px solid #e7ebe7;
@@ -686,6 +707,7 @@
 
 .google-place-search {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 7px;
 }
 
@@ -696,6 +718,10 @@
 }
 
 .google-autocomplete {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 40px;
   display: flex;
   align-items: stretch;
@@ -706,7 +732,12 @@
 }
 
 .google-autocomplete gmp-place-autocomplete {
+  display: block;
+  flex: 1 1 0%;
+  min-width: 0;
   width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
   --gmp-mat-color-on-surface: #626d65;
   --gmp-mat-color-on-surface-variant: #87938a;
   --gmp-mat-color-surface: #fff;
@@ -721,6 +752,7 @@
 
 .google-selection {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 4px;
   padding: 8px 9px;
   border: 1px solid #dfe9df;
@@ -898,6 +930,9 @@
 }
 
 .choice-chip {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
   min-height: 27px;
   display: inline-flex;
   align-items: center;
@@ -918,6 +953,7 @@
 }
 
 .choice-chip input {
+  flex: 0 0 auto;
   width: 12px;
   height: 12px;
   margin: 0;
@@ -929,14 +965,13 @@
 }
 
 .place-form-actions {
-  min-height: 59px;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin: 0 -20px;
-  padding: 0 20px;
+  margin: 0 0 20px;
+  padding-top: 17px;
   border-top: 1px solid #eff1ef;
 }
 
@@ -1004,7 +1039,7 @@
   }
 
   .place-workspace {
-    grid-template-columns: minmax(240px, 0.8fr) minmax(360px, 1.35fr);
+    grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.35fr);
     gap: 12px;
   }
 }
@@ -1020,7 +1055,11 @@
   }
 
   .place-workspace {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .place-form-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .place-browser-panel {
@@ -1065,7 +1104,6 @@
   }
 
   .place-form-actions {
-    margin-inline: -14px;
-    padding-inline: 14px;
+    margin-bottom: 14px;
   }
 }

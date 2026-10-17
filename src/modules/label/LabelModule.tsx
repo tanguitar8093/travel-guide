@@ -556,14 +556,14 @@ function LabelModule() {
                     </h2>
                   </div>
                   <button
-                    className="subtle-icon-button"
+                    className="delete-label-button"
                     type="button"
                     aria-label={`刪除${selectedLabel.name}`}
                     title="刪除標籤"
                     disabled={saving}
                     onClick={() => void handleDelete(selectedLabel)}
                   >
-                    ×
+                    刪除標籤
                   </button>
                 </div>
 

@@ -478,16 +478,6 @@ function RegionModule() {
                   )}
                 </div>
                 <div className="region-actions">
-                  {!creating && selectedRegion && (
-                    <button
-                      type="button"
-                      className="region-delete"
-                      disabled={saving}
-                      onClick={() => void handleDelete(selectedRegion)}
-                    >
-                      刪除區域
-                    </button>
-                  )}
                   <div>
                     <button
                       type="button"
@@ -518,13 +508,24 @@ function RegionModule() {
                     <span>區域詳細資料</span>
                     <h2>{selectedRegion.name}</h2>
                   </div>
-                  <button
-                    type="button"
-                    className="region-secondary"
-                    onClick={() => setEditing(true)}
-                  >
-                    編輯資料
-                  </button>
+                  <div className="region-detail-actions">
+                    <button
+                      type="button"
+                      className="region-secondary"
+                      disabled={saving}
+                      onClick={() => setEditing(true)}
+                    >
+                      編輯資料
+                    </button>
+                    <button
+                      type="button"
+                      className="region-delete"
+                      disabled={saving}
+                      onClick={() => handleDelete(selectedRegion)}
+                    >
+                      刪除區域
+                    </button>
+                  </div>
                 </div>
                 {selectedRegion.googlePlaceId ? (
                   <section className="region-google-summary">

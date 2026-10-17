@@ -674,11 +674,6 @@ function PlaceModule() {
 
                   {error && <div className="form-inline-error" role="alert">{error}</div>}
                   <div className="place-form-actions">
-                    {!creating && selectedPlace && (
-                      <button className="delete-place-button" type="button" disabled={saving} onClick={() => void handleDelete()}>
-                        刪除地點
-                      </button>
-                    )}
                     <div className="place-form-actions-right">
                       <button className="cancel-button" type="button" disabled={saving} onClick={cancelEditing}>取消</button>
                       <button className="save-button" type="submit" disabled={saving || !draft.name.trim()}>
@@ -701,9 +696,14 @@ function PlaceModule() {
                         {selectedPlace.name}
                       </h2>
                     </div>
-                    <button className="primary-button small-action-button" type="button" onClick={startEditing}>
-                      編輯資料
-                    </button>
+                    <div className="place-detail-actions">
+                      <button className="primary-button small-action-button" type="button" disabled={saving} onClick={startEditing}>
+                        編輯資料
+                      </button>
+                      <button className="delete-place-button" type="button" disabled={saving} onClick={() => void handleDelete()}>
+                        刪除地點
+                      </button>
+                    </div>
                   </div>
 
                   {selectedPlace.googlePlaceId && (

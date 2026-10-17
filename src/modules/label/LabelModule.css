@@ -599,6 +599,23 @@ kbd {
   border-bottom: 1px solid #eff1ef;
 }
 
+.delete-label-button {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid #f0d9d5;
+  border-radius: 6px;
+  color: #a4574b;
+  background: #fff;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.delete-label-button:disabled {
+  opacity: .55;
+  cursor: not-allowed;
+}
+
 .section-kicker {
   margin-bottom: 7px;
   font-size: 9px;
