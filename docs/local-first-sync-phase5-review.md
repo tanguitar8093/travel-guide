@@ -44,7 +44,7 @@
 
 ## 5B 人工驗收
 
-前提：實際環境已經過獨立確認並安裝第四階段 API。**本次沒有安裝**；若顯示 API 未安裝，只能驗證錯誤保護，不能宣稱雙向同步成功。先匯出本機與雲端備份，使用自己的測試帳號，不要拿正式資料做破壞測試。
+前提：實際環境已經過獨立確認並安裝第四階段 API。2026-10-18 使用者授權後已完成安裝，詳見下方紀錄。先匯出本機與雲端備份，使用自己的測試帳號，不要拿正式資料做破壞測試。
 
 | 操作 | 應看到的結果 |
 | --- | --- |
@@ -67,3 +67,14 @@
 - `npm run lint`：無錯誤，保留既有 ItineraryModule effect 警告。
 - `git diff --check` 與兩份專案 skill 驗證通過。
 - 未執行全套測試；mock／PGlite 的成功案例不代表實際環境已安裝 API。
+
+## 2026-10-18 實際雲端安裝
+
+- 使用者明確指示「快點用」，授權在目前 `.env.local` 指向的資料庫安裝。
+- 透過 `psql` 只讀比對欄位、constraint、RLS、owner trigger 及角色函式；現有結構符合同步必要條件。既有 `regions.zoom` 是 numeric，不重建為基線中的型別。
+- 只套用 `20261017153641_local_first_sync.sql`，交易成功 commit；沒有重播 baseline、沒有偽造 Supabase migration history，沒有清空或替換業務資料。
+- `pg_dump` 16 與伺服器 17 不相容，沒有宣稱 dump 成功。改用同一 REPEATABLE READ 唯讀交易保存七張業務表、user_roles、public 函式／constraint／trigger／policy 的 JSON 備份，存於工作區外 `~/.local/state/travel-guide-backups/`，檔案權限 0600。這是業務資料與相關定義快照，不是整個 Supabase 的完整可還原 dump（不含 Auth／Storage 等）。
+- 實際資料庫以 authenticated role 與現有合法帳號 claim 驗證 snapshot、push、同操作重送與 pull；測試寫入全部 rollback，不保留測試業務資料。不是瀏覽器登入／JWT 端到端測試。
+- 安裝前後業務筆數一致：區域 1、標籤 19、地點 20、行程 1、行程項目 17。
+- 驗證 anon 無 snapshot 執行權、authenticated 有執行權但無 private schema 使用權；通知 PostgREST 重載 schema。
+- 未執行完整 Supabase advisors、真實兩連線併發或瀏覽器跨裝置測試，DEV 限制與 5C 未完成狀態保留。

@@ -40,7 +40,10 @@ parallel framework.
   `docs/local-first-sync-design.md` and `docs/local-first-sync-phase2-review.md`
   and `docs/local-first-sync-phase3-review.md` before sync work; proceed only
   within the user-authorized phase. Phase 4 sync RPCs/migrations are tested
-  locally but not deployed. Read `docs/local-first-sync-phase4-review.md`.
+  locally; only the sync migration was installed to the configured cloud on
+  2026-10-18 after explicit approval (baseline was not replayed). See the live
+  installation/validation limits in `docs/local-first-sync-phase5-review.md`
+  and design details in `docs/local-first-sync-phase4-review.md`.
   Phase 5 includes 5A read-only preview and 5B manual initialization/push/pull
   behind the DEV-only hybrid facade. Read `docs/local-first-sync-phase5-review.md`.
   The engine uses a cross-tab Web Lock, transaction-scoped remote writes,

@@ -205,6 +205,8 @@ Outbox 記錄至少包含：帳號範圍、裝置 ID、操作 ID、佇列順序�
 
 ## 9. 本階段驗證與參考
 
+2026-10-18：使用者明確授權目前 Supabase 安裝同步 API；已比對現有結構、備份業務資料／相關定義、僅套用 sync migration 並驗證實際 SQL API（測試寫入回滾）與 PostgREST 未登入拒絕。未重播 baseline 或修改 migration history。詳見第五階段 Review 的實際雲端安裝紀錄；完整瀏覽器／跨裝置驗收仍待執行。
+
 本階段僅進行 repository／skill 閱讀、設計一致性檢視與文件 diff 檢查。未執行 build、lint、測試或雲端查詢，未變更執行行為。
 
 框架評估參考：

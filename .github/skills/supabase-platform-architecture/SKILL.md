@@ -47,8 +47,14 @@ Use current code and checked-in SQL as the repository baseline:
   Production retains the original modes/default. Read
   `docs/local-first-sync-phase3-review.md` before continuing.
 - Phase 4 adds repository baseline/sync migrations, three sync RPCs and a
-  cloud adapter. PGlite tests pass; nothing has been applied to
-  live Supabase. Read `docs/local-first-sync-phase4-review.md` for explicit
+  cloud adapter. On 2026-10-18, after explicit user approval and live schema
+  reconciliation, only the sync migration was applied through psql to the
+  configured database (not the baseline). Live authenticated-role SQL smoke
+  tests passed with all test writes rolled back; PostgREST exposes all three
+  endpoints and rejects unauthenticated calls. Read the installation record
+  in `docs/local-first-sync-phase5-review.md`. This does not validate browser
+  login, cross-device sync, concurrency or full advisors. Read
+  `docs/local-first-sync-phase4-review.md` for explicit
   SECURITY DEFINER checks, global transaction-lock tradeoffs, retained events,
   migration reconciliation and validation limits. Phase 5 is authorized.
 
