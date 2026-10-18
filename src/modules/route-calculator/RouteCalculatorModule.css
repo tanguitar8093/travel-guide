@@ -101,14 +101,14 @@
 .route-trip-dialog .route-trip-row { flex-direction: column; align-items: stretch; }
 .route-trip-dialog .route-trip-row > .route-transport { flex-basis: auto; }
 
-@media (min-width: 681px) and (max-width: 1000px) {
+@media (min-width: 761px) and (max-width: 1000px) {
   .route-calculator-workspace { grid-template-columns: minmax(270px, 40%) minmax(0, 1fr); gap: 12px; }
   .route-map-body { height: clamp(360px, 62dvh, 680px); }
   .route-trip-row { align-items: stretch; flex-direction: column; }
   .route-trip-row > .route-transport { flex-basis: auto; }
 }
 
-@media (max-width: 680px) {
+@media (max-width: 760px) {
   .route-calculator-content { padding-inline: 16px; }
   .route-calculator-workspace { grid-template-columns: minmax(0, 1fr); }
   .route-calculator-map { position: static; }

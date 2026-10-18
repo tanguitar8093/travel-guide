@@ -7,14 +7,14 @@ let browser: EventTarget & {
   alert: ReturnType<typeof vi.fn>
 }
 let visualViewport: EventTarget & { width: number; height: number; scale: number }
-let root: { clientWidth: number; clientHeight: number; scrollWidth: number; scrollHeight: number }
+let root: { clientWidth: number; clientHeight: number; scrollWidth: number; scrollHeight: number; dataset: { screenViewportWidth?: string } }
 let queries: Map<string, EventTarget & { readonly matches: boolean }>
 let meta: string[]
 
 beforeEach(() => {
   vi.useFakeTimers()
   vi.setSystemTime(0)
-  root = { clientWidth: 980, clientHeight: 1945, scrollWidth: 980, scrollHeight: 1945 }
+  root = { clientWidth: 980, clientHeight: 1945, scrollWidth: 980, scrollHeight: 1945, dataset: {} }
   visualViewport = Object.assign(new EventTarget(), { width: 980, height: 1945, scale: 0.35 })
   queries = new Map()
   meta = ['width=device-width, initial-scale=1.0']
@@ -93,6 +93,23 @@ it('reports a persistent 980px viewport without changing the page', () => {
   expect(report.match(/側欄 電腦版；內容 中寬版/g)).toHaveLength(3)
   expect(browser.innerWidth).toBe(980)
   expect(visualViewport.scale).toBe(0.35)
+})
+
+it('reports a requested correction as unsuccessful when the browser retains 980px', () => {
+  root.dataset.screenViewportWidth = '344'
+  start()
+  vi.advanceTimersByTime(5000)
+  const report = browser.alert.mock.calls[0][0]
+  expect(report).toContain('已請求 344px；實際版面仍不符')
+  expect(report).not.toContain('實際版面寬度已符合')
+})
+
+it('confirms correction only when the actual layout width matches the request', () => {
+  root.dataset.screenViewportWidth = '344'
+  root.clientWidth = 344
+  start()
+  vi.advanceTimersByTime(5000)
+  expect(browser.alert.mock.calls[0][0]).toContain('已請求 344px；實際版面寬度已符合')
 })
 
 it('cancels pending samples and removes listeners when disabled or unmounted', () => {
