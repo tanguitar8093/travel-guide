@@ -158,7 +158,7 @@ export class PlaceRepository {
             if (nextItem) staleEstimateIds.add(nextItem.id)
           }
           for (const itemId of staleEstimateIds) {
-            await this.database.itineraryItems.update(itemId, { travelDurationMinutes: undefined })
+            await this.database.itineraryItems.update(itemId, { travelDurationMinutes: undefined, travelDistanceMeters: undefined })
           }
         }
       },
@@ -347,7 +347,7 @@ export class ItineraryItemRepository {
         const next = {
           ...current,
           ...changes,
-          ...(routeChanged ? { travelDurationMinutes: undefined } : {}),
+          ...(routeChanged ? { travelDurationMinutes: undefined, travelDistanceMeters: undefined } : {}),
         }
         validateItineraryItem(next)
         await this.assertReferences(next)
@@ -367,7 +367,7 @@ export class ItineraryItemRepository {
               affectedIds.add(afterItems[afterIndex + 1].id)
             }
             for (const affectedId of affectedIds) {
-              await this.database.itineraryItems.update(affectedId, { travelDurationMinutes: undefined })
+              await this.database.itineraryItems.update(affectedId, { travelDurationMinutes: undefined, travelDistanceMeters: undefined })
             }
           }
         }
@@ -383,7 +383,7 @@ export class ItineraryItemRepository {
       const successor = dayItems[index + 1]
       await this.database.itineraryItems.delete(id)
       if (successor) {
-        await this.database.itineraryItems.update(successor.id, { travelDurationMinutes: undefined })
+        await this.database.itineraryItems.update(successor.id, { travelDurationMinutes: undefined, travelDistanceMeters: undefined })
       }
     })
   }
@@ -445,7 +445,7 @@ export class ItineraryItemRepository {
             ...item,
             order,
             ...(previousById.get(id) !== nextPreviousById.get(id)
-              ? { travelDurationMinutes: undefined }
+              ? { travelDurationMinutes: undefined, travelDistanceMeters: undefined }
               : {}),
           }
         }),

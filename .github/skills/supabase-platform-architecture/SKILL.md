@@ -61,6 +61,34 @@ Use current code and checked-in SQL as the repository baseline:
 Do not include project URLs, API keys, passwords, invite addresses, or other
 environment-specific secrets in this skill, source control, logs, or chat.
 
+## Authorized direct database access
+
+- When a task requires live SQL and the user explicitly authorizes it, use
+  `psql` with `SUPABASE_DB_URL` loaded from the project's untracked `.env.local`.
+  Never read credentials into chat output or put them in command arguments,
+  source files, logs, or documentation. Never source an environment file as
+  executable shell code.
+- The client can be installed on Ubuntu with `sudo apt-get update` followed by
+  `sudo apt-get install -y postgresql-client`. If sudo requires a password, ask
+  the user to install it; do not attempt to bypass privileges.
+- Run `node --env-file=.env.local scripts/db-psql.mjs -c 'BEGIN READ ONLY; SELECT 1; COMMIT;'`
+  for an authorized connection check. The wrapper passes PostgreSQL connection
+  fields through environment variables, disables psql startup files/password
+  prompting, and stops on SQL errors. Do not print connection information.
+- If the direct endpoint requires unavailable IPv6, ask the user to configure a
+  reachable Session pooler URL in `.env.local`; do not guess hosts/credentials.
+- Reconcile live schema/functions before applying only the new migration.
+  Use transaction-scoped migration SQL with bounded lock/statement timeouts.
+  Do not replay the baseline, overwrite differing live functions, or record a
+  connection or migration as successful unless it actually completed.
+- On 2026-10-18, the user installed psql 16, updated the connection endpoint,
+  and authorized the distance extension. Read-only access succeeded and
+  `20261018220000_itinerary_travel_distance.sql` committed successfully.
+  No live business-data or RLS smoke tests were run for this change.
+- Operational instructions and installation commands are recorded in
+  `docs/database-psql-operations.md`. Ask permission before reading that project
+  document, as required by the development workflow.
+
 ## Client configuration and key handling
 
 - Browser-visible settings use Vite's `VITE_` prefix:

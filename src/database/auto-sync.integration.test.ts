@@ -3,6 +3,8 @@ import { PGlite } from '@electric-sql/pglite'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import baseline from '../../supabase/migrations/20261017153621_repository_baseline.sql?raw'
 import migration from '../../supabase/migrations/20261017153641_local_first_sync.sql?raw'
+import distanceMigration from '../../supabase/migrations/20261018220000_itinerary_travel_distance.sql?raw'
+import { syncCloudAdapter } from './sync-cloud.adapter'
 import { supabase } from './supabase.client'
 import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore } from './hybrid.runtime'
 import { setDatabaseMode, setSyncMode } from './runtime'
@@ -29,6 +31,7 @@ beforeAll(async () => {
   await sql.exec(`insert into auth.users values ('${uid}', 'admin@example.com');
     update public.user_roles set role='admin' where user_id='${uid}';`)
   await sql.exec(migration)
+  await sql.exec(distanceMigration)
 }, 30000)
 
 afterEach(async () => {
@@ -86,7 +89,10 @@ it('automatically persists an admin label, place and itinerary item in productio
   const labelId = await labels.create({ name: 'Food', color: '#ff0000' })
   const placeId = await places.create({ name: 'Cafe', googlePlaceId: 'cafe', regionIds: [regionId], labelIds: [labelId] })
   const tripId = await trips.create({ name: 'Trip', regionId, startDate: '2026-10-17', endDate: '2026-10-18' })
-  const itemId = await itineraryItems.create({ tripId, placeId, date: '2026-10-17', order: 0 })
+  const itemId = await itineraryItems.create({
+    tripId, placeId, date: '2026-10-17', order: 0,
+    travelDurationMinutes: 25, travelDistanceMeters: 12300,
+  })
   const store = requireHybridStore()
   expect(await store.listTasks()).toHaveLength(5)
 
@@ -108,17 +114,29 @@ it('automatically persists an admin label, place and itinerary item in productio
     .toEqual([{ place_id: placeId, label_id: labelId }])
   expect((await sql.query('select id, trip_id, place_id from public.itinerary_items where id=$1', [itemId])).rows)
     .toEqual([{ id: itemId, trip_id: tripId, place_id: placeId }])
+  expect((await sql.query('select travel_distance_meters::text as distance from public.itinerary_items where id=$1', [itemId])).rows)
+    .toEqual([{ distance: '12300' }])
+  expect((await syncCloudAdapter.snapshot()).records.find((row) => row.id === itemId)?.record)
+    .toMatchObject({ travelDistanceMeters: 12300 })
 
+  const beforePlaceUpdateSync = (await store.getSummary()).lastSyncedAt
   await places.update(placeId, { name: 'Updated cafe' })
   await vi.advanceTimersByTimeAsync(2000)
-  await vi.waitFor(async () => { expect(await store.listTasks()).toEqual([]) }, { timeout: 5000, interval: 10 })
+  await vi.waitFor(async () => {
+    expect(await store.listTasks()).toEqual([])
+    expect((await store.getSummary()).lastSyncedAt).not.toBe(beforePlaceUpdateSync)
+  }, { timeout: 5000, interval: 10 })
   expect((await sql.query('select name from public.places where id=$1', [placeId])).rows)
     .toEqual([{ name: 'Updated cafe' }])
 
+  const beforeBatchSetupSync = (await store.getSummary()).lastSyncedAt
   const targetLabelId = await labels.create({ name: 'Batch label', color: '#00ff00' })
   const secondPlaceId = await places.create({ name: 'Park', googlePlaceId: 'park', regionIds: [regionId], labelIds: [] })
   await vi.advanceTimersByTimeAsync(2000)
-  await vi.waitFor(async () => { expect(await store.listTasks()).toEqual([]) }, { timeout: 5000, interval: 10 })
+  await vi.waitFor(async () => {
+    expect(await store.listTasks()).toEqual([])
+    expect((await store.getSummary()).lastSyncedAt).not.toBe(beforeBatchSetupSync)
+  }, { timeout: 5000, interval: 10 })
   rpc.mockClear()
 
   expect(await placeController.assignLabelMany([placeId, secondPlaceId, placeId], targetLabelId)).toEqual({
@@ -146,5 +164,5 @@ it('automatically persists an admin label, place and itinerary item in productio
   expect((await places.list()).find((place) => place.id === placeId)).toMatchObject({ name: 'Updated cafe' })
   expect(new Set((await places.getById(placeId))?.labelIds)).toEqual(new Set([labelId, targetLabelId]))
   expect((await places.getById(secondPlaceId))?.labelIds).toEqual([targetLabelId])
-  expect(await itineraryItems.findByTripId(tripId)).toEqual([expect.objectContaining({ id: itemId, placeId })])
+  expect(await itineraryItems.findByTripId(tripId)).toEqual([expect.objectContaining({ id: itemId, placeId, travelDistanceMeters: 12300 })])
 }, 20000)

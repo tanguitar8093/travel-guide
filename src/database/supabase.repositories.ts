@@ -58,6 +58,7 @@ interface SupabaseItineraryItemRow {
   duration_minutes: number | null
   transport: string | null
   travel_duration_minutes: number | null
+  travel_distance_meters: number | null
   note: string | null
   sort_order: number
 }
@@ -149,6 +150,7 @@ function normalizeItineraryItem(row: SupabaseItineraryItemRow): ItineraryItem {
     ...(row.duration_minutes !== null ? { durationMinutes: row.duration_minutes } : {}),
     ...(row.transport ? { transport: row.transport } : {}),
     ...(row.travel_duration_minutes !== null ? { travelDurationMinutes: row.travel_duration_minutes } : {}),
+    ...(row.travel_distance_meters != null ? { travelDistanceMeters: row.travel_distance_meters } : {}),
     ...(row.note ? { note: row.note } : {}),
     order: row.sort_order,
   }
@@ -163,6 +165,7 @@ function toItineraryInput(input: NewItineraryItem) {
     duration_minutes: input.durationMinutes ?? null,
     transport: input.transport ?? null,
     travel_duration_minutes: input.travelDurationMinutes ?? null,
+    travel_distance_meters: input.travelDistanceMeters ?? null,
     note: input.note ?? null,
     sort_order: input.order,
   }
@@ -177,6 +180,7 @@ function toItineraryUpdate(changes: ItineraryItemChanges) {
     ...(changes.durationMinutes !== undefined ? { duration_minutes: changes.durationMinutes } : {}),
     ...(changes.transport !== undefined ? { transport: changes.transport } : {}),
     ...(changes.travelDurationMinutes !== undefined ? { travel_duration_minutes: changes.travelDurationMinutes } : {}),
+    ...(Object.hasOwn(changes, 'travelDistanceMeters') ? { travel_distance_meters: changes.travelDistanceMeters ?? null } : {}),
     ...(changes.note !== undefined ? { note: changes.note } : {}),
     ...(changes.order !== undefined ? { sort_order: changes.order } : {}),
   }
@@ -263,7 +267,7 @@ async function loadItineraryRows(): Promise<ItineraryItem[]> {
     Promise.resolve(
       supabase
         .from('itinerary_items')
-        .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,note,sort_order')
+        .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,travel_distance_meters,note,sort_order')
         .order('trip_id', { ascending: true })
         .order('date', { ascending: true })
         .order('sort_order', { ascending: true }),
@@ -335,7 +339,7 @@ async function collectStaleItineraryItemIds(placeId: string): Promise<string[]> 
       Promise.resolve(
         supabase
           .from('itinerary_items')
-          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,note,sort_order')
+          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,travel_distance_meters,note,sort_order')
           .eq('trip_id', item.trip_id)
           .eq('date', item.date)
           .order('sort_order', { ascending: true }),
@@ -625,7 +629,7 @@ export class SupabasePlaceRepository {
     for (const itemId of staleEstimateIds) {
       const { error: itemError } = await withSupabaseTimeout(
         Promise.resolve(
-          supabase.from('itinerary_items').update({ travel_duration_minutes: null }).eq('id', itemId),
+          supabase.from('itinerary_items').update({ travel_duration_minutes: null, travel_distance_meters: null }).eq('id', itemId),
         ),
         'clear itinerary estimate',
       )
@@ -875,7 +879,7 @@ export class SupabaseItineraryItemRepository {
     const next = {
       ...current,
       ...changes,
-      ...(routeChanged ? { travelDurationMinutes: undefined } : {}),
+      ...(routeChanged ? { travelDurationMinutes: undefined, travelDistanceMeters: undefined } : {}),
     }
     validateItineraryItem(next)
     const trip = await assertTripExists(next.tripId)
@@ -911,7 +915,7 @@ export class SupabaseItineraryItemRepository {
         for (const affectedId of affectedIds) {
           const { error: affectedError } = await withSupabaseTimeout(
             Promise.resolve(
-              supabase.from('itinerary_items').update({ travel_duration_minutes: null }).eq('id', affectedId),
+              supabase.from('itinerary_items').update({ travel_duration_minutes: null, travel_distance_meters: null }).eq('id', affectedId),
             ),
             'clear itinerary travel duration',
           )
@@ -940,7 +944,7 @@ export class SupabaseItineraryItemRepository {
     if (successor) {
       const { error: successorError } = await withSupabaseTimeout(
         Promise.resolve(
-          supabase.from('itinerary_items').update({ travel_duration_minutes: null }).eq('id', successor.id),
+          supabase.from('itinerary_items').update({ travel_duration_minutes: null, travel_distance_meters: null }).eq('id', successor.id),
         ),
         'clear successor travel duration',
       )
@@ -953,7 +957,7 @@ export class SupabaseItineraryItemRepository {
       Promise.resolve(
         supabase
           .from('itinerary_items')
-          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,note,sort_order')
+          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,travel_distance_meters,note,sort_order')
           .eq('id', id)
           .maybeSingle(),
       ),
@@ -968,7 +972,7 @@ export class SupabaseItineraryItemRepository {
       Promise.resolve(
         supabase
           .from('itinerary_items')
-          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,note,sort_order')
+          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,travel_distance_meters,note,sort_order')
           .eq('trip_id', tripId)
           .order('date', { ascending: true })
           .order('sort_order', { ascending: true }),
@@ -984,7 +988,7 @@ export class SupabaseItineraryItemRepository {
       Promise.resolve(
         supabase
           .from('itinerary_items')
-          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,note,sort_order')
+          .select('id,trip_id,place_id,date,arrival_time,duration_minutes,transport,travel_duration_minutes,travel_distance_meters,note,sort_order')
           .eq('trip_id', tripId)
           .eq('date', date)
           .order('sort_order', { ascending: true }),
@@ -1048,7 +1052,7 @@ export class SupabaseItineraryItemRepository {
           const updates = {
             sort_order: order,
             ...(previousById.get(itemId) !== nextPreviousById.get(itemId)
-              ? { travel_duration_minutes: null }
+              ? { travel_duration_minutes: null, travel_distance_meters: null }
               : {}),
           }
           const { error } = await withSupabaseTimeout(

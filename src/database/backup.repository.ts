@@ -199,7 +199,7 @@ function validateBackup(value: unknown): TravelBackup {
       record,
       'Itinerary item',
       ['tripId', 'placeId', 'date', 'order'],
-      ['arrivalTime', 'durationMinutes', 'transport', 'travelDurationMinutes', 'note'],
+      ['arrivalTime', 'durationMinutes', 'transport', 'travelDurationMinutes', 'travelDistanceMeters', 'note'],
       validateItineraryItem,
     ),
   )

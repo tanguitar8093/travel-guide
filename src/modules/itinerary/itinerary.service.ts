@@ -9,8 +9,8 @@ import type {
   Trip,
   TripChanges,
 } from '../../database'
-import { getGoogleRouteDurationMinutes } from '../place/google-places.service'
-import type { GoogleTravelMode } from '../place/google-places.service'
+import { getGoogleRouteEstimate } from '../place/google-places.service'
+import type { GoogleRouteEstimate, GoogleTravelMode } from '../place/google-places.service'
 import { ItineraryMapService } from './itinerary-map.service'
 
 export interface ItineraryWorkspace {
@@ -80,7 +80,7 @@ export class ItineraryService {
     return itineraryItems.update(id, changes)
   }
 
-  async calculateTravelDuration(itemId: string): Promise<number> {
+  async calculateTravelDuration(itemId: string): Promise<GoogleRouteEstimate> {
     const item = await itineraryItems.getById(itemId)
     if (!item) throw new EntityNotFoundError('Itinerary item', itemId)
 
@@ -88,7 +88,7 @@ export class ItineraryService {
       .sort((left, right) => left.order - right.order)
     const itemIndex = dayItems.findIndex((candidate) => candidate.id === itemId)
     if (itemIndex <= 0) {
-      throw new ValidationError('第一個地點沒有上一站，不需要計算移動時間。')
+      throw new ValidationError('第一個地點沒有上一站，不需要計算路程。')
     }
     const travelMode = item.transport
     if (!travelMode || !isGoogleTravelMode(travelMode)) {
@@ -103,10 +103,10 @@ export class ItineraryService {
     if (!originPlace) throw new EntityNotFoundError('Place', previousItem.placeId)
     if (!destinationPlace) throw new EntityNotFoundError('Place', item.placeId)
     if (!originPlace.googlePlaceId || !destinationPlace.googlePlaceId) {
-      throw new ValidationError('上一站和這一站都需要先選取 Google Maps 搜尋結果，才能計算路線時間。')
+      throw new ValidationError('上一站和這一站都需要先選取 Google Maps 搜尋結果，才能計算路程。')
     }
 
-    const minutes = await getGoogleRouteDurationMinutes(
+    const estimate = await getGoogleRouteEstimate(
       originPlace.googlePlaceId,
       destinationPlace.googlePlaceId,
       travelMode,
@@ -118,14 +118,26 @@ export class ItineraryService {
     if (
       currentIndex <= 0 ||
       currentDayItems[currentIndex - 1].id !== previousItem.id ||
+      currentDayItems[currentIndex - 1].placeId !== previousItem.placeId ||
       currentDayItems[currentIndex].placeId !== item.placeId ||
       currentDayItems[currentIndex].transport !== item.transport
     ) {
-      throw new ValidationError('行程順序或交通方式已變更，請重新計算移動時間。')
+      throw new ValidationError('行程順序或交通方式已變更，請重新計算路程。')
     }
 
-    await itineraryItems.update(itemId, { travelDurationMinutes: minutes })
-    return minutes
+    const [currentOrigin, currentDestination] = await Promise.all([
+      places.getById(previousItem.placeId),
+      places.getById(item.placeId),
+    ])
+    if (currentOrigin?.googlePlaceId !== originPlace.googlePlaceId ||
+        currentDestination?.googlePlaceId !== destinationPlace.googlePlaceId) {
+      throw new ValidationError('地點的 Google Maps 位置已變更，請重新計算路程。')
+    }
+    await itineraryItems.update(itemId, {
+      travelDurationMinutes: estimate.durationMinutes,
+      travelDistanceMeters: estimate.distanceMeters,
+    })
+    return estimate
   }
 
   deleteItem(id: string): Promise<void> {

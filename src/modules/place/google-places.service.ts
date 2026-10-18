@@ -70,6 +70,7 @@ interface GooglePlacesLibrary {
 
 interface GoogleRoute {
   durationMillis?: number
+  distanceMeters?: number
 }
 
 interface GoogleRoutesLibrary {
@@ -267,11 +268,16 @@ export async function getGooglePlaceDetails(placeId: string): Promise<GooglePlac
   return toDetails(place)
 }
 
-export async function getGoogleRouteDurationMinutes(
+export interface GoogleRouteEstimate {
+  durationMinutes: number
+  distanceMeters: number
+}
+
+export async function getGoogleRouteEstimate(
   originPlaceId: string,
   destinationPlaceId: string,
   travelMode: GoogleTravelMode,
-): Promise<number> {
+): Promise<GoogleRouteEstimate> {
   const placesLibrary = await loadPlacesLibrary()
   const Place = placesLibrary.Place
   if (!Place) {
@@ -287,13 +293,17 @@ export async function getGoogleRouteDurationMinutes(
     origin: new Place({ id: originPlaceId }),
     destination: new Place({ id: destinationPlaceId }),
     travelMode,
-    fields: ['durationMillis'],
+    fields: ['durationMillis', 'distanceMeters'],
   })
   const durationMillis = result.routes?.[0]?.durationMillis
   if (durationMillis === undefined || !Number.isFinite(durationMillis) || durationMillis < 0) {
     throw new Error('Google Maps 找不到這兩個地點之間可用的路線時間。')
   }
-  return Math.ceil(durationMillis / 60_000)
+  const distanceMeters = result.routes?.[0]?.distanceMeters
+  if (distanceMeters === undefined || !Number.isSafeInteger(distanceMeters) || distanceMeters < 0) {
+    throw new Error('Google Maps 未回傳有效的路線距離，請重新計算路程。')
+  }
+  return { durationMinutes: Math.ceil(durationMillis / 60_000), distanceMeters }
 }
 
 export async function mountGoogleMap(

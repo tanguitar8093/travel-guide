@@ -145,6 +145,10 @@ export function validateItineraryItem(item: Omit<ItineraryItem, 'id'>): void {
   if (item.transport !== undefined && typeof item.transport !== 'string') {
     throw new ValidationError('Transport must be text.')
   }
+  if (item.travelDistanceMeters !== undefined &&
+      (!Number.isSafeInteger(item.travelDistanceMeters) || item.travelDistanceMeters < 0)) {
+    throw new ValidationError('Travel distance must be a non-negative integer number of meters.')
+  }
   if (item.note !== undefined && typeof item.note !== 'string') {
     throw new ValidationError('Itinerary item note must be text.')
   }

@@ -46,10 +46,10 @@ describe('local sync foundation', () => {
         name: 'Trip', regionId, startDate: '2026-10-17', endDate: '2026-10-18',
       })
       const firstId = await repositories.itineraryItems.create({
-        tripId, placeId: firstPlaceId, date: '2026-10-17', order: 0, travelDurationMinutes: 10,
+        tripId, placeId: firstPlaceId, date: '2026-10-17', order: 0, travelDurationMinutes: 10, travelDistanceMeters: 650,
       })
       const secondId = await repositories.itineraryItems.create({
-        tripId, placeId: secondPlaceId, date: '2026-10-17', order: 1, travelDurationMinutes: 20,
+        tripId, placeId: secondPlaceId, date: '2026-10-17', order: 1, travelDurationMinutes: 20, travelDistanceMeters: 12300,
       })
       return { regionId, firstPlaceId, secondPlaceId, tripId, firstId, secondId }
     })
@@ -179,8 +179,9 @@ describe('local sync foundation', () => {
       itinerary.firstPlaceId, itinerary.firstId, itinerary.secondId,
     ].sort())
     expect((await database.itineraryItems.get(itinerary.secondId))?.travelDurationMinutes).toBeUndefined()
+    expect((await database.itineraryItems.get(itinerary.secondId))?.travelDistanceMeters).toBeUndefined()
     expect(task.changes.find((change) => change.id === itinerary.secondId)?.before)
-      .toMatchObject({ travelDurationMinutes: 20 })
+      .toMatchObject({ travelDurationMinutes: 20, travelDistanceMeters: 12300 })
   })
 
   it('groups a full-day reorder and preserves referential deletion rules', async () => {
@@ -190,12 +191,32 @@ describe('local sync foundation', () => {
     ))
     expect((await store.listTasks()).at(-1)?.changes).toHaveLength(2)
     expect((await database.itineraryItems.get(itinerary.secondId))?.order).toBe(0)
+    expect((await database.itineraryItems.get(itinerary.secondId))?.travelDistanceMeters).toBeUndefined()
+    expect((await database.itineraryItems.get(itinerary.firstId))?.travelDistanceMeters).toBeUndefined()
     const count = (await store.listTasks()).length
     await expect(store.mutate('place.delete', (repositories) => repositories.places.delete(itinerary.firstPlaceId)))
       .rejects.toBeInstanceOf(EntityInUseError)
     await expect(store.mutate('region.delete', (repositories) => repositories.regions.delete(itinerary.regionId)))
       .rejects.toBeInstanceOf(EntityInUseError)
     expect(await store.listTasks()).toHaveLength(count)
+  })
+
+  it('saves distance in the outbox and invalidates it after transport changes or predecessor deletion', async () => {
+    const itinerary = await createItinerary()
+    await store.mutate('item.estimate', (repositories) => repositories.itineraryItems.update(
+      itinerary.secondId, { travelDurationMinutes: 15, travelDistanceMeters: 800 },
+    ))
+    expect((await store.listTasks()).at(-1)?.changes[0].after)
+      .toMatchObject({ travelDurationMinutes: 15, travelDistanceMeters: 800 })
+    await store.mutate('item.transport', (repositories) => repositories.itineraryItems.update(
+      itinerary.secondId, { transport: 'WALKING' },
+    ))
+    expect((await database.itineraryItems.get(itinerary.secondId))?.travelDistanceMeters).toBeUndefined()
+    await store.mutate('item.estimate', (repositories) => repositories.itineraryItems.update(
+      itinerary.secondId, { travelDurationMinutes: 15, travelDistanceMeters: 800 },
+    ))
+    await store.mutate('item.delete', (repositories) => repositories.itineraryItems.delete(itinerary.firstId))
+    expect((await database.itineraryItems.get(itinerary.secondId))?.travelDistanceMeters).toBeUndefined()
   })
 
   it('records trip deletion together with all cascading item deletions', async () => {

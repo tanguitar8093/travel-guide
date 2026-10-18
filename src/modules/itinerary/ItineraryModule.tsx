@@ -29,6 +29,12 @@ interface TripDraft {
   endDate: string;
 }
 
+function formatTravelDistance(meters: number): string {
+  return meters < 1000
+    ? `${meters} 公尺`
+    : `${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 1 }).format(meters / 1000)} 公里`;
+}
+
 interface ItemDraft {
   placeId: string;
   date: string;
@@ -841,14 +847,14 @@ function ItineraryModule() {
     setError("");
     setNotice("");
     try {
-      const minutes = await itineraryController.calculateTravelDuration(
+      const estimate = await itineraryController.calculateTravelDuration(
         item.id,
       );
       setItems(await itineraryController.listItems(selectedTripId));
       setDayOrderDraftIds(undefined);
-      setNotice(`已計算並儲存路程時間：約 ${minutes} 分鐘。`);
+      setNotice(`已計算並儲存路程：約 ${estimate.durationMinutes} 分鐘 · ${formatTravelDistance(estimate.distanceMeters)}。`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "計算路程時間失敗。");
+      setError(cause instanceof Error ? cause.message : "計算路程失敗。");
     } finally {
       setCalculatingItemId(undefined);
     }
@@ -1517,7 +1523,7 @@ function ItineraryModule() {
                               ))}
                             </select>
                             <small>
-                              此方式用於計算「上一站到這一站」的參考時間。
+                              此方式用於計算「上一站到這一站」的參考時間與距離。
                             </small>
                           </label>
                           <label className="itinerary-field itinerary-field-wide">
@@ -1709,6 +1715,8 @@ function ItineraryModule() {
                               {item.travelDurationMinutes !== undefined && (
                                 <span>
                                   路程約 {item.travelDurationMinutes} 分鐘
+                                  {item.travelDistanceMeters !== undefined &&
+                                    ` · ${formatTravelDistance(item.travelDistanceMeters)}`}
                                   {cardReferenceArrival
                                     ? `（${cardReferenceArrival.time}${cardReferenceArrival.dayOffset ? ` 翌日 +${cardReferenceArrival.dayOffset} 天` : ""}）`
                                     : ""}
@@ -1789,8 +1797,8 @@ function ItineraryModule() {
                                 {calculatingItemId === item.id
                                   ? "計算中…"
                                   : item.travelDurationMinutes !== undefined
-                                    ? "重算時間"
-                                    : "計算時間"}
+                                    ? "重算路程"
+                                    : "計算路程"}
                               </button>
                             )}
                             <button
