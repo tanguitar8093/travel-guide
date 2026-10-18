@@ -7,3 +7,9 @@
   for it or invokes the `full-test-check` skill.
 - Report which checks were run and identify checks that were not run; never imply
   that a skipped check passed.
+
+# Form UX
+
+- When opening a create or edit form, focus the first and highest-priority
+  input/control so users can start immediately. Order the form to match that
+  priority; when the control mounts asynchronously, focus it after it is ready.

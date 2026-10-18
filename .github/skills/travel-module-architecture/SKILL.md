@@ -82,6 +82,10 @@ parallel framework.
   reports loading, success, and failure explicitly.
 - Follow existing async UI patterns: guard stale effects, show errors to users,
   disable conflicting actions while saving, and confirm destructive actions.
+- On create/edit entry, focus the first and highest-priority input/control and
+  order the form to match. For asynchronously mounted controls, focus them only
+  after they are ready; prioritize the control users need to complete first
+  (for example, Google Maps search before a region name).
 - Keep user-generated data editing in forms; present external-provider details
   according to the provider's storage/attribution requirements.
 

@@ -1078,19 +1078,21 @@ function ItineraryModule() {
                     <p>
                       區域可代表城市或旅行目的地；建立後即可選擇它來建立行程。
                     </p>
-                    <RouterLink
-                      className="itinerary-primary itinerary-link-button"
-                      to={routes.regions}
-                    >
-                      前往區域
-                    </RouterLink>
-                    <button
-                      type="button"
-                      className="itinerary-secondary"
-                      onClick={cancelTripEdit}
-                    >
-                      返回
-                    </button>
+                    <div className="itinerary-no-regions-actions">
+                      <RouterLink
+                        className="itinerary-primary itinerary-link-button"
+                        to={routes.regions}
+                      >
+                        前往區域
+                      </RouterLink>
+                      <button
+                        type="button"
+                        className="itinerary-secondary"
+                        onClick={cancelTripEdit}
+                      >
+                        返回
+                      </button>
+                    </div>
                   </div>
                 )}
               </form>

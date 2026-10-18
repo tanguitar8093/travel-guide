@@ -190,8 +190,10 @@ function PlaceModule() {
       },
     )
       .then((unmount) => {
-        if (active) dispose = unmount
-        else unmount()
+        if (active) {
+          dispose = unmount
+          container.querySelector<HTMLElement>('gmp-place-autocomplete')?.focus()
+        } else unmount()
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -622,7 +624,7 @@ function PlaceModule() {
                     <label className="form-field place-name-field">
                       <span>地點名稱（自行命名） <b>*</b></span>
                       <input
-                        autoFocus={creating}
+                        autoFocus={!placeController.isGooglePlacesConfigured()}
                         value={draft.name}
                         onChange={(event) => setDraft({ ...draft, name: event.target.value })}
                         maxLength={100}

@@ -143,9 +143,10 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .itinerary-item-form { display: grid; gap: 13px; padding: 16px; margin: 4px 0 16px; border: 1px solid #e5ece6; border-radius: 7px; background: #fbfcfb; }
 .itinerary-form-title { display: flex; align-items: center; justify-content: space-between; color: #566159; font-size: 11px; }
 .itinerary-form-title button { width: 25px; height: 25px; border: 0; color: #87928a; background: transparent; font-size: 19px; cursor: pointer; }
-.itinerary-no-regions { display: grid; justify-items: start; gap: 11px; padding: 18px 0; }
-.itinerary-no-regions strong { color: #59665c; font-size: 12px; }
-.itinerary-no-regions p,.itinerary-no-places p { margin: 0; color: #8b958d; font-size: 10px; line-height: 1.6; }
+.itinerary-no-regions { display: grid; justify-items: center; gap: 13px; margin: 16px; padding: 30px 24px; border: 1px solid #e9eee9; border-radius: 8px; background: #f8faf8; text-align: center; }
+.itinerary-no-regions strong { color: #59665c; font-size: 13px; }
+.itinerary-no-regions p,.itinerary-no-places p { max-width: 360px; margin: 0; color: #8b958d; font-size: 10px; line-height: 1.7; }
+.itinerary-no-regions-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 3px; }
 .itinerary-link-button { display: inline-flex; align-items: center; }
 .itinerary-no-places { padding: 6px 0; color: #7c887f; font-size: 10px; }
 .itinerary-no-places a { display: inline-block; margin-top: 7px; color: #52745a; }

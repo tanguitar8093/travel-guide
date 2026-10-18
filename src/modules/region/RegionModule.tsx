@@ -167,8 +167,12 @@ function RegionModule() {
         },
       )
       .then((unmount) => {
-        if (active) dispose = unmount;
-        else unmount();
+        if (active) {
+          dispose = unmount;
+          container
+            .querySelector<HTMLElement>("gmp-place-autocomplete")
+            ?.focus();
+        } else unmount();
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -423,22 +427,6 @@ function RegionModule() {
                     <h2>{creating ? "新增區域" : draft.name}</h2>
                   </div>
                 </div>
-                <label className="region-field region-field-wide">
-                  <span>
-                    區域名稱 <b>*</b>
-                  </span>
-                  <input
-                    autoFocus
-                    value={draft.name}
-                    onChange={(event) =>
-                      setDraft({ ...draft, name: event.target.value })
-                    }
-                    maxLength={100}
-                    placeholder="例如：京都、大阪"
-                    required
-                    disabled={saving}
-                  />
-                </label>
                 <div className="region-google-search">
                   <div className="region-search-label">
                     用 Google 地圖選擇區域中心 <b>*</b>
@@ -471,6 +459,22 @@ function RegionModule() {
                     </div>
                   )}
                 </div>
+                <label className="region-field region-field-wide">
+                  <span>
+                    區域名稱 <b>*</b>
+                  </span>
+                  <input
+                    autoFocus={!regionController.isGooglePlacesConfigured()}
+                    value={draft.name}
+                    onChange={(event) =>
+                      setDraft({ ...draft, name: event.target.value })
+                    }
+                    maxLength={100}
+                    placeholder="例如：京都、大阪"
+                    required
+                    disabled={saving}
+                  />
+                </label>
                 <div className="region-actions">
                   <div>
                     <button
