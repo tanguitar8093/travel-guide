@@ -16,7 +16,6 @@ import type {
 export type RouteEndpoint =
   | { source: 'saved'; placeId: string }
   | { source: 'google'; place: GooglePlaceDetails }
-  | { source: 'marker'; place: GooglePlaceDetails }
 
 export interface RouteMapPlace extends ResolvedRouteEndpoint {
   address?: string

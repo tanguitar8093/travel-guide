@@ -109,7 +109,7 @@ it('surfaces provider failures instead of returning a successful-looking estimat
 })
 
 it('resolves marker endpoints without reading or writing saved places', async () => {
-  await new RouteCalculatorService().calculate({ ...input, origin: { source: 'marker', place: { ...google, id: 'marker' } } })
+  await new RouteCalculatorService().calculate({ ...input, origin: { source: 'google', place: { ...google, id: 'marker' } } })
   expect(mocks.getById).not.toHaveBeenCalled()
   expect(mocks.details).not.toHaveBeenCalled()
   expect(mocks.estimate).toHaveBeenCalledWith('marker', 'cafe', 'WALKING')
@@ -117,7 +117,7 @@ it('resolves marker endpoints without reading or writing saved places', async ()
 
 it('rejects the same Google location across different endpoint sources before requesting routes', async () => {
   await expect(new RouteCalculatorService().calculate({
-    ...input, origin: { source: 'marker', place: google },
+    ...input, origin: { source: 'google', place: google },
   })).rejects.toThrow('出發點與目的地相同')
   expect(mocks.estimate).not.toHaveBeenCalled()
 })

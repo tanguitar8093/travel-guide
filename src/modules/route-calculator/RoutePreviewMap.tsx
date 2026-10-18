@@ -11,15 +11,15 @@ interface Props {
   destinationId?: string
   selectedId: string
   onSelect: (marker: RouteMapPlace) => void
-  picking: string
   disabled: boolean
   configured: boolean
   controls: ReactNode
+  actions: ReactNode
   tripData?: TripMapData
 }
 
 export function RoutePreviewMap({
-  markers, originId, destinationId, selectedId, onSelect, picking, disabled, configured, controls, tripData,
+  markers, originId, destinationId, selectedId, onSelect, disabled, configured, controls, actions, tripData,
 }: Props) {
   const container = useRef<HTMLDivElement>(null)
   const map = useRef<GoogleMapHandle | null>(null)
@@ -71,8 +71,7 @@ export function RoutePreviewMap({
   return (
     <section className="route-calculator-map" aria-label="路程試算地圖">
       <header className="route-panel-heading">
-        <div className="route-map-title"><h2>地圖預覽</h2><button type="button" className="route-secondary" disabled={!ready || !markers.length} onClick={() => setFit((value) => value + 1)}>顯示全部標記</button></div>
-        {picking && <p role="status">請點選標記，設為{picking}。</p>}
+        <div className="route-map-title"><h2>地圖預覽</h2><div className="route-map-actions">{actions}<button type="button" className="route-secondary" disabled={!ready || !markers.length} onClick={() => setFit((value) => value + 1)}>顯示全部標記</button></div></div>
         {controls}
       </header>
       <div className="route-map-body">

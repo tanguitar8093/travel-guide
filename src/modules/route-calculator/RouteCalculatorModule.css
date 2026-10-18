@@ -55,6 +55,7 @@
 .route-map-host .google-map-marker-enlarged { --google-map-marker-scale: 1; width: 25px; height: 25px; }
 .route-map-message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; padding: 25px; color: #7b8b81; background: #f0f6f1; text-align: center; font-size: 13px; line-height: 1.8; }
 .route-map-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.route-map-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
 .route-marker-legend { display: flex; align-items: center; gap: 12px; padding: 10px 14px; overflow-x: auto; border-top: 1px solid #edf1ed; color: #627168; font-size: 11px; }
 .route-marker-legend > span { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 5px; white-space: nowrap; }
 .route-marker-legend i { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; }

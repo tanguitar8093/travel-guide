@@ -14,13 +14,11 @@ interface RouteEndpointFieldProps {
   controller: RouteCalculatorController
   source: RouteEndpoint['source']
   onSourceChange: (source: RouteEndpoint['source']) => void
-  picking: boolean
-  onPick: () => void
 }
 
 export function RouteEndpointField({
   label, places, value, onChange, disabled, autoFocus = false,
-  controller, source, onSourceChange, picking, onPick,
+  controller, source, onSourceChange,
 }: RouteEndpointFieldProps) {
   const id = useId()
   const [error, setError] = useState('')
@@ -74,7 +72,6 @@ export function RouteEndpointField({
             onSourceChange('google'); setError('')
           }}
         >Google 搜尋</button>
-        <button type="button" aria-pressed={source === 'marker'} onClick={() => { onSourceChange('marker'); setError('') }}>選取標記</button>
       </div>
       {source === 'saved' ? (
         <>
@@ -95,12 +92,6 @@ export function RouteEndpointField({
             autoFocus={autoFocus}
           />
           {!places.length && <p className="route-field-hint">目前沒有已存地點，可切換 Google 搜尋直接選擇。</p>}
-        </>
-      ) : source === 'marker' ? (
-        <>
-          <button type="button" className="route-secondary" aria-pressed={picking} onClick={onPick}>{picking ? '取消選取標記' : `從地圖選擇${label}`}</button>
-          <p className="route-field-hint" role="status">{picking ? `請點選地圖圖釘，或使用下方的標記清單，設為${label}。` : '可選擇行程載入標記，或先用 Google 搜尋加入標記。'}</p>
-          {value?.source === 'marker' && <p className="route-selected-place">已選擇：{value.place.displayName}<small>{value.place.formattedAddress}</small></p>}
         </>
       ) : (
         <>

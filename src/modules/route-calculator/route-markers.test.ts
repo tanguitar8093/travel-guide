@@ -37,6 +37,6 @@ it('switching off the trip preserves personal markers', () => {
 
 it('keeps marker selection details transient and usable as an endpoint', () => {
   expect(markerEndpoint(a)).toEqual({
-    source: 'marker', place: { id: 'a', displayName: 'A', formattedAddress: '地址', location: a.position },
+    source: 'google', place: { id: 'a', displayName: 'A', formattedAddress: '地址', location: a.position },
   })
 })

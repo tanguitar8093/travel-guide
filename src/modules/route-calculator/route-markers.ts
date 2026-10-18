@@ -19,7 +19,7 @@ export function visibleRouteMarkers(
 
 export function markerEndpoint(marker: RouteMapPlace) {
   return {
-    source: 'marker' as const,
+    source: 'google' as const,
     place: {
       id: marker.googlePlaceId, displayName: marker.name,
       formattedAddress: marker.address, location: marker.position,

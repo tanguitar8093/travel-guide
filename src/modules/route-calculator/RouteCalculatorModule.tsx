@@ -33,7 +33,6 @@ export default function RouteCalculatorModule() {
   const [personal, setPersonal] = useState<RouteMapPlace[]>([])
   const [hidden, setHidden] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState('')
-  const [picking, setPicking] = useState<Target | null>(null)
   const [origin, setOrigin] = useState<RouteEndpoint | null>(null)
   const [destination, setDestination] = useState<RouteEndpoint | null>(null)
   const [originSource, setOriginSource] = useState<RouteEndpoint['source']>('saved')
@@ -44,14 +43,15 @@ export default function RouteCalculatorModule() {
   const [error, setError] = useState('')
   const [endpointErrors, setEndpointErrors] = useState({ origin: '', destination: '' })
   const [resolving, setResolving] = useState({ origin: false, destination: false })
+  const [inputRevision, setInputRevision] = useState({ origin: 0, destination: 0 })
   const generation = useRef(0)
   const endpointGeneration = useRef({ origin: 0, destination: 0 })
   const tripGeneration = useRef(0)
   const configured = controller.isGooglePlacesConfigured()
   const markers = useMemo(() => visibleRouteMarkers(personal, tripData, date, hidden), [personal, tripData, date, hidden])
   const selected = markers.find((marker) => marker.googlePlaceId === selectedId)
-  const hasHiddenTripMarkers = tripData?.markers.some((marker) => hidden.includes(marker.googlePlaceId))
   const busy = calculating || tripLoading
+  const endpointBusy = busy || resolving.origin || resolving.destination
 
   const endpointId = (endpoint: RouteEndpoint | null) => !endpoint ? undefined
     : endpoint.source === 'saved' ? places.find((place) => place.id === endpoint.placeId)?.googlePlaceId : endpoint.place.id
@@ -96,7 +96,6 @@ export default function RouteCalculatorModule() {
 
   const changeEndpoint = useCallback((target: Target, value: RouteEndpoint | null) => {
     invalidate()
-    setPicking(null)
     const current = ++endpointGeneration.current[target]
     const setter = target === 'origin' ? setOrigin : setDestination
     setter(value)
@@ -119,29 +118,57 @@ export default function RouteCalculatorModule() {
   const changeOrigin = useCallback((value: RouteEndpoint | null) => changeEndpoint('origin', value), [changeEndpoint])
   const changeDestination = useCallback((value: RouteEndpoint | null) => changeEndpoint('destination', value), [changeEndpoint])
 
+  const removeBinding = useCallback((target: Target) => {
+    changeEndpoint(target, null)
+    setInputRevision((current) => ({ ...current, [target]: current[target] + 1 }))
+  }, [changeEndpoint])
+
   function changeSource(target: Target, source: RouteEndpoint['source']) {
     if ((target === 'origin' ? originSource : destinationSource) !== source) changeEndpoint(target, null)
     if (target === 'origin') setOriginSource(source)
     else setDestinationSource(source)
-    setPicking(source === 'marker' ? target : null)
   }
 
   const assignMarker = useCallback((target: Target, marker: RouteMapPlace) => {
     invalidate()
+    const isOpposite = target === 'origin'
+      ? destinationId === marker.googlePlaceId
+      : originId === marker.googlePlaceId
+    if (isOpposite) {
+      endpointGeneration.current.origin += 1
+      endpointGeneration.current.destination += 1
+      setResolving({ origin: false, destination: false })
+      setEndpointErrors({ origin: '', destination: '' })
+      setOrigin(destination)
+      setDestination(origin)
+      setOriginSource(destinationSource)
+      setDestinationSource(originSource)
+      setInputRevision((current) => ({ origin: current.origin + 1, destination: current.destination + 1 }))
+      setSelectedId(marker.googlePlaceId)
+      return
+    }
     endpointGeneration.current[target] += 1
     setResolving((state) => ({ ...state, [target]: false }))
     setEndpointErrors((errors) => ({ ...errors, [target]: '' }))
-    if (target === 'origin') { setOriginSource('marker'); setOrigin(markerEndpoint(marker)) }
-    else { setDestinationSource('marker'); setDestination(markerEndpoint(marker)) }
-    setPicking(null)
+    if (target === 'origin') {
+      setOriginSource('google')
+      setOrigin(markerEndpoint(marker))
+    } else {
+      setDestinationSource('google')
+      setDestination(markerEndpoint(marker))
+    }
+    setInputRevision((current) => ({ ...current, [target]: current[target] + 1 }))
     setSelectedId(marker.googlePlaceId)
-  }, [invalidate])
+  }, [invalidate, originId, destinationId, origin, destination, originSource, destinationSource])
 
   const selectMarker = useCallback((marker: RouteMapPlace) => {
     if (busy) return
+    if (selectedId === marker.googlePlaceId) {
+      setSelectedId('')
+      return
+    }
     setSelectedId(marker.googlePlaceId)
-    if (picking) assignMarker(picking, marker)
-  }, [busy, picking, assignMarker])
+  }, [busy, selectedId])
 
   function reconcileMarkers(next: RouteMapPlace[]) {
     const remains = (id: string | undefined) => !id || next.some((marker) => marker.googlePlaceId === id)
@@ -158,7 +185,6 @@ export default function RouteCalculatorModule() {
     const current = ++tripGeneration.current
     setTripLoading(true)
     setTripError('')
-    setPicking(null)
     try {
       const data = nextId ? await controller.loadTripMarkers(nextId) : undefined
       if (tripGeneration.current !== current) return
@@ -174,6 +200,10 @@ export default function RouteCalculatorModule() {
   }
 
   function removeMarker(marker: RouteMapPlace) {
+    if (isTripMarker(marker.googlePlaceId, tripData)) {
+      setError('原行程地點不可移除標記。')
+      return
+    }
     const nextHidden = [...hidden, marker.googlePlaceId]
     const nextPersonal = personal.filter((item) => item.googlePlaceId !== marker.googlePlaceId)
     if (!reconcileMarkers(visibleRouteMarkers(nextPersonal, tripData, date, nextHidden))) return
@@ -209,14 +239,14 @@ export default function RouteCalculatorModule() {
         </header>
         <div className="route-calculator-workspace">
           <section className="route-calculator-panel" aria-label="路程試算設定與結果">
-            <header className="route-panel-heading"><h2>兩點通勤</h2><p>兩端可分別使用已存地點、Google 搜尋或地圖標記。</p></header>
+            <header className="route-panel-heading"><h2>兩點通勤</h2><p>使用已存地點或 Google 搜尋；也可點選地圖圖釘，在標記資訊中指定起終點。</p></header>
             {loading ? <p className="route-loading" role="status">正在載入已存地點…</p> : (
               <form className="route-calculator-form" onSubmit={(event) => void calculate(event)}>
                 {placesError && <div className="route-inline-error" role="alert">{placesError} 仍可使用 Google 搜尋。<button type="button" disabled={busy} onClick={() => setPlacesAttempt((value) => value + 1)}>重試載入地點</button></div>}
-                <RouteEndpointField controller={controller} label="出發點" places={places} value={origin} onChange={changeOrigin} disabled={busy} autoFocus source={originSource} onSourceChange={(source) => changeSource('origin', source)} picking={picking === 'origin'} onPick={() => setPicking(picking === 'origin' ? null : 'origin')} />
+                <RouteEndpointField key={`origin-${inputRevision.origin}`} controller={controller} label="出發點" places={places} value={origin} onChange={changeOrigin} disabled={busy} autoFocus source={originSource} onSourceChange={(source) => changeSource('origin', source)} />
                 {resolving.origin && <p className="route-field-hint" role="status">正在載入出發點標記…</p>}
                 {endpointErrors.origin && <p className="route-inline-error" role="alert">{endpointErrors.origin}</p>}
-                <RouteEndpointField controller={controller} label="目的地" places={places} value={destination} onChange={changeDestination} disabled={busy} source={destinationSource} onSourceChange={(source) => changeSource('destination', source)} picking={picking === 'destination'} onPick={() => setPicking(picking === 'destination' ? null : 'destination')} />
+                <RouteEndpointField key={`destination-${inputRevision.destination}`} controller={controller} label="目的地" places={places} value={destination} onChange={changeDestination} disabled={busy} source={destinationSource} onSourceChange={(source) => changeSource('destination', source)} />
                 {resolving.destination && <p className="route-field-hint" role="status">正在載入目的地標記…</p>}
                 {endpointErrors.destination && <p className="route-inline-error" role="alert">{endpointErrors.destination}</p>}
                 <label className="route-transport"><span>交通方式 <b>*</b></span><select value={transport} disabled={busy} onChange={(event) => { invalidate(); setTransport(event.target.value) }}>{transportOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
@@ -236,19 +266,21 @@ export default function RouteCalculatorModule() {
               {selected ? <>
                 <p className="route-selected-place">{selected.name}<small>{selected.address}</small></p>
                 <p className="route-field-hint">來源：{isTripMarker(selectedId, tripData) ? '原行程地點' : '後加地點（不在所選行程）'}{selectedId === originId ? ' · 出發點' : ''}{selectedId === destinationId ? ' · 目的地' : ''}</p>
-                <div className="route-marker-actions">
-                  <button type="button" className="route-secondary" disabled={busy} onClick={() => assignMarker('origin', selected)}>設為出發點</button>
-                  <button type="button" className="route-secondary" disabled={busy} onClick={() => assignMarker('destination', selected)}>設為目的地</button>
-                  <button type="button" className="route-remove-marker" disabled={busy} onClick={() => removeMarker(selected)}>從試算地圖移除</button>
-                </div>
+                {!isTripMarker(selectedId, tripData) && <div className="route-marker-actions">
+                  <button type="button" className="route-remove-marker" disabled={endpointBusy} onClick={() => removeMarker(selected)}>移除標記</button>
+                </div>}
               </> : <p className="route-field-hint">點選圖釘或下方清單，可指定端點或移除標記，不會修改原始地點與行程。</p>}
               <details className="route-marker-list"><summary>標記清單（{markers.length}）</summary>
                 {markers.length ? <ul>{markers.map((marker) => <li key={marker.googlePlaceId}><button type="button" disabled={busy} aria-pressed={selectedId === marker.googlePlaceId} onClick={() => selectMarker(marker)}>{marker.name}{marker.googlePlaceId === originId ? '（出發點）' : ''}{marker.googlePlaceId === destinationId ? '（目的地）' : ''}</button></li>)}</ul> : <p className="route-field-hint">尚無標記，請載入行程或選取搜尋結果。</p>}
               </details>
-              {hasHiddenTripMarkers && <button type="button" className="route-secondary" disabled={busy} onClick={() => setHidden([])}>恢復已移除的行程標記</button>}
             </section>
           </section>
-          <RoutePreviewMap markers={markers} tripData={tripData} originId={originId} destinationId={destinationId} selectedId={selectedId} onSelect={selectMarker} picking={picking === 'origin' ? '出發點' : picking === 'destination' ? '目的地' : ''} disabled={busy} configured={configured} controls={
+          <RoutePreviewMap markers={markers} tripData={tripData} originId={originId} destinationId={destinationId} selectedId={selectedId} onSelect={selectMarker} disabled={busy} configured={configured} actions={selected && <>
+            {selectedId !== originId && <button type="button" className="route-secondary" disabled={endpointBusy} onClick={() => assignMarker('origin', selected)}>設為出發點</button>}
+            {selectedId !== destinationId && <button type="button" className="route-secondary" disabled={endpointBusy} onClick={() => assignMarker('destination', selected)}>設為目的地</button>}
+            {selectedId === originId && <button type="button" className="route-secondary" disabled={endpointBusy} onClick={() => removeBinding('origin')}>移除出發點</button>}
+            {selectedId === destinationId && <button type="button" className="route-secondary" disabled={endpointBusy} onClick={() => removeBinding('destination')}>移除目的地</button>}
+          </>} controls={
             <div className="route-trip-controls">
               <div className="route-trip-row">
                 <div className="route-trip-field">
@@ -257,7 +289,7 @@ export default function RouteCalculatorModule() {
                 </div>
               {tripId && <label className="route-transport"><span>日期範圍</span><select value={date} disabled={busy || resolving.origin || resolving.destination} onChange={(event) => {
                 const next = event.target.value
-                if (reconcileMarkers(visibleRouteMarkers(personal, tripData, next, hidden))) { setDate(next); setPicking(null) }
+                if (reconcileMarkers(visibleRouteMarkers(personal, tripData, next, hidden))) setDate(next)
               }}><option value="">全部日期</option>{tripData?.dates.map((day) => <option key={day} value={day}>{day}</option>)}</select></label>}
               </div>
               {tripsError && <div className="route-inline-error" role="alert">{tripsError}<button type="button" onClick={() => setTripsAttempt((value) => value + 1)}>重試</button></div>}
