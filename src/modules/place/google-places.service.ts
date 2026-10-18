@@ -26,6 +26,8 @@ export interface GoogleMapMarkerData {
   title: string
   position: GoogleMapPosition
   sequence?: number
+  color?: string
+  enlarged?: boolean
   onClick?: () => void
 }
 
@@ -385,6 +387,8 @@ export async function mountGoogleMap(
         content.textContent = markerData.sequence === undefined
           ? ''
           : String(markerData.sequence)
+        if (markerData.color) content.style.backgroundColor = markerData.color
+        if (markerData.enlarged) content.className += ' google-map-marker-enlarged'
         const clickHandler = markerData.onClick
         const marker = new markerLibrary.AdvancedMarkerElement({
           map,

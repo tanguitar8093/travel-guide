@@ -6,7 +6,7 @@ class Autocomplete extends EventTarget {
   remove = vi.fn()
 }
 
-const markers: { map: object | null }[] = []
+const markers: { map: object | null; content: HTMLElement }[] = []
 const fitBounds = vi.fn()
 const extend = vi.fn()
 let autocomplete: Autocomplete
@@ -18,7 +18,7 @@ beforeEach(() => {
   fitBounds.mockReset()
   extend.mockReset()
   vi.stubGlobal('document', {
-    createElement: () => ({ replaceChildren: vi.fn(), remove: vi.fn() }),
+    createElement: () => ({ style: {}, replaceChildren: vi.fn(), remove: vi.fn() }),
   })
   class Bounds {
     extend(position: object) { extend(position); return this }
@@ -28,7 +28,12 @@ beforeEach(() => {
   }
   class Marker {
     map: object | null
-    constructor(options: { map: object }) { this.map = options.map; markers.push(this) }
+    content: HTMLElement
+    constructor(options: { map: object; content: HTMLElement }) {
+      this.map = options.map
+      this.content = options.content
+      markers.push(this)
+    }
     addEventListener = vi.fn()
     removeEventListener = vi.fn()
   }
@@ -46,6 +51,44 @@ beforeEach(() => {
 })
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+
+it('applies a supplied marker color while leaving legacy marker styles unchanged', async () => {
+  const { mountGoogleMap } = await import('./google-places.service')
+  const map = await mountGoogleMap(document.createElement('div'), { center: { lat: 25, lng: 121 }, zoom: 12 })
+  map.setMarkers([
+    { id: 'legacy', title: 'Legacy', position: { lat: 25, lng: 121 } },
+    { id: 'added', title: 'Added', position: { lat: 26, lng: 122 }, sequence: 1, color: '#b96522' },
+  ])
+  expect(markers[0].content.style.backgroundColor).toBeUndefined()
+  expect(markers[0].content.className).toBe('google-map-marker')
+  expect(markers[1].content.style.backgroundColor).toBe('#b96522')
+  expect(markers[1].content.textContent).toBe('1')
+  map.destroy()
+})
+
+it('only enlarges the selected marker and preserves color, numbering and viewport', async () => {
+  const { mountGoogleMap } = await import('./google-places.service')
+  const map = await mountGoogleMap(document.createElement('div'), { center: { lat: 25, lng: 121 }, zoom: 12 })
+  const points = [
+    { id: 'a', title: 'A', position: { lat: 25, lng: 121 }, color: '#6d91ad', sequence: 1 },
+    { id: 'b', title: 'B', position: { lat: 26, lng: 122 }, color: '#b96522' },
+  ]
+  map.setMarkers(points.map((point) => ({ ...point, enlarged: point.id === 'a' })))
+  expect(markers[0].content.className).toBe('google-map-marker google-map-marker-numbered google-map-marker-enlarged')
+  expect(markers[0].content.style.transform).toBeUndefined()
+  expect(markers[0].content.style.backgroundColor).toBe('#6d91ad')
+  expect(markers[0].content.textContent).toBe('1')
+  expect(markers[1].content.style.transform).toBeUndefined()
+  expect(markers[1].content.className).toBe('google-map-marker')
+  map.setMarkers(points.map((point) => ({ ...point, enlarged: point.id === 'b' })))
+  expect(markers[2].content.style.transform).toBeUndefined()
+  expect(markers[2].content.className).toBe('google-map-marker google-map-marker-numbered')
+  expect(markers[2].content.textContent).toBe('1')
+  expect(markers[3].content.className).toBe('google-map-marker google-map-marker-enlarged')
+  expect(markers[3].content.style.backgroundColor).toBe('#b96522')
+  expect(fitBounds).not.toHaveBeenCalled()
+  map.destroy()
+})
 
 it('fits both endpoint markers only when requested and removes markers on cleanup', async () => {
   const { mountGoogleMap } = await import('./google-places.service')

@@ -1,19 +1,23 @@
 .google-map-marker {
-  width: 13px;
-  height: 13px;
-  border: 2px solid #fff;
+  width: calc(13px * var(--google-map-marker-scale, 1));
+  height: calc(13px * var(--google-map-marker-scale, 1));
+  border: calc(2px * var(--google-map-marker-scale, 1)) solid #fff;
   border-radius: 50%;
   background: #6d91ad;
   box-shadow: 0 1px 5px rgba(34, 54, 40, .4);
 }
 
 .google-map-marker-numbered {
-  width: 25px;
-  height: 25px;
+  width: calc(25px * var(--google-map-marker-scale, 1));
+  height: calc(25px * var(--google-map-marker-scale, 1));
   display: grid;
   place-items: center;
   color: #fff;
   background: #648a74;
   box-shadow: 0 2px 7px rgba(34, 54, 40, .35);
-  font: 600 10px Inter, sans-serif;
+  font: 600 calc(10px * var(--google-map-marker-scale, 1)) Inter, sans-serif;
+}
+
+.google-map-marker-enlarged {
+  --google-map-marker-scale: 1.5;
 }

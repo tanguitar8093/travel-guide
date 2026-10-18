@@ -1,5 +1,11 @@
 import type { RouteMapPlace, TripMapData } from './route-calculator.service'
 
+export function isTripMarker(id: string, trip: TripMapData | undefined): boolean {
+  return trip?.markers.some((marker) => marker.googlePlaceId === id) ?? false
+}
+
+export const routeMarkerColors = { trip: '#6d91ad', added: '#b96522' } as const
+
 export function visibleRouteMarkers(
   personal: RouteMapPlace[], trip: TripMapData | undefined, date: string, hidden: string[],
 ): RouteMapPlace[] {

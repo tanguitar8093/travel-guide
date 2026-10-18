@@ -10,7 +10,7 @@ import { RouteCalculatorController } from './route-calculator.controller'
 import type { RouteCalculationResult, RouteEndpoint, RouteMapPlace, TripMapData } from './route-calculator.service'
 import { RouteEndpointField } from './RouteEndpointField'
 import { RoutePreviewMap } from './RoutePreviewMap'
-import { markerEndpoint, visibleRouteMarkers } from './route-markers'
+import { isTripMarker, markerEndpoint, visibleRouteMarkers } from './route-markers'
 import './RouteCalculatorModule.css'
 
 type Target = 'origin' | 'destination'
@@ -235,7 +235,7 @@ export default function RouteCalculatorModule() {
               <h2>標記資訊</h2>
               {selected ? <>
                 <p className="route-selected-place">{selected.name}<small>{selected.address}</small></p>
-                <p className="route-field-hint">來源：{personal.some((marker) => marker.googlePlaceId === selectedId) ? '本次選取／搜尋' : '行程'}{selectedId === originId ? ' · 出發點' : ''}{selectedId === destinationId ? ' · 目的地' : ''}</p>
+                <p className="route-field-hint">來源：{isTripMarker(selectedId, tripData) ? '原行程地點' : '後加地點（不在所選行程）'}{selectedId === originId ? ' · 出發點' : ''}{selectedId === destinationId ? ' · 目的地' : ''}</p>
                 <div className="route-marker-actions">
                   <button type="button" className="route-secondary" disabled={busy} onClick={() => assignMarker('origin', selected)}>設為出發點</button>
                   <button type="button" className="route-secondary" disabled={busy} onClick={() => assignMarker('destination', selected)}>設為目的地</button>
@@ -248,21 +248,24 @@ export default function RouteCalculatorModule() {
               {hasHiddenTripMarkers && <button type="button" className="route-secondary" disabled={busy} onClick={() => setHidden([])}>恢復已移除的行程標記</button>}
             </section>
           </section>
-          <RoutePreviewMap markers={markers} originId={originId} destinationId={destinationId} selectedId={selectedId} onSelect={selectMarker} picking={picking === 'origin' ? '出發點' : picking === 'destination' ? '目的地' : ''} disabled={busy} configured={configured} controls={
+          <RoutePreviewMap markers={markers} tripData={tripData} originId={originId} destinationId={destinationId} selectedId={selectedId} onSelect={selectMarker} picking={picking === 'origin' ? '出發點' : picking === 'destination' ? '目的地' : ''} disabled={busy} configured={configured} controls={
             <div className="route-trip-controls">
-              <label htmlFor="route-trip">載入行程標記</label>
+              <div className="route-trip-row">
+                <div className="route-trip-field">
+                  <label htmlFor="route-trip">載入行程標記</label>
               <SearchableSelect inputId="route-trip" label="載入行程標記" placeholder={tripsLoading ? '正在載入行程…' : '搜尋或選擇行程'} options={[{ id: '', name: '不載入行程' }, ...trips.map((trip) => ({ id: trip.id, name: trip.name }))]} value={tripId} onChange={(id) => void loadTrip(id)} disabled={busy || tripsLoading || resolving.origin || resolving.destination || !configured} />
-              {tripsError && <div className="route-inline-error" role="alert">{tripsError}<button type="button" onClick={() => setTripsAttempt((value) => value + 1)}>重試</button></div>}
-              {!tripsLoading && !tripsError && !trips.length && <p className="route-field-hint">尚無行程，仍可搜尋地點加入標記。</p>}
+                </div>
               {tripId && <label className="route-transport"><span>日期範圍</span><select value={date} disabled={busy || resolving.origin || resolving.destination} onChange={(event) => {
                 const next = event.target.value
                 if (reconcileMarkers(visibleRouteMarkers(personal, tripData, next, hidden))) { setDate(next); setPicking(null) }
               }}><option value="">全部日期</option>{tripData?.dates.map((day) => <option key={day} value={day}>{day}</option>)}</select></label>}
+              </div>
+              {tripsError && <div className="route-inline-error" role="alert">{tripsError}<button type="button" onClick={() => setTripsAttempt((value) => value + 1)}>重試</button></div>}
+              {!tripsLoading && !tripsError && !trips.length && <p className="route-field-hint">尚無行程，仍可搜尋地點加入標記。</p>}
               {tripLoading && <p className="route-field-hint" role="status">正在載入行程地點標記…</p>}
               {tripError && <p className="route-inline-error" role="alert">{tripError} 可重新選擇行程重試。</p>}
               {tripId && !tripData?.dates.length && <p className="route-field-hint">此行程尚未安排地點。</p>}
               {!!tripData?.unavailable.length && <details className="route-unavailable"><summary>{tripData.unavailable.length} 個地點無法顯示</summary><ul>{tripData.unavailable.map((message, index) => <li key={index}>{message}</li>)}</ul></details>}
-              <p className="route-field-hint">只載入已安排的地點；不顯示順序。同一地點合併為一個標記。切換行程保留本次搜尋與選取的地點。</p>
             </div>
           } />
         </div>
