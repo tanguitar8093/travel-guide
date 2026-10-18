@@ -32,6 +32,8 @@ const navigationItems: {
 ];
 
 function isDesktopPointer(): boolean {
+  if (window.navigator.maxTouchPoints > 0) return false;
+
   return window.matchMedia(
     "(min-width: 761px) and (hover: hover) and (pointer: fine)",
   ).matches;
@@ -94,6 +96,22 @@ export function WorkspaceLayout({
   }, [sidebarOpen]);
 
   useEffect(() => () => cancelScheduledClose(), []);
+
+  useEffect(() => {
+    function handleViewportChange() {
+      if (isDesktopPointer()) return;
+      cancelScheduledClose();
+      setSidebarPinned(false);
+      setSidebarHovered(false);
+    }
+
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("orientationchange", handleViewportChange);
+    return () => {
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("orientationchange", handleViewportChange);
+    };
+  }, []);
 
   useEffect(() => {
     function handlePointerMove(event: PointerEvent) {

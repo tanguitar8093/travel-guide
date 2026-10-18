@@ -188,6 +188,7 @@ function ItineraryModule() {
   const [mountedMapRegionId, setMountedMapRegionId] = useState<string>();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapHandleRef = useRef<GoogleMapHandle | undefined>(undefined);
+  const mapMarkersFittedRef = useRef(false);
   const workspaceRef = useRef<HTMLElement>(null);
   const focusModeTriggerRef = useRef<HTMLButtonElement>(null);
   const focusModeCloseRef = useRef<HTMLButtonElement>(null);
@@ -569,6 +570,7 @@ function ItineraryModule() {
         }
         handle = mapHandle;
         mapHandleRef.current = mapHandle;
+        mapMarkersFittedRef.current = false;
         setMountedMapRegionId(visibleMapData.regionId);
       })
       .catch((cause: unknown) => {
@@ -588,7 +590,9 @@ function ItineraryModule() {
 
   useEffect(() => {
     if (mountedMapRegionId === visibleMapData?.regionId) {
-      mapHandleRef.current?.setMarkers(googleMapMarkers);
+      const fitBounds = !mapMarkersFittedRef.current && googleMapMarkers.length > 0;
+      mapHandleRef.current?.setMarkers(googleMapMarkers, { fitBounds });
+      if (fitBounds) mapMarkersFittedRef.current = true;
     }
   }, [googleMapMarkers, mountedMapRegionId, visibleMapData?.regionId]);
 
