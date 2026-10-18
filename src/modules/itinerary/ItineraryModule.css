@@ -164,6 +164,7 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .itinerary-map-heading > div span { color: #89968c; font-size: 8px; }
 .itinerary-map-heading > div strong { color: #4f5d52; font-size: 11px; font-weight: 600; }
 .itinerary-map-place-count { color: #859188; font-size: 9px; }
+.itinerary-map-actions { display: flex; align-items: center; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }
 .itinerary-map-canvas { min-height: 0; flex: 1; position: relative; overflow: hidden; }
 .itinerary-google-map { position: absolute; inset: 0; }
 .itinerary-map-overlay { position: absolute; inset: 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 24px; color: #718078; background: rgba(240,246,241,.92); text-align: center; }

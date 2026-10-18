@@ -1787,11 +1787,32 @@ function ItineraryModule() {
                 <span>旅行範圍</span>
                 <strong>{selectedRegion?.name ?? "尚未選擇區域"}</strong>
               </div>
-              {selectedRegion && (
-                <span className="itinerary-map-place-count">
-                  {tripPlaces.length} 個收藏地點
-                </span>
-              )}
+              <span className="itinerary-map-actions">
+                {selectedRegion && (
+                  <span className="itinerary-map-place-count">
+                    {tripPlaces.length} 個收藏地點
+                  </span>
+                )}
+                <button
+                  type="button"
+                  className="itinerary-secondary"
+                  title="將地圖調整為顯示全部標記"
+                  disabled={
+                    !visibleMapData ||
+                    Boolean(visibleMapError) ||
+                    mountedMapRegionId !== selectedRegionId ||
+                    !mapHandleRef.current ||
+                    !googleMapMarkers.length
+                  }
+                  onClick={() =>
+                    mapHandleRef.current?.setMarkers(googleMapMarkers, {
+                      fitBounds: true,
+                    })
+                  }
+                >
+                  預設顯示
+                </button>
+              </span>
             </div>
             <div className="itinerary-map-canvas">
               <div className="itinerary-google-map" ref={mapContainerRef} />

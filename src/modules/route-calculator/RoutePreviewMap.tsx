@@ -70,7 +70,7 @@ export function RoutePreviewMap({
   return (
     <section className="route-calculator-map" aria-label="路程試算地圖">
       <header className="route-panel-heading">
-        <div className="route-map-title"><h2>地圖預覽</h2><div className="route-map-actions">{actions}<button type="button" className="route-secondary route-map-action-button" disabled={!ready || !markers.length} onClick={() => setFit((value) => value + 1)}>顯示全部標記</button></div></div>
+        <div className="route-map-title"><h2>地圖預覽</h2><div className="route-map-actions">{actions}<button type="button" className="route-secondary route-map-action-button" disabled={!ready || !markers.length} onClick={() => setFit((value) => value + 1)}>預設顯示</button></div></div>
       </header>
       <div className="route-map-body">
         <div className="route-map-canvas" ref={container} />
