@@ -38,13 +38,14 @@ export function startLayoutDebug(
   function capture(reason: string) {
     const viewport = window.visualViewport
     const root = document.documentElement
-    const requestedWidth = root.dataset.screenViewportWidth
     samples.push([
       `[${round((Date.now() - startedAt) / 1000)} 秒／${reason}]`,
       `螢幕 ${window.screen.width}×${window.screen.height}；inner ${window.innerWidth}×${window.innerHeight}；client ${root.clientWidth}×${root.clientHeight}；scroll ${root.scrollWidth}×${root.scrollHeight}`,
       `可視 ${viewport ? `${round(viewport.width)}×${round(viewport.height)}，縮放 ${round(viewport.scale)}` : '瀏覽器不支援'}；${orientation()}；頁面${document.visibilityState === 'visible' ? '前景' : '非前景'}`,
       `側欄 ${sidebarLayout()}；內容 ${contentLayout()}`,
-      `螢幕寬度修正：${requestedWidth ? `已請求 ${requestedWidth}px；${Math.abs(root.clientWidth - Number(requestedWidth)) <= 2 ? '實際版面寬度已符合' : '實際版面仍不符，瀏覽器可能尚未套用或拒絕 viewport 設定'}` : '未觸發'}`,
+      ...(window.screen.width > 0 && root.clientWidth > window.screen.width * 1.25
+        ? ['版面寬度明顯大於螢幕：請檢查瀏覽器「電腦版網站」或縮放設定；此提示不會強制修改版型。']
+        : []),
     ].join('\n'))
   }
 
@@ -88,7 +89,7 @@ export function startLayoutDebug(
     capture('5 秒取樣')
     stopListening()
     window.alert([
-      '管理員版型 DEBUG v3（螢幕寬度修正／0／2／5 秒觀察）',
+      '管理員版型 DEBUG v4（標準 RWD／0／2／5 秒觀察）',
       `頁面：${section} ${window.location.origin}${window.location.pathname}`,
       '所有尺寸單位：CSS px；時間為實際經過秒數。',
       '開始觀察是管理員設定載入後的頁面掛載時間，不是 HTML 開始下載時間。',
@@ -103,7 +104,7 @@ export function startLayoutDebug(
       `最後媒體查詢：${widths.map((width) => `≤ ${width}px: ${matchesWidth(width) ? '符合' : '不符合'}`).join('；')}`,
       `瀏覽器：${window.navigator.userAgent}`,
       '版型名稱依媒體查詢判定，不代表已驗證所有元素排版正常。',
-      'DEBUG 本身只觀察；響應式初始化會修正觸控小螢幕的異常 viewport，不變更地圖縮放設定。',
+      '依瀏覽器 viewport 與 CSS 媒體查詢切版；不覆寫 viewport、不依螢幕尺寸強制切版、不變更地圖縮放設定。',
     ].join('\n'))
   }, 5000)
 

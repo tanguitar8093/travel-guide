@@ -201,7 +201,7 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
   .itinerary-item-row { grid-template-columns: 30px minmax(0,1fr); }
   .itinerary-item-actions { grid-column: 2; justify-content: end; }
 }
-@media (max-width: 760px) {
+@media (max-width: 680px) {
   .itinerary-content { padding: 19px 9px 10px; }
   .itinerary-heading { align-items: start; flex-direction: column; gap: 12px; }
   .itinerary-heading h1 { font-size: 22px; }
