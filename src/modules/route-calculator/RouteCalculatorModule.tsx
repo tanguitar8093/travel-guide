@@ -5,8 +5,6 @@ import type { Place, RouteMapChanges, Trip } from '../../database'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { SearchableSelect } from '../../common/SearchableSelect'
 import { formatTravelDistance, transportOptions } from '../../common/route-estimate'
-import { RouterLink } from '../../router'
-import { routes } from '../../routes'
 import { RouteCalculatorController } from './route-calculator.controller'
 import type { RouteCalculationResult, RouteEndpoint, RouteMapPlace, TripMapData } from './route-calculator.service'
 import { RouteEndpointField } from './RouteEndpointField'
@@ -439,7 +437,6 @@ export default function RouteCalculatorModule() {
       <div className="route-calculator-content">
         <header className="route-calculator-heading">
           <div><h1>路程試算</h1><p>使用已存地點或 Google 搜尋；也可點選地圖圖釘，在標記資訊中指定起終點。</p></div>
-          <RouterLink className="route-secondary" to={routes.itinerary}>返回行程</RouterLink>
         </header>
         <div className="route-calculator-workspace">
           <section className="route-calculator-panel" aria-label="路程試算設定與結果">
