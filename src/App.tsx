@@ -4,12 +4,17 @@ import { PlaceModule } from './modules/place'
 import { RegionModule } from './modules/region'
 import { ItineraryModule } from './modules/itinerary'
 import { DataManagementModule } from './modules/data-management'
+import { RouteCalculatorModule } from './modules/route-calculator'
 import { routes } from './routes'
 import { usePathname } from './usePathname'
 import { useDatabaseMode } from './database/useDatabaseMode'
 
 function RoutedApp() {
   const pathname = usePathname().replace(/\/+$/, '') || '/'
+
+  if (pathname === routes.routeCalculator) {
+    return <RouteCalculatorModule />
+  }
 
   if (pathname === routes.labels) {
     return <LabelModule />

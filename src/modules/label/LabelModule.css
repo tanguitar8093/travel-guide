@@ -230,7 +230,7 @@ button:disabled {
   margin: 12px 20px 18px;
 }
 
-.preview-assign-form .label-searchable-select input {
+.preview-assign-form .searchable-select input {
   height: 38px;
   font-size: 11px;
 }
@@ -996,86 +996,6 @@ kbd {
   grid-column: 1 / -1;
 }
 
-.label-searchable-select input {
-  min-width: 0;
-  height: 35px;
-  padding: 0 9px;
-  border: 1px solid #e7ebe7;
-  border-radius: 5px;
-  color: #626d65;
-  background: #fff;
-  font: inherit;
-}
-
-.label-searchable-select input {
-  width: 100%;
-  box-sizing: border-box;
-  outline-color: #9eb5a3;
-}
-
-.label-searchable-select {
-  position: relative;
-  min-width: 0;
-}
-
-.label-searchable-select:focus-within {
-  z-index: 10;
-}
-
-.label-searchable-select ul {
-  position: absolute;
-  z-index: 10;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
-  max-height: 220px;
-  overflow-y: auto;
-  margin: 0;
-  padding: 4px;
-  border: 1px solid #e1e8e2;
-  border-radius: 6px;
-  background: #fff;
-  box-shadow: 0 8px 20px rgba(40, 55, 43, .12);
-  list-style: none;
-}
-
-.label-searchable-select [role="option"] {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 8px 10px;
-  border-radius: 4px;
-  color: #626d65;
-  font-size: 11px;
-  cursor: pointer;
-}
-
-.label-searchable-select [role="option"] > span:first-of-type {
-  min-width: 0;
-  flex: 1;
-  overflow-wrap: anywhere;
-}
-
-.label-searchable-select [role="option"]:hover,
-.label-searchable-select [role="option"].active,
-.label-searchable-select [aria-selected="true"] {
-  color: #456c50;
-  background: #f1f6f1;
-}
-
-.label-searchable-color {
-  width: 8px;
-  height: 8px;
-  flex: 0 0 auto;
-  border-radius: 50%;
-}
-
-.label-searchable-empty {
-  padding: 8px 10px;
-  color: #929c94;
-  font-size: 11px;
-}
-
 .save-button,
 .cancel-button,
 .assign-button {
@@ -1106,7 +1026,7 @@ kbd {
   margin: 13px 0 8px;
 }
 
-.assign-place-form .label-searchable-select {
+.assign-place-form .searchable-select {
   flex: 1;
   font-size: 10px;
 }
@@ -1277,7 +1197,7 @@ kbd {
     margin-inline: 15px;
   }
 
-  .preview-assign-form .label-searchable-select input,
+  .preview-assign-form .searchable-select input,
   .preview-assign-form .assign-button {
     min-height: 38px;
     width: 100%;

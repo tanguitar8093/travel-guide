@@ -1,3 +1,5 @@
+import './google-map.css'
+
 export interface GooglePlaceDetails {
   id: string
   displayName?: string
@@ -28,7 +30,7 @@ export interface GoogleMapMarkerData {
 }
 
 export interface GoogleMapHandle {
-  setMarkers(markers: GoogleMapMarkerData[]): void
+  setMarkers(markers: GoogleMapMarkerData[], options?: { fitBounds?: boolean }): void
   destroy(): void
 }
 
@@ -85,7 +87,15 @@ interface GoogleRoutesLibrary {
 }
 
 interface GoogleMapInstance {
-  fitBounds(bounds: GoogleMapViewport): void
+  fitBounds(bounds: GoogleMapViewport | GoogleMapBounds, padding?: number): void
+}
+
+interface GoogleMapBounds {
+  extend(position: GoogleMapPosition): GoogleMapBounds
+}
+
+interface GoogleCoreLibrary {
+  LatLngBounds: new () => GoogleMapBounds
 }
 
 interface GoogleMapsLibrary {
@@ -98,6 +108,7 @@ interface GoogleMapsLibrary {
       mapTypeControl: boolean
       streetViewControl: boolean
       fullscreenControl: boolean
+      maxZoom?: number
     },
   ) => GoogleMapInstance
 }
@@ -119,6 +130,7 @@ interface GoogleMarkerLibrary {
 }
 
 interface GoogleLibraryImporter {
+  (library: 'core'): Promise<GoogleCoreLibrary>
   (library: 'places'): Promise<GooglePlacesLibrary>
   (library: 'maps'): Promise<GoogleMapsLibrary>
   (library: 'marker'): Promise<GoogleMarkerLibrary>
@@ -223,33 +235,47 @@ export async function mountPlaceAutocomplete(
   container: HTMLElement,
   onSelect: (details: GooglePlaceDetails, query: string) => void,
   onError: (error: Error) => void,
+  options: { label?: string; onInput?: () => void } = {},
 ): Promise<() => void> {
   const library = await loadPlacesLibrary()
   const autocomplete = new library.PlaceAutocompleteElement({
     placeholder: '輸入地址、店名或景點名稱',
   })
-  autocomplete.setAttribute('aria-label', '搜尋 Google Maps 地點')
+  autocomplete.setAttribute('aria-label', options.label ?? '搜尋 Google Maps 地點')
+  let active = true
+  let selection = 0
+  const handleInput = () => {
+    selection += 1
+    options.onInput?.()
+  }
 
   const handleSelect = async (rawEvent: Event) => {
     const prediction = (rawEvent as PlaceSelectEvent).placePrediction
     if (!prediction) return
 
     const query = autocomplete.value.trim()
+    const currentSelection = ++selection
+    options.onInput?.()
     try {
       const place = prediction.toPlace()
       await place.fetchFields({
         fields: ['id', 'displayName', 'formattedAddress', 'location', 'viewport', 'googleMapsURI'],
       })
-      onSelect(toDetails(place), query)
+      if (active && selection === currentSelection) onSelect(toDetails(place), query)
     } catch (cause) {
-      onError(cause instanceof Error ? cause : new Error('讀取 Google 地點資料失敗。'))
+      if (active && selection === currentSelection) {
+        onError(cause instanceof Error ? cause : new Error('讀取 Google 地點資料失敗。'))
+      }
     }
   }
 
   autocomplete.addEventListener('gmp-select', handleSelect)
+  autocomplete.addEventListener('input', handleInput)
   container.replaceChildren(autocomplete)
   return () => {
+    active = false
     autocomplete.removeEventListener('gmp-select', handleSelect)
+    autocomplete.removeEventListener('input', handleInput)
     autocomplete.remove()
   }
 }
@@ -312,6 +338,7 @@ export async function mountGoogleMap(
     center: GoogleMapPosition
     zoom: number
     viewport?: GoogleMapViewport
+    maxZoom?: number
   },
 ): Promise<GoogleMapHandle> {
   await loadPlacesLibrary()
@@ -321,9 +348,10 @@ export async function mountGoogleMap(
     throw new Error('Google Maps JavaScript API 已載入，但 Maps Library 無法使用。')
   }
 
-  const [mapsLibrary, markerLibrary] = await Promise.all([
+  const [mapsLibrary, markerLibrary, coreLibrary] = await Promise.all([
     importLibrary('maps'),
     importLibrary('marker'),
+    importLibrary('core'),
   ])
   const map = new mapsLibrary.Map(container, {
     center: options.center,
@@ -332,6 +360,7 @@ export async function mountGoogleMap(
     mapTypeControl: false,
     streetViewControl: false,
     fullscreenControl: true,
+    ...(options.maxZoom !== undefined ? { maxZoom: options.maxZoom } : {}),
   })
   if (options.viewport) map.fitBounds(options.viewport)
 
@@ -341,7 +370,7 @@ export async function mountGoogleMap(
   >()
 
   return {
-    setMarkers(markers) {
+    setMarkers(markers, options) {
       for (const { marker, clickHandler } of mountedMarkers.values()) {
         if (clickHandler) marker.removeEventListener('gmp-click', clickHandler)
         marker.map = null
@@ -351,8 +380,8 @@ export async function mountGoogleMap(
       for (const markerData of markers) {
         const content = document.createElement('div')
         content.className = markerData.sequence === undefined
-          ? 'itinerary-map-marker'
-          : 'itinerary-map-marker itinerary-map-marker-numbered'
+          ? 'google-map-marker'
+          : 'google-map-marker google-map-marker-numbered'
         content.textContent = markerData.sequence === undefined
           ? ''
           : String(markerData.sequence)
@@ -366,6 +395,11 @@ export async function mountGoogleMap(
         })
         if (clickHandler) marker.addEventListener('gmp-click', clickHandler)
         mountedMarkers.set(markerData.id, { marker, clickHandler })
+      }
+      if (options?.fitBounds && markers.length) {
+        const bounds = new coreLibrary.LatLngBounds()
+        for (const marker of markers) bounds.extend(marker.position)
+        map.fitBounds(bounds, 50)
       }
     },
     destroy() {

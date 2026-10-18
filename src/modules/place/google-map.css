@@ -1,0 +1,19 @@
+.google-map-marker {
+  width: 13px;
+  height: 13px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: #6d91ad;
+  box-shadow: 0 1px 5px rgba(34, 54, 40, .4);
+}
+
+.google-map-marker-numbered {
+  width: 25px;
+  height: 25px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: #648a74;
+  box-shadow: 0 2px 7px rgba(34, 54, 40, .35);
+  font: 600 10px Inter, sans-serif;
+}

@@ -127,6 +127,24 @@ parallel framework.
   reference validation, and atomic replacement in the database/operation
   layers; never clear live data until the complete backup is validated, and
   require explicit confirmation in the UI before replacing it.
+- `src/modules/route-calculator/` is the transient two-point route tool at
+  `/route-calculator`, named "路程試算", linked beside the itinerary add-place
+  action and in shared navigation. Each endpoint independently uses a saved
+  place or Google Places search. Saved choices come from the existing database
+  facade in every mode; custom-map-URL-only places cannot be routed by place ID.
+  Input, provider details, coordinates, results and errors stay in component
+  memory only; do not create records, outbox tasks, browser storage or SQL for
+  this tool. Resolve endpoints and estimate the route through its service and
+  thin controller. Show numbered endpoint markers and Google route estimates,
+  not a promise of live traffic or guaranteed arrival.
+- Reuse `src/common/SearchableSelect.tsx` for single searchable data choices:
+  blank query lists all options, typing filters names, keyboard selection is
+  supported, and disabled choices must explain why. The label and itinerary
+  forms and route tool share this control. Multi-select remains separate.
+  Share transport choices, validation and distance formatting through
+  `src/common/route-estimate.ts`. Reuse the existing Google adapter for
+  autocomplete, route estimates and maps; opt into marker bounds fitting rather
+  than changing the itinerary map's default viewport.
 - `src/database/models.ts` already defines `Region`, `Trip`, and
   `ItineraryItem`. Existing trip/item repositories and validation are in
   `src/database/repositories.ts` and `src/database/validation.ts`; inspect and

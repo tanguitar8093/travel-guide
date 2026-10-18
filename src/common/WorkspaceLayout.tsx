@@ -7,7 +7,7 @@ import "./WorkspaceLayout.css";
 import { HybridStatus } from './HybridStatus';
 import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 
-type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "data";
+type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "route-calculator" | "data";
 
 interface WorkspaceLayoutProps {
   active: WorkspaceSection;
@@ -27,6 +27,7 @@ const navigationItems: {
   { id: "places", label: "地點", icon: "⌖", path: routes.places },
   { id: "labels", label: "標籤", icon: "◈", path: routes.labels },
   { id: "itinerary", label: "行程", icon: "▤", path: routes.itinerary },
+  { id: "route-calculator", label: "路程試算", icon: "↔", path: routes.routeCalculator },
   { id: "data", label: "資料", icon: "⇅", path: routes.dataManagement },
 ];
 

@@ -10,7 +10,8 @@ import type {
   TripChanges,
 } from '../../database'
 import { getGoogleRouteEstimate } from '../place/google-places.service'
-import type { GoogleRouteEstimate, GoogleTravelMode } from '../place/google-places.service'
+import type { GoogleRouteEstimate } from '../place/google-places.service'
+import { isGoogleTravelMode } from '../../common/route-estimate'
 import { ItineraryMapService } from './itinerary-map.service'
 
 export interface ItineraryWorkspace {
@@ -20,19 +21,6 @@ export interface ItineraryWorkspace {
 }
 
 export type NewScheduledItem = Omit<NewItineraryItem, 'order'>
-
-const googleTravelModes: GoogleTravelMode[] = [
-  'DRIVING',
-  'TRANSIT',
-  'WALKING',
-  'BICYCLING',
-  'TWO_WHEELER',
-]
-const supportedTravelModes: ReadonlySet<string> = new Set(googleTravelModes)
-
-function isGoogleTravelMode(value: string): value is GoogleTravelMode {
-  return supportedTravelModes.has(value)
-}
 
 export class ItineraryService {
   private readonly mapService: ItineraryMapService

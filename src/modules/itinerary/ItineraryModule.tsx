@@ -21,18 +21,14 @@ import type {
 import { itineraryController } from "./itinerary.controller";
 import type { ItineraryMapData } from "./itinerary-map.service";
 import "./ItineraryModule.css";
+import { SearchableSelect } from "../../common/SearchableSelect";
+import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
 
 interface TripDraft {
   name: string;
   regionId: string;
   startDate: string;
   endDate: string;
-}
-
-function formatTravelDistance(meters: number): string {
-  return meters < 1000
-    ? `${meters} 公尺`
-    : `${new Intl.NumberFormat("zh-TW", { maximumFractionDigits: 1 }).format(meters / 1000)} 公里`;
 }
 
 interface ItemDraft {
@@ -43,14 +39,6 @@ interface ItemDraft {
   transport: string;
   note: string;
 }
-
-const transportOptions = [
-  { value: "DRIVING", label: "開車" },
-  { value: "TRANSIT", label: "大眾運輸" },
-  { value: "WALKING", label: "步行" },
-  { value: "BICYCLING", label: "單車" },
-  { value: "TWO_WHEELER", label: "機車／二輪車" },
-];
 
 const emptyTripDraft: TripDraft = {
   name: "",
@@ -178,9 +166,6 @@ function ItineraryModule() {
   );
   const [editingItemId, setEditingItemId] = useState<string>();
   const [addingItem, setAddingItem] = useState(false);
-  const [placeSearchQuery, setPlaceSearchQuery] = useState("");
-  const [placePickerOpen, setPlacePickerOpen] = useState(false);
-  const [activePlaceOptionIndex, setActivePlaceOptionIndex] = useState(-1);
   const [loading, setLoading] = useState(true);
   const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
   const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
@@ -287,13 +272,6 @@ function ItineraryModule() {
       ),
     [places, selectedTrip],
   );
-  const filteredTripPlaces = useMemo(() => {
-    const query = placeSearchQuery.trim().toLocaleLowerCase();
-    if (!query) return tripPlaces;
-    return tripPlaces.filter((place) =>
-      place.name.toLocaleLowerCase().includes(query),
-    );
-  }, [placeSearchQuery, tripPlaces]);
   const dayNumber =
     selectedTrip && selectedDate
       ? Math.floor(
@@ -313,17 +291,12 @@ function ItineraryModule() {
   const startEditItem = useCallback(
     (item: ItineraryItem) => {
       setItemDraft(toItemDraft(item));
-      setPlaceSearchQuery(
-        places.find((place) => place.id === item.placeId)?.name ?? "",
-      );
-      setPlacePickerOpen(false);
-      setActivePlaceOptionIndex(-1);
       setEditingItemId(item.id);
       setAddingItem(false);
       setError("");
       setNotice("");
     },
-    [places],
+    [],
   );
   const scheduledPlaceSequence = useMemo(() => {
     const sequence = new Map<string, number>();
@@ -719,9 +692,6 @@ function ItineraryModule() {
       transport: "",
       note: "",
     });
-    setPlaceSearchQuery("");
-    setPlacePickerOpen(false);
-    setActivePlaceOptionIndex(-1);
     setAddingItem(true);
     setEditingItemId(undefined);
     setEditingTrip(false);
@@ -732,17 +702,6 @@ function ItineraryModule() {
   function cancelItemEdit() {
     setAddingItem(false);
     setEditingItemId(undefined);
-    setPlaceSearchQuery("");
-    setPlacePickerOpen(false);
-    setActivePlaceOptionIndex(-1);
-    setError("");
-  }
-
-  function selectItemPlace(place: Place) {
-    setItemDraft((current) => ({ ...current, placeId: place.id }));
-    setPlaceSearchQuery(place.name);
-    setPlacePickerOpen(false);
-    setActivePlaceOptionIndex(-1);
     setError("");
   }
 
@@ -752,7 +711,6 @@ function ItineraryModule() {
     if (!itemDraft.placeId) {
       setError("請從搜尋結果中選擇地點。");
       placePickerInputRef.current?.focus();
-      setPlacePickerOpen(true);
       return;
     }
     setSaving(true);
@@ -802,9 +760,6 @@ function ItineraryModule() {
       setSelectedDate(itemDraft.date);
       setAddingItem(false);
       setEditingItemId(undefined);
-      setPlaceSearchQuery("");
-      setPlacePickerOpen(false);
-      setActivePlaceOptionIndex(-1);
       setNotice(editingItemId ? "行程項目已更新。" : "地點已加入每日行程。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "儲存行程項目失敗。");
@@ -1286,86 +1241,24 @@ function ItineraryModule() {
                             </label>
                             <div className="itinerary-place-picker">
                               <div className="itinerary-place-picker-row">
-                                <input
-                                  ref={placePickerInputRef}
-                                  id="itinerary-place-search"
-                                  type="text"
-                                  role="combobox"
-                                  aria-autocomplete="list"
-                                  aria-expanded={placePickerOpen}
-                                  aria-controls="itinerary-place-options"
-                                  aria-activedescendant={
-                                    activePlaceOptionIndex >= 0
-                                      ? `itinerary-place-option-${activePlaceOptionIndex}`
-                                      : undefined
-                                  }
-                                  aria-required="true"
-                                  autoComplete="off"
-                                  value={placeSearchQuery}
+                                <SearchableSelect
+                                  key={editingItemId ?? "new-item"}
+                                  inputRef={placePickerInputRef}
+                                  inputId="itinerary-place-search"
+                                  label="地點"
+                                  ariaRequired
                                   placeholder="搜尋或選擇地點"
+                                  options={tripPlaces}
+                                  value={itemDraft.placeId}
                                   disabled={saving}
-                                  onFocus={() => {
-                                    if (itemDraft.placeId) {
-                                      setPlaceSearchQuery("");
-                                    }
-                                    setPlacePickerOpen(true);
-                                    setActivePlaceOptionIndex(-1);
-                                  }}
-                                  onBlur={() => {
-                                    setPlacePickerOpen(false);
-                                    if (itemDraft.placeId && !placeSearchQuery) {
-                                      setPlaceSearchQuery(
-                                        places.find(
-                                          (place) =>
-                                            place.id === itemDraft.placeId,
-                                        )?.name ?? "",
-                                      );
-                                    }
-                                  }}
-                                  onChange={(event) => {
-                                    setPlaceSearchQuery(event.target.value);
-                                    setItemDraft((current) => ({
-                                      ...current,
-                                      placeId: "",
-                                    }));
-                                    setPlacePickerOpen(true);
-                                    setActivePlaceOptionIndex(-1);
+                                  autoFocus
+                                  onChange={(placeId) => {
+                                    setItemDraft((current) => ({ ...current, placeId }));
                                     setError("");
                                   }}
-                                  onKeyDown={(event) => {
-                                    if (event.key === "ArrowDown") {
-                                      event.preventDefault();
-                                      setPlacePickerOpen(true);
-                                      setActivePlaceOptionIndex((current) =>
-                                        Math.min(
-                                          current + 1,
-                                          filteredTripPlaces.length - 1,
-                                        ),
-                                      );
-                                    } else if (event.key === "ArrowUp") {
-                                      event.preventDefault();
-                                      setPlacePickerOpen(true);
-                                      setActivePlaceOptionIndex((current) =>
-                                        Math.min(
-                                          Math.max(current - 1, 0),
-                                          filteredTripPlaces.length - 1,
-                                        ),
-                                      );
-                                    } else if (
-                                      event.key === "Enter" &&
-                                      placePickerOpen &&
-                                      filteredTripPlaces[activePlaceOptionIndex]
-                                    ) {
-                                      event.preventDefault();
-                                      selectItemPlace(
-                                        filteredTripPlaces[
-                                          activePlaceOptionIndex
-                                        ],
-                                      );
-                                    } else if (event.key === "Escape") {
-                                      setPlacePickerOpen(false);
-                                      setActivePlaceOptionIndex(-1);
-                                    }
+                                  onQueryChange={() => {
+                                    setItemDraft((current) => ({ ...current, placeId: "" }));
+                                    setError("");
                                   }}
                                 />
                                 <a
@@ -1380,47 +1273,6 @@ function ItineraryModule() {
                                   新增地點
                                 </a>
                               </div>
-                              {placePickerOpen && (
-                                <ul
-                                  id="itinerary-place-options"
-                                  className="itinerary-place-options"
-                                  role="listbox"
-                                >
-                                  {filteredTripPlaces.length ? (
-                                    filteredTripPlaces.map((place, index) => (
-                                      <li
-                                        id={`itinerary-place-option-${index}`}
-                                        key={place.id}
-                                        role="option"
-                                        aria-selected={
-                                          itemDraft.placeId === place.id
-                                        }
-                                        className={
-                                          activePlaceOptionIndex === index
-                                            ? "active"
-                                            : ""
-                                        }
-                                        onMouseDown={(event) =>
-                                          event.preventDefault()
-                                        }
-                                        onMouseEnter={() =>
-                                          setActivePlaceOptionIndex(index)
-                                        }
-                                        onClick={() => selectItemPlace(place)}
-                                      >
-                                        {place.name}
-                                      </li>
-                                    ))
-                                  ) : (
-                                    <li
-                                      className="itinerary-place-no-results"
-                                      role="presentation"
-                                    >
-                                      找不到符合的地點
-                                    </li>
-                                  )}
-                                </ul>
-                              )}
                             </div>
                           </div>
                           <label className="itinerary-field">
@@ -1616,6 +1468,19 @@ function ItineraryModule() {
                     >
                       ＋ 加入地點
                     </button>
+                    <RouterLink
+                      className="itinerary-secondary itinerary-link-button"
+                      to={routes.routeCalculator}
+                      aria-disabled={interactionBusy || undefined}
+                      onClick={(event) => {
+                        if (interactionBusy || (hasPendingDayReorder &&
+                            !window.confirm("尚有未儲存的排序，離開會放棄排序變更。確定前往路程試算？"))) {
+                          event.preventDefault();
+                        }
+                      }}
+                    >
+                      路程試算
+                    </RouterLink>
                   </div>
                 </div>
                 <div className="itinerary-items-scroll">

@@ -1,10 +1,11 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
 import "./LabelModule.css";
+import { SearchableSelect } from "../../common/SearchableSelect";
 import { useBulkDelete } from '../../common/useBulkDelete';
 import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar';
 import type { BulkOperationResult } from '../../common/bulk-operation';
@@ -45,137 +46,6 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
     }
     return matches;
   }, []);
-}
-
-interface SearchableOption {
-  id: string;
-  name: string;
-  color?: string;
-  depth?: number;
-}
-
-function SearchableSelect({
-  label,
-  placeholder,
-  options,
-  value,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  placeholder: string;
-  options: SearchableOption[];
-  value: string;
-  onChange: (value: string) => void;
-  disabled: boolean;
-}) {
-  const id = useId();
-  const [query, setQuery] = useState("");
-  const [open, setOpen] = useState(false);
-  const [activeIndex, setActiveIndex] = useState(-1);
-  const selected = options.find((option) => option.id === value);
-  const normalizedQuery = query.trim().toLocaleLowerCase();
-  const filtered = options.filter((option) =>
-    option.name.toLocaleLowerCase().includes(normalizedQuery),
-  );
-  const expanded = open && !disabled;
-
-  function select(option: SearchableOption) {
-    onChange(option.id);
-    setOpen(false);
-    setQuery("");
-    setActiveIndex(-1);
-  }
-
-  return (
-    <div className="label-searchable-select">
-      <input
-        type="text"
-        role="combobox"
-        aria-label={label}
-        aria-autocomplete="list"
-        aria-expanded={expanded}
-        aria-controls={`${id}-options`}
-        aria-activedescendant={
-          expanded && filtered[activeIndex]
-            ? `${id}-option-${activeIndex}`
-            : undefined
-        }
-        autoComplete="off"
-        placeholder={placeholder}
-        disabled={disabled}
-        value={expanded ? query : (selected?.name ?? "")}
-        onFocus={() => {
-          setQuery("");
-          setOpen(true);
-          setActiveIndex(-1);
-        }}
-        onBlur={() => {
-          setOpen(false);
-          setQuery("");
-          setActiveIndex(-1);
-        }}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setOpen(true);
-          setActiveIndex(-1);
-        }}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-            event.preventDefault();
-            setOpen(true);
-            setActiveIndex((current) =>
-              Math.min(
-                Math.max(current + (event.key === "ArrowDown" ? 1 : -1), 0),
-                filtered.length - 1,
-              ),
-            );
-          } else if (event.key === "Enter" && expanded) {
-            event.preventDefault();
-            if (filtered[activeIndex]) select(filtered[activeIndex]);
-          } else if (event.key === "Escape" && expanded) {
-            event.preventDefault();
-            setOpen(false);
-            setQuery("");
-            setActiveIndex(-1);
-          }
-        }}
-      />
-      {expanded && (
-        <ul id={`${id}-options`} role="listbox" aria-label={label}>
-          {filtered.length ? (
-            filtered.map((option, index) => (
-              <li
-                id={`${id}-option-${index}`}
-                key={option.id}
-                role="option"
-                aria-selected={option.id === value}
-                className={activeIndex === index ? "active" : ""}
-                style={{ paddingInlineStart: 10 + (option.depth ?? 0) * 12 }}
-                onMouseDown={(event) => event.preventDefault()}
-                onMouseEnter={() => setActiveIndex(index)}
-                onClick={() => select(option)}
-              >
-                {option.color && (
-                  <i
-                    className="label-searchable-color"
-                    style={{ backgroundColor: option.color }}
-                    aria-hidden="true"
-                  />
-                )}
-                <span>{option.name}</span>
-                {option.id === value && <span aria-hidden="true">✓</span>}
-              </li>
-            ))
-          ) : (
-            <li className="label-searchable-empty" role="presentation">
-              找不到符合的選項
-            </li>
-          )}
-        </ul>
-      )}
-    </div>
-  );
 }
 
 function LabelModule() {

@@ -1,0 +1,91 @@
+.searchable-select input {
+  min-width: 0;
+  height: 35px;
+  padding: 0 9px;
+  border: 1px solid #e7ebe7;
+  border-radius: 5px;
+  color: #626d65;
+  background: #fff;
+  font: inherit;
+}
+
+.searchable-select input {
+  width: 100%;
+  box-sizing: border-box;
+  outline-color: #9eb5a3;
+}
+
+.searchable-select {
+  position: relative;
+  min-width: 0;
+}
+
+.searchable-select:focus-within {
+  z-index: 10;
+}
+
+.searchable-select ul {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  right: 0;
+  left: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 4px;
+  border: 1px solid #e1e8e2;
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(40, 55, 43, .12);
+  list-style: none;
+}
+
+.searchable-select [role="option"] {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  color: #626d65;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.searchable-select [role="option"] > span:first-of-type {
+  min-width: 0;
+  flex: 1;
+  overflow-wrap: anywhere;
+}
+
+.searchable-select [role="option"]:hover,
+.searchable-select [role="option"].active,
+.searchable-select [aria-selected="true"] {
+  color: #456c50;
+  background: #f1f6f1;
+}
+
+.searchable-color {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+
+.searchable-empty {
+  padding: 8px 10px;
+  color: #929c94;
+  font-size: 11px;
+}
+
+.searchable-select [aria-disabled="true"] {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.searchable-select [role="option"] small {
+  display: block;
+  margin-top: 3px;
+  font-size: 10px;
+  line-height: 1.5;
+}
