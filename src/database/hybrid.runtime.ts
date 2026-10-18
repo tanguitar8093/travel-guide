@@ -1,7 +1,7 @@
 import { liveQuery } from 'dexie'
 import { ValidationError } from './errors'
 import { LocalSyncStore } from './local-sync.store'
-import { readSyncModePreference } from './sync-mode-preference'
+import { readEffectiveSyncMode as readSyncModePreference } from './mode-access'
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
 import { syncHybridManually } from './sync-engine'

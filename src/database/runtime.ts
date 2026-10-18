@@ -10,6 +10,7 @@ import {
 } from './sync-mode-preference'
 import { getHybridStatus, scheduleHybridAutoSync, stopHybridAutoSync } from './hybrid.runtime'
 import { ValidationError } from './errors'
+import { canDebugDatabaseModes, readEffectiveSyncMode, subscribeDatabaseModeRole } from './mode-access'
 
 export type { DatabaseMode } from './database-mode-preference'
 export type { SyncMode } from './sync-mode-preference'
@@ -43,14 +44,15 @@ let currentDatabaseMode = readStoredDatabaseMode()
 let currentSyncMode = readStoredSyncMode()
 
 export function getDatabaseMode(): DatabaseMode {
-  return currentDatabaseMode
+  return canDebugDatabaseModes() ? currentDatabaseMode : 'hybrid'
 }
 
-export function getDatabaseModeLabel(mode: DatabaseMode = currentDatabaseMode): string {
+export function getDatabaseModeLabel(mode: DatabaseMode = getDatabaseMode()): string {
   return databaseModeLabels[mode]
 }
 
 export function setDatabaseMode(mode: DatabaseMode): DatabaseMode {
+  if (!canDebugDatabaseModes()) throw new ValidationError('只有管理員可切換資料庫來源。')
   if (mode === 'hybrid' && !getHybridStatus().ready) {
     throw new ValidationError('混合模式需完成帳號準備。')
   }
@@ -74,14 +76,15 @@ export function subscribeDatabaseMode(listener: DatabaseModeListener): () => voi
 }
 
 export function getSyncMode(): SyncMode {
-  return currentSyncMode
+  return canDebugDatabaseModes() ? currentSyncMode : 'auto'
 }
 
-export function getSyncModeLabel(mode: SyncMode = currentSyncMode): string {
+export function getSyncModeLabel(mode: SyncMode = getSyncMode()): string {
   return syncModeLabels[mode]
 }
 
 export function setSyncMode(mode: SyncMode): SyncMode {
+  if (!canDebugDatabaseModes()) throw new ValidationError('只有管理員可切換同步模式。')
   if (currentSyncMode === mode) {
     return currentSyncMode
   }
@@ -104,4 +107,13 @@ export function subscribeSyncMode(listener: SyncModeListener): () => void {
   return () => {
     syncModeListeners.delete(listener)
   }
+
+  subscribeDatabaseModeRole(() => {
+    currentDatabaseMode = readStoredDatabaseMode()
+    currentSyncMode = readStoredSyncMode()
+    for (const listener of databaseModeListeners) listener(getDatabaseMode())
+    for (const listener of syncModeListeners) listener(getSyncMode())
+    if (readEffectiveSyncMode() === 'manual') stopHybridAutoSync()
+    else if (getHybridStatus().ready) scheduleHybridAutoSync()
+  })
 }

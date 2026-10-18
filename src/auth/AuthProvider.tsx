@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { activateHybridAccount, deactivateHybridAccount } from '../database/hybrid.runtime'
+import { setDatabaseModeRole } from '../database/mode-access'
 import {
   AuthContext,
   type AuthContextValue,
@@ -36,6 +37,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!active) return
       const generation = ++sessionGeneration.current
       deactivateHybridAccount()
+      setDatabaseModeRole(null)
 
       setSession(nextSession)
       if (!nextSession) {
@@ -67,6 +69,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setUserRole(role)
+      setDatabaseModeRole(role)
       if (role === 'member' || role === 'admin') {
         try {
           await activateHybridAccount({
@@ -74,7 +77,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
             userId: nextSession.user.id,
           }, role)
         } catch {
-          if (active && generation === sessionGeneration.current) setErrorMessage('本地混合模式準備失敗；仍可使用原有模式。')
+          if (active && generation === sessionGeneration.current) {
+            setErrorMessage(role === 'admin' ? '本地混合模式準備失敗；仍可使用原有模式。' : '混合模式準備失敗，請重新登入或重新整理後再試。')
+            if (role !== 'admin') {
+              setHasWorkspaceAccess(false)
+              setStatus('authenticated')
+              return
+            }
+          }
         }
       }
       if (!active || generation !== sessionGeneration.current) return
@@ -106,6 +116,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       active = false
       sessionGeneration.current += 1
       deactivateHybridAccount()
+      setDatabaseModeRole(null)
       unsubscribe()
     }
   }, [])
@@ -113,6 +124,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   function clearLocalAuthState() {
     sessionGeneration.current += 1
     deactivateHybridAccount()
+    setDatabaseModeRole(null)
     setSession(null)
     setStatus('unauthenticated')
     setUserRole(null)

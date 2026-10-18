@@ -7,6 +7,7 @@ import {
 } from './hybrid.runtime'
 import { setSyncMode } from './runtime'
 import * as syncEngine from './sync-engine'
+import { setDatabaseModeRole } from './mode-access'
 
 function createLocalStorageMock() {
   const store = new Map<string, string>()
@@ -27,6 +28,7 @@ describe('hybrid development backend', () => {
   const accounts: { projectId: string; userId: string }[] = []
 
   beforeEach(() => {
+    setDatabaseModeRole('admin')
     const noOpListener = () => {}
     vi.stubGlobal('window', {
       localStorage: createLocalStorageMock(),
@@ -50,6 +52,7 @@ describe('hybrid development backend', () => {
     vi.useRealTimers()
     vi.clearAllTimers()
     deactivateHybridAccount()
+    setDatabaseModeRole(null)
     vi.unstubAllEnvs()
     vi.unstubAllGlobals()
     for (const account of accounts) await new SyncDatabase(account).delete()
@@ -122,7 +125,7 @@ describe('hybrid development backend', () => {
     vi.stubGlobal('fetch', network)
     await login()
     const facade = await import('./index')
-    expect(facade.getDatabaseMode()).toBe('supabase')
+    expect(facade.getDatabaseMode()).toBe('hybrid')
     facade.setDatabaseMode('hybrid')
     const id = await facade.regions.create({ name: 'Facade local', zoom: 12, googlePlaceId: 'facade' })
     await facade.regions.update(id, { name: 'Updated' })

@@ -16,11 +16,13 @@ function createLocalStorageMock() {
 }
 
 describe('database runtime', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules()
     vi.stubGlobal('window', {
       localStorage: createLocalStorageMock(),
     })
+    const access = await import('./mode-access')
+    access.setDatabaseModeRole('admin')
   })
 
   afterEach(() => {
@@ -61,5 +63,44 @@ describe('database runtime', () => {
     expect(runtime.getSyncMode()).toBe('auto')
     expect(runtime.getSyncModeLabel()).toBe('自動同步')
     expect(window.localStorage.getItem('travel-planner-sync-mode')).toBe('auto')
+  })
+
+  it('locks members to hybrid and auto without overwriting admin debug preferences', async () => {
+    window.localStorage.setItem('travel-planner-database-mode', 'supabase')
+    window.localStorage.setItem('travel-planner-sync-mode', 'manual')
+    const runtime = await import('./runtime')
+    const access = await import('./mode-access')
+    const onMode = vi.fn()
+    const onSync = vi.fn()
+    const unsubscribeMode = runtime.subscribeDatabaseMode(onMode)
+    const unsubscribeSync = runtime.subscribeSyncMode(onSync)
+
+    access.setDatabaseModeRole('member')
+    expect(runtime.getDatabaseMode()).toBe('hybrid')
+    expect(runtime.getSyncMode()).toBe('auto')
+    expect(access.readEffectiveSyncMode()).toBe('auto')
+    expect(onMode).toHaveBeenLastCalledWith('hybrid')
+    expect(onSync).toHaveBeenLastCalledWith('auto')
+    expect(() => runtime.setDatabaseMode('supabase')).toThrow('只有管理員')
+    expect(() => runtime.setSyncMode('manual')).toThrow('只有管理員')
+    expect(window.localStorage.getItem('travel-planner-database-mode')).toBe('supabase')
+    expect(window.localStorage.getItem('travel-planner-sync-mode')).toBe('manual')
+
+    access.setDatabaseModeRole('admin')
+    expect(runtime.getDatabaseMode()).toBe('supabase')
+    expect(runtime.getSyncMode()).toBe('manual')
+    expect(access.readEffectiveSyncMode()).toBe('manual')
+    unsubscribeMode()
+    unsubscribeSync()
+  })
+
+  it.each([null, 'basic'] as const)('does not permit mode overrides with role %s', async (role) => {
+    const runtime = await import('./runtime')
+    const access = await import('./mode-access')
+    access.setDatabaseModeRole(role)
+    expect(runtime.getDatabaseMode()).toBe('hybrid')
+    expect(runtime.getSyncMode()).toBe('auto')
+    expect(() => runtime.setDatabaseMode('indexeddb')).toThrow('只有管理員')
+    expect(() => runtime.setSyncMode('manual')).toThrow('只有管理員')
   })
 })

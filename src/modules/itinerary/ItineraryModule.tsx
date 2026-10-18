@@ -8,7 +8,6 @@ import type {
   Region,
   Trip,
 } from "../../database";
-import { getDatabaseModeLabel } from "../../database";
 import { RouterLink } from "../../router";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { routes } from "../../routes";
@@ -840,16 +839,9 @@ function ItineraryModule() {
       shellClassName="itinerary-app-shell"
       mainClassName="itinerary-main"
     >
-      <header className="itinerary-topbar">
-        <span>工作區　/　行程</span>
-        <span className="itinerary-local-badge">{getDatabaseModeLabel()}</span>
-      </header>
       <div className="itinerary-content">
         <section className="itinerary-heading">
           <div>
-            <div className="itinerary-eyebrow">
-              {selectedRegion?.name ?? "旅行地圖"}　/　行程規劃
-            </div>
             <h1>
               {selectedTrip?.name ??
                 (creatingTrip ? "新增行程" : "開始規劃一趟旅行")}

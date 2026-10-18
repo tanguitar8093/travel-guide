@@ -1,7 +1,6 @@
 .data-management-shell { min-height: 100vh; display: flex; color: #333a36; background: #f7f8f6; font: 14px Inter, "Noto Sans TC", sans-serif; }
 .data-management-shell button { font: inherit; }
 .data-management-main { min-height: 100vh; }
-.data-management-topbar { height: 64px; box-sizing: border-box; display: flex; align-items: center; justify-content: space-between; padding: 0 44px; border-bottom: 1px solid #e9ece8; color: #79847c; background: rgba(255,255,255,.8); font-size: 12px; }
 .data-management-content { max-width: 1120px; margin: 0 auto; padding: 37px 44px 54px; }
 .data-management-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin-bottom: 25px; }
 .data-management-eyebrow { margin-bottom: 8px; color: #88958b; font-size: 11px; }
@@ -31,14 +30,19 @@
 .data-management-transfer-actions .data-management-secondary { width: 100%; }
 .data-management-selected-file { max-width: 100%; margin: 11px 0 0 !important; overflow-wrap: anywhere; color: #617c68 !important; }
 .data-management-warning { padding: 12px; margin-top: 17px; border: 1px solid #f0dfc2; border-radius: 6px; color: #826e4b; background: #fffaf0; font-size: 10px; line-height: 1.6; }
+.data-management-admin-info { gap: 14px; margin-bottom: 17px; }
+.data-management-admin-info-heading { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.data-management-admin-info-heading h2 { margin: 0; }
+.data-management-admin-info-heading > span { flex-shrink: 0; padding: 4px 8px; border-radius: 12px; color: #52755c; background: #edf5ef; font-size: 11px; }
+.data-management-info-toggle { display: flex; align-items: center; gap: 10px; color: #4a574d; cursor: pointer; }
+.data-management-info-toggle input { width: 18px; height: 18px; accent-color: #648a74; }
+.data-management-admin-info > p { min-height: 0; margin: 0; }
 @media (max-width: 800px) {
-  .data-management-topbar { padding: 0 22px; }
   .data-management-content { padding: 28px 22px 40px; }
   .data-management-switcher { margin-bottom: 15px; }
   .data-management-cards { grid-template-columns: 1fr; }
 }
 @media (max-width: 560px) {
-  .data-management-topbar { height: 55px; padding: 0 13px; font-size: 10px; }
   .data-management-content { padding: 24px 12px 32px; }
   .data-management-heading h1 { font-size: 24px; }
   .data-management-card { padding: 18px; }

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, PlaceIcon, Region } from '../../database'
-import { getDatabaseModeLabel, placeIcons } from '../../database'
+import { placeIcons } from '../../database'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { placeController } from './place.controller'
 import type { GooglePlaceDetails } from './google-places.service'
@@ -404,25 +404,9 @@ function PlaceModule() {
       shellClassName="app-shell place-app-shell"
       mainClassName="main-content"
     >
-        <header className="topbar">
-          <div className="breadcrumb">
-            <span>工作區</span>
-            <span className="breadcrumb-separator">/</span>
-            <strong>地點資料庫</strong>
-          </div>
-          <div className="topbar-actions">
-              <span className="prototype-badge">{getDatabaseModeLabel()}</span>
-              <button className="icon-button" type="button" aria-label="說明" title={`資料儲存在 ${getDatabaseModeLabel()}`}>
-              ?
-            </button>
-            <div className="user-avatar" aria-label="使用者">T</div>
-          </div>
-        </header>
-
         <div className="page-content place-page-content">
           <section className="page-heading">
             <div>
-              <div className="eyebrow">收藏並整理旅途中想去的地方</div>
               <h1>地點資料庫</h1>
               <p>搜尋並收藏想去的地點，套用標籤與區域，規劃行程時即可快速挑選。</p>
             </div>

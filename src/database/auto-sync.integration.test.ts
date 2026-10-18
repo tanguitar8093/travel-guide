@@ -9,12 +9,14 @@ import { setDatabaseMode, setSyncMode } from './runtime'
 import { regions, labels, places, trips, itineraryItems } from './index'
 import { SyncDatabase } from './sync.database'
 import { placeController } from '../modules/place/place.controller'
+import { setDatabaseModeRole } from './mode-access'
 
 const sql = new PGlite()
 const uid = '33333333-3333-4333-8333-333333333333'
 const account = { projectId: crypto.randomUUID(), userId: uid }
 
 beforeAll(async () => {
+  setDatabaseModeRole('admin')
   await sql.exec(`
     create role anon; create role authenticated;
     create schema auth; create table auth.users(id uuid primary key, email text);
@@ -40,7 +42,7 @@ afterEach(async () => {
   await new SyncDatabase(account).delete()
 })
 
-afterAll(async () => { await sql.close() })
+afterAll(async () => { setDatabaseModeRole(null); await sql.close() })
 
 it('automatically persists an admin label, place and itinerary item in production through the real engine and SQL RPCs', async () => {
   const saved = new Map<string, string>()

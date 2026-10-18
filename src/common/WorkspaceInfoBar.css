@@ -1,0 +1,37 @@
+.workspace-info-bar {
+  min-height: 64px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 44px;
+  border-bottom: 1px solid #e9ece8;
+  color: #79847c;
+  background: rgba(255, 255, 255, .8);
+  font-size: 12px;
+}
+
+.workspace-info-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.workspace-info-breadcrumb strong {
+  color: #535c56;
+  font-weight: 600;
+}
+
+.workspace-info-mode {
+  text-align: right;
+}
+
+@media (max-width: 760px) {
+  .workspace-info-bar {
+    min-height: 55px;
+    gap: 10px;
+    padding: 12px 16px;
+    font-size: 10px;
+  }
+}

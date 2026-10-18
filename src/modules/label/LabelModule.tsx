@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
 import { getDatabaseModeLabel } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
+import { AdminInfo } from "../../common/AdminInfo";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
 import "./LabelModule.css";
@@ -531,32 +532,9 @@ function LabelModule() {
       shellClassName="app-shell"
       mainClassName="main-content"
     >
-      <header className="topbar">
-        <div className="breadcrumb">
-          <span>工作區</span>
-          <span className="breadcrumb-separator">/</span>
-          <strong>標籤</strong>
-        </div>
-        <div className="topbar-actions">
-          <span className="prototype-badge">{getDatabaseModeLabel()}</span>
-          <button
-            className="icon-button"
-            type="button"
-            aria-label="說明"
-            title={`標籤資料儲存在 ${getDatabaseModeLabel()}`}
-          >
-            ?
-          </button>
-          <div className="user-avatar" aria-label="使用者">
-            T
-          </div>
-        </div>
-      </header>
-
       <div className="page-content">
         <section className="page-heading">
           <div>
-            <div className="eyebrow">整理你的探索地圖</div>
             <h1>標籤</h1>
             <p>建立分類層級，讓收藏的地點更容易整理與尋找。</p>
           </div>
@@ -707,7 +685,7 @@ function LabelModule() {
                 </div>
 
                 <div className="detail-actions">
-                  <span>資料即時儲存於 {getDatabaseModeLabel()}</span>
+                  <AdminInfo><span>資料即時儲存於 {getDatabaseModeLabel()}</span></AdminInfo>
                   <button
                     className="save-button"
                     type="button"

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { NewRegion, Place, Region, Trip } from "../../database";
-import { getDatabaseModeLabel } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { itineraryController } from "../itinerary/itinerary.controller";
 import { placeController } from "../place/place.controller";
@@ -357,14 +356,9 @@ function RegionModule() {
       shellClassName="region-app-shell"
       mainClassName="region-main"
     >
-      <header className="region-topbar">
-        <span>工作區　/　區域</span>
-        <span>{getDatabaseModeLabel()}</span>
-      </header>
       <div className="region-content">
         <section className="region-heading">
           <div>
-            <div className="region-eyebrow">旅行目的地的整理單位</div>
             <h1>區域</h1>
             <p>建立行程使用的區域，也可將收藏地點歸入相同區域。</p>
           </div>

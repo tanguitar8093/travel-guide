@@ -5,6 +5,7 @@ import { routes } from "../routes";
 import { useAuth } from "../auth/useAuth";
 import "./WorkspaceLayout.css";
 import { HybridStatus } from './HybridStatus';
+import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "data";
 
@@ -240,6 +241,7 @@ export function WorkspaceLayout({
 
       <main className={`workspace-main ${mainClassName}`.trim()}>
         <HybridStatus />
+        <WorkspaceInfoBar section={navigationItems.find((item) => item.id === active)?.label ?? active} />
         {children}
       </main>
     </div>

@@ -6,8 +6,9 @@ import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
 import "./DataManagementModule.css";
 import { useHybridStatus } from '../../database/useHybridStatus';
-import { getDatabaseModeLabel } from '../../database/runtime';
 import { HybridSyncPreview } from './HybridSyncPreview';
+import { useAdminSyncInfo } from '../../common/useAdminSyncInfo';
+import { useAuth } from '../../auth/useAuth';
 
 const countLabels = [
   ["regions", "區域"],
@@ -39,6 +40,9 @@ function DataManagementModule() {
   const databaseMode = useDatabaseMode();
   const syncMode = useSyncMode();
   const hybridStatus = useHybridStatus();
+  const syncInfo = useAdminSyncInfo();
+  const { status: authStatus, userRole, hasWorkspaceAccess } = useAuth();
+  const canDebugModes = authStatus === 'authenticated' && userRole === 'admin' && hasWorkspaceAccess;
   const [backup, setBackup] = useState<TravelBackup>();
   const [fileName, setFileName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -321,22 +325,15 @@ function DataManagementModule() {
       shellClassName="data-management-shell"
       mainClassName="data-management-main"
     >
-      <header className="data-management-topbar">
-        <span>工作區　/　資料</span>
-        <span>{getDatabaseModeLabel(databaseMode)}</span>
-      </header>
       <section className="data-management-content">
         <div className="data-management-heading">
           <div>
-            <div className="data-management-eyebrow">
-              備份、搬移與還原你的旅行資料
-            </div>
             <h1>資料</h1>
             <p>匯出可存取的旅行資料；單機模式可匯入備份或清空本機資料。</p>
           </div>
         </div>
 
-        <section className="data-management-switcher" aria-label="資料庫切換">
+        {canDebugModes && <section className="data-management-switcher" aria-label="管理員資料庫除錯設定">
           <label className="data-management-switcher-field">
             <span>資料庫來源</span>
             <select
@@ -361,7 +358,36 @@ function DataManagementModule() {
               <option value="auto">自動同步</option>
             </select>
           </label>
-        </section>
+        </section>}
+
+        {syncInfo.canConfigure && (
+          <section className="data-management-card data-management-admin-info" aria-labelledby="admin-sync-info-heading">
+            <div className="data-management-admin-info-heading">
+              <h2 id="admin-sync-info-heading">管理員資訊顯示</h2>
+              <span>僅管理員</span>
+            </div>
+            <label className="data-management-info-toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={syncInfo.visible}
+                disabled={busy || Boolean(syncInfo.error)}
+                onChange={(event) => {
+                  try {
+                    syncInfo.setVisible(event.target.checked);
+                    setError("");
+                    setNotice(event.target.checked ? "已顯示混合模式同步資訊。" : "已隱藏混合模式同步資訊，不影響同步功能。");
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : "儲存資訊顯示設定失敗。");
+                  }
+                }}
+              />
+              <span>顯示資料模式與同步資訊</span>
+            </label>
+            <p>顯示各模組頁首的資料模式與儲存提示；混合模式另顯示待同步數量、失敗與衝突、最近同步時間及儲存耗時。關閉不影響同步與必要的錯誤提醒。設定依管理員帳號記住於此瀏覽器。</p>
+            {syncInfo.error && <div className="data-management-feedback data-management-error" role="alert">無法讀取資訊顯示設定：{syncInfo.error}</div>}
+          </section>
+        )}
 
         {error && (
           <div

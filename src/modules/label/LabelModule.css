@@ -35,64 +35,9 @@ button {
   letter-spacing: 0.08em;
 }
 
-.user-avatar {
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  color: #456b54;
-  background: #e8efe9;
-  font-size: 13px;
-  font-weight: 600;
-}
-
 .main-content {
   min-width: 0;
   min-height: 100vh;
-}
-
-.topbar {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  box-sizing: border-box;
-  padding: 0 44px;
-  border-bottom: 1px solid #e9ece8;
-  background: rgba(255, 255, 255, 0.8);
-}
-
-.breadcrumb,
-.topbar-actions {
-  display: flex;
-  align-items: center;
-}
-
-.breadcrumb {
-  gap: 11px;
-  color: #98a19a;
-  font-size: 12px;
-}
-
-.breadcrumb strong {
-  color: #535c56;
-  font-weight: 600;
-}
-
-.breadcrumb-separator {
-  color: #c3c9c4;
-}
-
-.topbar-actions {
-  gap: 15px;
-}
-
-.prototype-badge {
-  padding: 4px 8px;
-  border: 1px solid #e5ebe5;
-  border-radius: 20px;
-  color: #7e8c81;
-  background: #f8faf8;
-  font-size: 10px;
 }
 
 .icon-button,
@@ -109,11 +54,6 @@ button {
   width: 27px;
   height: 27px;
   font-size: 12px;
-}
-
-.user-avatar {
-  width: 30px;
-  height: 30px;
 }
 
 .page-content {
@@ -1237,10 +1177,6 @@ kbd {
 }
 
 @media (max-width: 1000px) {
-  .topbar {
-    padding-inline: 28px;
-  }
-
   .page-content {
     padding: 34px 28px 22px;
   }
@@ -1260,11 +1196,6 @@ kbd {
 }
 
 @media (max-width: 760px) {
-  .topbar {
-    height: 56px;
-    padding-inline: 18px;
-  }
-
   .page-content {
     padding: 28px 18px 20px;
   }
@@ -1321,14 +1252,6 @@ kbd {
 
   .page-heading h1 {
     font-size: 25px;
-  }
-
-  .topbar-actions {
-    gap: 8px;
-  }
-
-  .prototype-badge {
-    font-size: 9px;
   }
 
   .form-fields {
