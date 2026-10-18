@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { Label, NewPlace, Place, PlaceIcon, Region } from '../../database'
 import { placeIcons } from '../../database'
@@ -71,6 +71,205 @@ function labelDepth(label: Label, labels: Label[]): number {
 
 function getPlaceInitial(name: string): string {
   return Array.from(name.trim())[0] ?? '地'
+}
+
+interface SearchableChoice {
+  id: string
+  name: string
+  color?: string
+  depth?: number
+}
+
+function SearchableMultiSelect({
+  label,
+  options,
+  selectedIds,
+  onToggle,
+  disabled,
+  placeholder,
+}: {
+  label: string
+  options: SearchableChoice[]
+  selectedIds: string[]
+  onToggle: (id: string) => void
+  disabled: boolean
+  placeholder: string
+}) {
+  const [query, setQuery] = useState('')
+  const [open, setOpen] = useState(false)
+  const [activeIndex, setActiveIndex] = useState(-1)
+  const inputId = useId()
+  const listId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = query.trim().toLocaleLowerCase()
+    return normalizedQuery
+      ? options.filter((option) =>
+          option.name.toLocaleLowerCase().includes(normalizedQuery),
+        )
+      : options
+  }, [options, query])
+  const selectedOptions = options.filter((option) =>
+    selectedIds.includes(option.id),
+  )
+
+  function toggleOption(id: string) {
+    onToggle(id)
+    setOpen(true)
+    inputRef.current?.focus()
+  }
+
+  return (
+    <div className="place-search-multi-select">
+      <div className="place-search-input-wrap">
+        <input
+          ref={inputRef}
+          id={inputId}
+          type="text"
+          role="combobox"
+          aria-label={label}
+          aria-autocomplete="list"
+          aria-expanded={open}
+          aria-controls={listId}
+          aria-activedescendant={
+            activeIndex >= 0 ? `${listId}-option-${activeIndex}` : undefined
+          }
+          autoComplete="off"
+          value={query}
+          onFocus={() => setOpen(true)}
+          onBlur={() => {
+            setOpen(false)
+            setActiveIndex(-1)
+          }}
+          onChange={(event) => {
+            setQuery(event.target.value)
+            setOpen(true)
+            setActiveIndex(-1)
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'ArrowDown') {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex((current) =>
+                Math.min(current + 1, filteredOptions.length - 1),
+              )
+            } else if (event.key === 'ArrowUp') {
+              event.preventDefault()
+              setOpen(true)
+              setActiveIndex((current) =>
+                Math.min(
+                  Math.max(current - 1, 0),
+                  filteredOptions.length - 1,
+                ),
+              )
+            } else if (
+              event.key === 'Enter' &&
+              open &&
+              filteredOptions[activeIndex]
+            ) {
+              event.preventDefault()
+              toggleOption(filteredOptions[activeIndex].id)
+            } else if (event.key === 'Escape') {
+              setOpen(false)
+              setActiveIndex(-1)
+            } else if (
+              event.key === 'Backspace' &&
+              !query &&
+              selectedOptions.length
+            ) {
+              onToggle(selectedOptions[selectedOptions.length - 1].id)
+            }
+          }}
+          placeholder={placeholder}
+          disabled={disabled}
+        />
+        <span className="place-search-input-icon" aria-hidden="true">⌕</span>
+      </div>
+
+      {selectedOptions.length > 0 && (
+        <div className="place-selected-choices" aria-label={`已選${label}`}>
+          {selectedOptions.map((option) => (
+            <span className="place-selected-choice" key={option.id}>
+              {option.color && (
+                <span
+                  className="filter-color-dot"
+                  style={{ backgroundColor: option.color }}
+                  aria-hidden="true"
+                />
+              )}
+              <span className="place-selected-choice-name">{option.name}</span>
+              <button
+                type="button"
+                aria-label={`移除${option.name}`}
+                disabled={disabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => onToggle(option.id)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {open && (
+        <div className="place-search-results">
+          <div className="place-search-results-heading">
+            <span>{query.trim() ? `符合項目 ${filteredOptions.length}` : `全部項目 ${filteredOptions.length}`}</span>
+            {selectedOptions.length > 0 && (
+              <span>已選 {selectedOptions.length}</span>
+            )}
+          </div>
+          <ul
+            id={listId}
+            className="place-search-options"
+            role="listbox"
+            aria-label={`${label}選項`}
+            aria-multiselectable="true"
+          >
+            {filteredOptions.length ? (
+              filteredOptions.map((option, index) => {
+                const selected = selectedIds.includes(option.id)
+                return (
+                  <li
+                    id={`${listId}-option-${index}`}
+                    key={option.id}
+                    role="option"
+                    aria-selected={selected}
+                    className={activeIndex === index ? 'active' : ''}
+                    onMouseDown={(event) => event.preventDefault()}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => toggleOption(option.id)}
+                  >
+                    <span className={`place-search-check${selected ? ' selected' : ''}`} aria-hidden="true">
+                      {selected ? '✓' : ''}
+                    </span>
+                    {option.color && (
+                      <span
+                        className="filter-color-dot"
+                        style={{ backgroundColor: option.color }}
+                        aria-hidden="true"
+                      />
+                    )}
+                    <span
+                      className="place-search-option-name"
+                      style={{ paddingInlineStart: `${(option.depth ?? 0) * 10}px` }}
+                    >
+                      {option.name}
+                    </span>
+                  </li>
+                )
+              })
+            ) : (
+              <li className="place-search-no-results" role="presentation">
+                沒有符合的項目
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
 }
 
 function PlaceModule() {
@@ -674,19 +873,17 @@ function PlaceModule() {
                     <fieldset className="place-choice-field">
                       <legend>所屬區域</legend>
                       {regions.length ? (
-                        <div className="choice-chip-list">
-                          {regions.map((region) => (
-                            <label className="choice-chip" key={region.id}>
-                              <input
-                                type="checkbox"
-                                checked={draft.regionIds.includes(region.id)}
-                                onChange={() => toggleInDraft('regionIds', region.id)}
-                                disabled={formDisabled}
-                              />
-                              {region.name}
-                            </label>
-                          ))}
-                        </div>
+                        <SearchableMultiSelect
+                          label="所屬區域"
+                          options={regions.map((region) => ({
+                            id: region.id,
+                            name: region.name,
+                          }))}
+                          selectedIds={draft.regionIds}
+                          onToggle={(id) => toggleInDraft('regionIds', id)}
+                          disabled={formDisabled}
+                          placeholder="搜尋或選擇區域"
+                        />
                       ) : (
                         <small>目前沒有區域，可先不指定。</small>
                       )}
@@ -695,20 +892,19 @@ function PlaceModule() {
                     <fieldset className="place-choice-field">
                       <legend>標籤</legend>
                       {orderedLabels.length ? (
-                        <div className="choice-chip-list">
-                          {orderedLabels.map((label) => (
-                            <label className={`choice-chip${draft.labelIds.includes(label.id) ? ' checked' : ''}`} key={label.id}>
-                              <input
-                                type="checkbox"
-                                checked={draft.labelIds.includes(label.id)}
-                                onChange={() => toggleInDraft('labelIds', label.id)}
-                                disabled={formDisabled}
-                              />
-                              <span className="filter-color-dot" style={{ backgroundColor: label.color }} />
-                              {'　'.repeat(labelDepth(label, labels))}{label.name}
-                            </label>
-                          ))}
-                        </div>
+                        <SearchableMultiSelect
+                          label="標籤"
+                          options={orderedLabels.map((label) => ({
+                            id: label.id,
+                            name: label.name,
+                            color: label.color,
+                            depth: labelDepth(label, labels),
+                          }))}
+                          selectedIds={draft.labelIds}
+                          onToggle={(id) => toggleInDraft('labelIds', id)}
+                          disabled={formDisabled}
+                          placeholder="搜尋或選擇標籤"
+                        />
                       ) : (
                         <small>尚無標籤，請先到標籤模組建立分類。</small>
                       )}
