@@ -8,6 +8,7 @@ import "./DataManagementModule.css";
 import { useHybridStatus } from '../../database/useHybridStatus';
 import { HybridSyncPreview } from './HybridSyncPreview';
 import { useAdminSyncInfo } from '../../common/useAdminSyncInfo';
+import { useAdminLayoutDebug } from '../../common/useAdminLayoutDebug';
 import { useAuth } from '../../auth/useAuth';
 
 const countLabels = [
@@ -43,6 +44,7 @@ function DataManagementModule() {
   const syncMode = useSyncMode();
   const hybridStatus = useHybridStatus();
   const syncInfo = useAdminSyncInfo();
+  const layoutDebug = useAdminLayoutDebug();
   const { status: authStatus, userRole, hasWorkspaceAccess } = useAuth();
   const canDebugModes = authStatus === 'authenticated' && userRole === 'admin' && hasWorkspaceAccess;
   const [backup, setBackup] = useState<TravelBackup>();
@@ -394,6 +396,35 @@ function DataManagementModule() {
             </label>
             <p>顯示各模組頁首的資料模式與儲存提示；混合模式另顯示待同步數量、失敗與衝突、最近同步時間及儲存耗時。關閉不影響同步與必要的錯誤提醒。設定依管理員帳號記住於此瀏覽器。</p>
             {syncInfo.error && <div className="data-management-feedback data-management-error" role="alert">無法讀取資訊顯示設定：{syncInfo.error}</div>}
+          </section>
+        )}
+
+        {layoutDebug.canConfigure && (
+          <section className="data-management-card data-management-admin-info" aria-labelledby="admin-layout-debug-heading">
+            <div className="data-management-admin-info-heading">
+              <h2 id="admin-layout-debug-heading">版型除錯</h2>
+              <span>僅管理員</span>
+            </div>
+            <label className="data-management-info-toggle">
+              <input
+                type="checkbox"
+                role="switch"
+                checked={layoutDebug.enabled}
+                disabled={busy || Boolean(layoutDebug.error)}
+                onChange={(event) => {
+                  try {
+                    layoutDebug.setEnabled(event.target.checked);
+                    setError("");
+                    setNotice(event.target.checked ? "已開啟版型除錯，3 秒後顯示診斷視窗。" : "已關閉版型除錯視窗。");
+                  } catch (cause) {
+                    setError(cause instanceof Error ? cause.message : "儲存版型除錯設定失敗。");
+                  }
+                }}
+              />
+              <span>進入頁面 3 秒後顯示版型 DEBUG 視窗</span>
+            </label>
+            <p>顯示螢幕與瀏覽器尺寸、縮放、像素倍率及側欄與內容套用的版型。預設關閉，開啟後切換模組或重新整理頁面也會顯示；關閉會取消尚未彈出的視窗。設定依管理員帳號記住於此瀏覽器，不上傳雲端，所有資料模式皆適用。</p>
+            {layoutDebug.error && <div className="data-management-feedback data-management-error" role="alert">無法讀取版型除錯設定：{layoutDebug.error}</div>}
           </section>
         )}
 

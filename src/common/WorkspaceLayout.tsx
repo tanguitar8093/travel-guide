@@ -6,6 +6,7 @@ import { useAuth } from "../auth/useAuth";
 import "./WorkspaceLayout.css";
 import { HybridStatus } from './HybridStatus';
 import { WorkspaceInfoBar } from './WorkspaceInfoBar';
+import { useAdminLayoutDebug } from './useAdminLayoutDebug';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "route-calculator" | "data";
 
@@ -57,6 +58,7 @@ export function WorkspaceLayout({
   shellClassName = "",
 }: WorkspaceLayoutProps) {
   const { user, errorMessage, clearError, signOut } = useAuth();
+  const layoutDebug = useAdminLayoutDebug();
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -67,8 +69,8 @@ export function WorkspaceLayout({
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarOpen = sidebarPinned || sidebarHovered;
 
-  // Temporary diagnostics: sample the viewport after the page has settled.
   useEffect(() => {
+    if (!layoutDebug.enabled) return;
     const timer = window.setTimeout(() => {
       const { mobile, compact, narrow } = debugLayoutBreakpoints[active];
       const matchesWidth = (width: number) =>
@@ -85,7 +87,7 @@ export function WorkspaceLayout({
       const round = (value: number) => Math.round(value * 100) / 100;
       const section = navigationItems.find((item) => item.id === active)?.label;
       window.alert([
-        "暫時版型 DEBUG（進入頁面 3 秒後取樣）",
+        "管理員版型 DEBUG（進入頁面 3 秒後取樣）",
         `頁面：${section} ${window.location.pathname}`,
         `螢幕：${window.screen.width} × ${window.screen.height} CSS px`,
         `瀏覽器視窗 inner：${window.innerWidth} × ${window.innerHeight} CSS px`,
@@ -103,7 +105,7 @@ export function WorkspaceLayout({
       ].join("\n"));
     }, 3000);
     return () => window.clearTimeout(timer);
-  }, [active]);
+  }, [active, layoutDebug.enabled, user?.id]);
 
   function cancelScheduledClose() {
     if (closeTimer.current !== undefined) {
