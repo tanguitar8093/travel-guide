@@ -2,7 +2,8 @@ import { BackupRepository } from './backup.repository'
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter } from './sync-cloud.adapter'
-import type { SyncEntityName, SyncRecord } from './sync.types'
+import type { SyncEntityName } from './sync.types'
+import { emptySyncData } from './sync.types'
 
 export interface SyncPreviewRow {
   entity: SyncEntityName
@@ -42,7 +43,7 @@ export async function previewHybridSync(
   assertCurrent()
   const snapshot = await cloud.snapshot()
   assertCurrent()
-  const data = { regions: [], places: [], labels: [], trips: [], itineraryItems: [] } as Record<SyncEntityName, SyncRecord[]>
+  const data = emptySyncData()
   const remote = new Map<string, (typeof snapshot.records)[number]>()
   for (const row of snapshot.records) {
     if (!Object.hasOwn(data, row.entity) || !row.record || row.record.id !== row.id
@@ -55,7 +56,7 @@ export async function previewHybridSync(
     data[row.entity].push(row.record)
   }
   new BackupRepository().validateImport({
-    format: 'travel-planner-backup', version: 1, exportedAt: new Date().toISOString(), data,
+    format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data,
   })
   const current = await store.inspectSyncState()
   assertCurrent()
@@ -75,7 +76,7 @@ export async function previewHybridSync(
     const baseline = local.baselines.find((baseline) => baseline.entity === entity && baseline.id === record.id)
     const version = baseline?.version ?? change?.baseVersion
     rows.push({
-      entity, id: record.id, name: 'name' in record ? record.name : record.id,
+      entity, id: record.id, name: 'name' in record && record.name ? record.name : record.id,
       difference: !own ? 'cloud-only' : !other ? 'local-only'
         : comparable(own.record) === comparable(other.record) ? 'same' : 'different',
       pending: Boolean(change),

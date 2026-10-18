@@ -127,16 +127,25 @@ parallel framework.
   reference validation, and atomic replacement in the database/operation
   layers; never clear live data until the complete backup is validated, and
   require explicit confirmation in the UI before replacing it.
-- `src/modules/route-calculator/` is the transient two-point route tool at
+- `src/modules/route-calculator/` is the two-point route tool at
   `/route-calculator`, named "路程試算", linked beside the itinerary add-place
   action and in shared navigation. Each endpoint independently uses a saved
   place or Google Places search. Saved choices come from the existing database
   facade in every mode; custom-map-URL-only places cannot be routed by place ID.
-  Input, provider details, coordinates, results and errors stay in component
-  memory only; do not create records, outbox tasks, browser storage or SQL for
-  this tool. Resolve endpoints and estimate the route through its service and
-  thin controller. Show numbered endpoint markers and Google route estimates,
-  not a promise of live traffic or guaranteed arrival.
+  Persist route-map state through the `routeMaps` and `routeMapPlaces` facade
+  repositories: a trip has one linked map, and a standalone map is available
+  when no trip is selected. Restore the last active map on the device when
+  available; the selected trip's map remains selectable on other devices.
+  Save the selected date, endpoint Google `place_id` values, transport mode,
+  and post-itinerary marker Google `place_id` values. Do not persist provider
+  coordinates, addresses, descriptions, or calculation results; resolve Google
+  details at runtime. Hybrid writes must use the facade's automatic-sync path.
+  Keep original itinerary locations dynamically sourced from itinerary items,
+  not copied into `routeMapPlaces`. Trip deletion must warn that its linked map
+  and added markers are also deleted; deleting a map must not delete its trip.
+  Resolve endpoints and estimate routes through the service and thin
+  controller. Show numbered endpoint markers and Google route estimates, not a
+  promise of live traffic or guaranteed arrival.
 - Reuse `src/common/SearchableSelect.tsx` for single searchable data choices:
   blank query lists all options, typing filters names, keyboard selection is
   supported, and disabled choices must explain why. The label and itinerary

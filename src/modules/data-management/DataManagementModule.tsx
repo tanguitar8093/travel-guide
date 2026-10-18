@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
-import type { DatabaseMode, SyncMode, TravelBackup } from "../../database";
+import type { BackupCounts, DatabaseMode, SyncMode, TravelBackup } from "../../database";
 import { setSyncMode, useDatabaseMode, useSyncMode } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { dataManagementController } from "./data-management.controller";
@@ -16,22 +16,24 @@ const countLabels = [
   ["labels", "標籤"],
   ["trips", "行程"],
   ["itineraryItems", "每日行程項目"],
+  ["routeMaps", "試算地圖"],
+  ["routeMapPlaces", "試算後加地點"],
 ] as const;
 
 function formatCount(
-  counts: Record<(typeof countLabels)[number][0], number>,
+  counts: BackupCounts,
 ): string {
   return countLabels
-    .map(([key, label]) => `${label} ${counts[key]}`)
+    .map(([key, label]) => `${label} ${counts[key] ?? 0}`)
     .join("、");
 }
 
 function formatPreviewCounts(
-  current: Record<(typeof countLabels)[number][0], number>,
-  incoming: Record<(typeof countLabels)[number][0], number>,
+  current: BackupCounts,
+  incoming: BackupCounts,
 ): string {
   return countLabels
-    .map(([key, label]) => `${label} 目前 ${current[key]} → 匯入 ${incoming[key]}`)
+    .map(([key, label]) => `${label} 目前 ${current[key] ?? 0} → 匯入 ${incoming[key] ?? 0}`)
     .join("\n");
 }
 
@@ -94,6 +96,8 @@ function DataManagementModule() {
           labels: exported.data.labels.length,
           trips: exported.data.trips.length,
           itineraryItems: exported.data.itineraryItems.length,
+          routeMaps: exported.data.routeMaps?.length ?? 0,
+          routeMapPlaces: exported.data.routeMapPlaces?.length ?? 0,
         })}。`,
       );
     } catch (cause) {
@@ -124,6 +128,8 @@ function DataManagementModule() {
           labels: parsedBackup.data.labels.length,
           trips: parsedBackup.data.trips.length,
           itineraryItems: parsedBackup.data.itineraryItems.length,
+          routeMaps: parsedBackup.data.routeMaps?.length ?? 0,
+          routeMapPlaces: parsedBackup.data.routeMapPlaces?.length ?? 0,
         })}。`,
       );
     } catch (cause) {
@@ -145,6 +151,8 @@ function DataManagementModule() {
       labels: backup.data.labels.length,
       trips: backup.data.trips.length,
       itineraryItems: backup.data.itineraryItems.length,
+      routeMaps: backup.data.routeMaps?.length ?? 0,
+      routeMapPlaces: backup.data.routeMapPlaces?.length ?? 0,
     });
 
     if (databaseMode === "supabase") {

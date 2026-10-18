@@ -55,15 +55,24 @@ describe('cloud bulk-write safety', () => {
         itineraryItems: [],
       },
     }
+    const normalizedBackup = {
+      ...backup,
+      version: 2 as const,
+      data: {
+        ...backup.data,
+        routeMaps: [],
+        routeMapPlaces: [],
+      },
+    }
 
     const preview = await repository.previewReplaceAll(backup)
     const counts = await repository.replaceAll(backup, preview.token)
 
     expect(cloud.rpc).toHaveBeenNthCalledWith(1, 'app_backup_preview_replace', {
-      p_backup: backup,
+      p_backup: normalizedBackup,
     })
     expect(cloud.rpc).toHaveBeenNthCalledWith(2, 'app_backup_apply_replace', {
-      p_backup: backup,
+      p_backup: normalizedBackup,
       p_token: 'preview-token',
     })
     expect(counts).toEqual({ regions: 2, places: 2, labels: 2, trips: 2, itineraryItems: 2 })

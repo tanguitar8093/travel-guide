@@ -24,5 +24,9 @@ export class SyncDatabase extends TravelDatabase {
       syncBaselines: '[entity+id]',
     })
     this.version(6).stores({ syncConflicts: '&id' })
+    this.version(8).stores({
+      routeMaps: '&id, &tripId',
+      routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId]',
+    })
   }
 }

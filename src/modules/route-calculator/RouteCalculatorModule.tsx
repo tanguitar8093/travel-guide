@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { Place, Trip } from '../../database'
+import { EntityNotFoundError } from '../../database'
+import type { Place, RouteMapChanges, Trip } from '../../database'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { SearchableSelect } from '../../common/SearchableSelect'
 import { formatTravelDistance, transportOptions } from '../../common/route-estimate'
@@ -14,6 +15,7 @@ import { isTripMarker, markerEndpoint, visibleRouteMarkers } from './route-marke
 import './RouteCalculatorModule.css'
 
 type Target = 'origin' | 'destination'
+const activeRouteMapStorageKey = 'travel-planner:route-calculator:active-map-id'
 
 export default function RouteCalculatorModule() {
   const [controller] = useState(() => new RouteCalculatorController())
@@ -27,9 +29,13 @@ export default function RouteCalculatorModule() {
   const [tripsLoading, setTripsLoading] = useState(true)
   const [tripId, setTripId] = useState('')
   const [tripData, setTripData] = useState<TripMapData>()
+  const [routeMapUnavailable, setRouteMapUnavailable] = useState<string[]>([])
   const [date, setDate] = useState('')
-  const [tripLoading, setTripLoading] = useState(false)
+  const [tripLoading, setTripLoading] = useState(true)
   const [tripError, setTripError] = useState('')
+  const [mapId, setMapId] = useState('')
+  const [mapSaveError, setMapSaveError] = useState('')
+  const [mapSelectionError, setMapSelectionError] = useState('')
   const [personal, setPersonal] = useState<RouteMapPlace[]>([])
   const [hidden, setHidden] = useState<string[]>([])
   const [selectedId, setSelectedId] = useState('')
@@ -47,6 +53,8 @@ export default function RouteCalculatorModule() {
   const generation = useRef(0)
   const endpointGeneration = useRef({ origin: 0, destination: 0 })
   const tripGeneration = useRef(0)
+  const mapIdRef = useRef('')
+  const mapSaveQueue = useRef(Promise.resolve())
   const configured = controller.isGooglePlacesConfigured()
   const markers = useMemo(() => visibleRouteMarkers(personal, tripData, date, hidden), [personal, tripData, date, hidden])
   const selected = markers.find((marker) => marker.googlePlaceId === selectedId)
@@ -94,6 +102,32 @@ export default function RouteCalculatorModule() {
     setCalculating(false)
   }, [])
 
+  const rememberMap = useCallback((id: string) => {
+    mapIdRef.current = id
+    setMapId(id)
+    try {
+      window.localStorage.setItem(activeRouteMapStorageKey, id)
+      setMapSelectionError('')
+    } catch (cause) {
+      setMapSelectionError(cause instanceof Error ? `試算地圖已儲存，但無法記住目前地圖：${cause.message}` : '試算地圖已儲存，但無法記住目前地圖。')
+    }
+  }, [])
+
+  const ensureCurrentMap = useCallback(async () => {
+    if (mapIdRef.current) return mapIdRef.current
+    const map = await controller.getOrCreateRouteMap(tripId || undefined)
+    rememberMap(map.id)
+    return map.id
+  }, [controller, rememberMap, tripId])
+
+  const saveMapChanges = useCallback(async (changes: RouteMapChanges, requestedMapId?: string) => {
+    const id = requestedMapId ?? await ensureCurrentMap()
+    const operation = mapSaveQueue.current.then(() => controller.updateRouteMap(id, changes))
+    mapSaveQueue.current = operation.catch(() => undefined)
+    await operation
+    setMapSaveError('')
+  }, [controller, ensureCurrentMap])
+
   const changeEndpoint = useCallback((target: Target, value: RouteEndpoint | null) => {
     invalidate()
     const current = ++endpointGeneration.current[target]
@@ -101,8 +135,28 @@ export default function RouteCalculatorModule() {
     setter(value)
     setEndpointErrors((errors) => ({ ...errors, [target]: '' }))
     setResolving((state) => ({ ...state, [target]: Boolean(value) }))
-    if (!value) return
-    void controller.resolveEndpoint(value).then((marker) => {
+    if (!value) {
+      const currentMapId = mapIdRef.current
+      if (currentMapId) {
+        void saveMapChanges(target === 'origin'
+          ? { originGooglePlaceId: undefined }
+          : { destinationGooglePlaceId: undefined }, currentMapId).catch((cause: unknown) => {
+            setEndpointErrors((errors) => ({ ...errors, [target]: cause instanceof Error ? cause.message : '儲存試算地圖失敗。' }))
+          })
+      }
+      return
+    }
+    void controller.resolveEndpoint(value).then(async (marker) => {
+      if (endpointGeneration.current[target] !== current) return
+      const routeMapId = await ensureCurrentMap()
+      if (endpointGeneration.current[target] !== current) return
+      if (!isTripMarker(marker.googlePlaceId, tripData)) {
+        await controller.addRouteMapPlace(routeMapId, marker.googlePlaceId)
+      }
+      if (endpointGeneration.current[target] !== current) return
+      await saveMapChanges(target === 'origin'
+        ? { originGooglePlaceId: marker.googlePlaceId }
+        : { destinationGooglePlaceId: marker.googlePlaceId }, routeMapId)
       if (endpointGeneration.current[target] !== current) return
       setPersonal((existing) => [...existing.filter((item) => item.googlePlaceId !== marker.googlePlaceId), marker])
       setHidden((ids) => ids.filter((id) => id !== marker.googlePlaceId))
@@ -110,11 +164,11 @@ export default function RouteCalculatorModule() {
     }).catch((cause: unknown) => {
       if (endpointGeneration.current[target] !== current) return
       setter(null)
-      setEndpointErrors((errors) => ({ ...errors, [target]: cause instanceof Error ? cause.message : '載入地點標記失敗，請重新選擇。' }))
+      setEndpointErrors((errors) => ({ ...errors, [target]: cause instanceof Error ? cause.message : '載入或儲存地點標記失敗，請重新選擇。' }))
     }).finally(() => {
       if (endpointGeneration.current[target] === current) setResolving((state) => ({ ...state, [target]: false }))
     })
-  }, [controller, invalidate])
+  }, [controller, ensureCurrentMap, invalidate, saveMapChanges, tripData])
   const changeOrigin = useCallback((value: RouteEndpoint | null) => changeEndpoint('origin', value), [changeEndpoint])
   const changeDestination = useCallback((value: RouteEndpoint | null) => changeEndpoint('destination', value), [changeEndpoint])
 
@@ -135,6 +189,12 @@ export default function RouteCalculatorModule() {
       ? destinationId === marker.googlePlaceId
       : originId === marker.googlePlaceId
     if (isOpposite) {
+      void saveMapChanges({
+        originGooglePlaceId: destinationId,
+        destinationGooglePlaceId: originId,
+      }).catch((cause: unknown) => {
+        setMapSaveError(cause instanceof Error ? cause.message : '儲存出發點與目的地失敗。')
+      })
       endpointGeneration.current.origin += 1
       endpointGeneration.current.destination += 1
       setResolving({ origin: false, destination: false })
@@ -147,6 +207,11 @@ export default function RouteCalculatorModule() {
       setSelectedId(marker.googlePlaceId)
       return
     }
+    void saveMapChanges(target === 'origin'
+      ? { originGooglePlaceId: marker.googlePlaceId }
+      : { destinationGooglePlaceId: marker.googlePlaceId }).catch((cause: unknown) => {
+        setMapSaveError(cause instanceof Error ? cause.message : '儲存端點失敗。')
+      })
     endpointGeneration.current[target] += 1
     setResolving((state) => ({ ...state, [target]: false }))
     setEndpointErrors((errors) => ({ ...errors, [target]: '' }))
@@ -159,7 +224,7 @@ export default function RouteCalculatorModule() {
     }
     setInputRevision((current) => ({ ...current, [target]: current[target] + 1 }))
     setSelectedId(marker.googlePlaceId)
-  }, [invalidate, originId, destinationId, origin, destination, originSource, destinationSource])
+  }, [invalidate, originId, destinationId, origin, destination, originSource, destinationSource, saveMapChanges])
 
   const selectMarker = useCallback((marker: RouteMapPlace) => {
     if (busy) return
@@ -181,17 +246,145 @@ export default function RouteCalculatorModule() {
     return true
   }
 
+  function confirmMapSwitch(next: RouteMapPlace[]) {
+    const remains = (id: string | undefined) => !id || next.some((marker) => marker.googlePlaceId === id)
+    if ((!remains(originId) || !remains(destinationId)) &&
+        !window.confirm('切換試算地圖會顯示該地圖已儲存的端點；目前端點不會被刪除，仍保留在原試算地圖。確定繼續？')) return false
+    return true
+  }
+
+  const applyRouteMap = useCallback(async (
+    map: Awaited<ReturnType<RouteCalculatorController['getOrCreateRouteMap']>>,
+    mapData: Awaited<ReturnType<RouteCalculatorController['loadRouteMap']>>,
+    loadedTripData?: TripMapData,
+  ) => {
+    invalidate()
+    endpointGeneration.current.origin += 1
+    endpointGeneration.current.destination += 1
+    setResolving({ origin: false, destination: false })
+    const endpointErrors = { origin: '', destination: '' }
+    const storedEndpoints = await Promise.all(['origin', 'destination'].map(async (target) => {
+      const id = target === 'origin' ? map.originGooglePlaceId : map.destinationGooglePlaceId
+      if (!id) return { target, endpoint: null, marker: undefined }
+      try {
+        const marker = await controller.resolveEndpoint({ source: 'google', place: { id } })
+        return {
+          target,
+          endpoint: {
+            source: 'google' as const,
+            place: {
+              id: marker.googlePlaceId,
+              displayName: marker.name,
+              location: marker.position,
+              formattedAddress: marker.address,
+            },
+          },
+          marker,
+        }
+      } catch (cause) {
+        endpointErrors[target as Target] = cause instanceof Error ? cause.message : '無法載入已儲存的端點。'
+        return { target, endpoint: null, marker: undefined }
+      }
+    }))
+    const tripMarkerIds = new Set(loadedTripData?.markers.map((marker) => marker.googlePlaceId) ?? [])
+    const personalMarkers = [...mapData.markers]
+    for (const { marker } of storedEndpoints) {
+      if (marker && !tripMarkerIds.has(marker.googlePlaceId) &&
+          !personalMarkers.some((item) => item.googlePlaceId === marker.googlePlaceId)) {
+        personalMarkers.push(marker)
+      }
+    }
+    mapIdRef.current = map.id
+    rememberMap(map.id)
+    setTripId(map.tripId ?? '')
+    setTripData(loadedTripData)
+    setRouteMapUnavailable(mapData.unavailable)
+    const selectedDate = map.selectedDate && loadedTripData?.dates.includes(map.selectedDate)
+      ? map.selectedDate
+      : ''
+    setDate(selectedDate)
+    setPersonal(personalMarkers)
+    setHidden([])
+    setOrigin(storedEndpoints.find((item) => item.target === 'origin')?.endpoint ?? null)
+    setDestination(storedEndpoints.find((item) => item.target === 'destination')?.endpoint ?? null)
+    setOriginSource('google')
+    setDestinationSource('google')
+    setTransport(map.transport)
+    setEndpointErrors(endpointErrors)
+    setInputRevision((current) => ({ origin: current.origin + 1, destination: current.destination + 1 }))
+    setSelectedId('')
+    setTripError('')
+    if (map.selectedDate && !selectedDate) {
+      const operation = mapSaveQueue.current.then(() =>
+        controller.updateRouteMap(map.id, { selectedDate: undefined }))
+      mapSaveQueue.current = operation.catch(() => undefined)
+      void operation.catch((cause: unknown) => {
+        setMapSaveError(cause instanceof Error ? cause.message : '清除已失效的日期篩選失敗。')
+      })
+    }
+  }, [controller, invalidate, rememberMap])
+
+  useEffect(() => {
+    let active = true
+    const current = ++tripGeneration.current
+    let savedMapId: string
+    try {
+      savedMapId = window.localStorage.getItem(activeRouteMapStorageKey) ?? ''
+    } catch (cause) {
+      setMapSelectionError(cause instanceof Error ? `無法讀取上次使用的試算地圖：${cause.message}` : '無法讀取上次使用的試算地圖。')
+      setTripLoading(false)
+      return () => { active = false }
+    }
+    setTripLoading(true)
+    void (async () => {
+      try {
+        const mapId = savedMapId || (await controller.getInitialRouteMap())?.id
+        if (!mapId) return
+        const mapData = await controller.loadRouteMap(mapId)
+        const loadedTripData = mapData.map.tripId
+          ? await controller.loadTripMarkers(mapData.map.tripId)
+          : undefined
+        if (!active || tripGeneration.current !== current) return
+        await applyRouteMap(mapData.map, mapData, loadedTripData)
+      } catch (cause) {
+        if (active && tripGeneration.current === current) {
+          if (cause instanceof EntityNotFoundError) {
+            mapIdRef.current = ''
+            setMapId('')
+            setTripId('')
+            try {
+              window.localStorage.removeItem(activeRouteMapStorageKey)
+            } catch (storageCause) {
+              setMapSelectionError(storageCause instanceof Error
+                ? `上次使用的試算地圖已不存在，且無法清除記錄：${storageCause.message}`
+                : '上次使用的試算地圖已不存在，且無法清除記錄。')
+            }
+            setTripError('上次使用的試算地圖已不存在，請重新選擇行程。')
+          } else {
+            setTripError(cause instanceof Error ? cause.message : '載入已儲存的試算地圖失敗。')
+          }
+        }
+      } finally {
+        if (active && tripGeneration.current === current) setTripLoading(false)
+      }
+    })()
+    return () => { active = false }
+  }, [applyRouteMap, controller])
+
   async function loadTrip(nextId: string) {
     const current = ++tripGeneration.current
     setTripLoading(true)
     setTripError('')
     try {
-      const data = nextId ? await controller.loadTripMarkers(nextId) : undefined
+      const map = await controller.getOrCreateRouteMap(nextId || undefined)
+      const [mapData, data] = await Promise.all([
+        controller.loadRouteMap(map.id),
+        nextId ? controller.loadTripMarkers(nextId) : Promise.resolve(undefined),
+      ])
       if (tripGeneration.current !== current) return
-      if (!reconcileMarkers(visibleRouteMarkers(personal, data, '', hidden))) return
-      setTripId(nextId)
-      setTripData(data)
-      setDate('')
+      const nextDate = map.selectedDate && data?.dates.includes(map.selectedDate) ? map.selectedDate : ''
+      if (!confirmMapSwitch(visibleRouteMarkers(mapData.markers, data, nextDate, []))) return
+      await applyRouteMap(map, mapData, data)
     } catch (cause) {
       if (tripGeneration.current === current) setTripError(cause instanceof Error ? cause.message : '行程標記載入失敗，請重新選擇行程。')
     } finally {
@@ -199,7 +392,7 @@ export default function RouteCalculatorModule() {
     }
   }
 
-  function removeMarker(marker: RouteMapPlace) {
+  async function removeMarker(marker: RouteMapPlace) {
     if (isTripMarker(marker.googlePlaceId, tripData)) {
       setError('原行程地點不可移除標記。')
       return
@@ -207,9 +400,15 @@ export default function RouteCalculatorModule() {
     const nextHidden = [...hidden, marker.googlePlaceId]
     const nextPersonal = personal.filter((item) => item.googlePlaceId !== marker.googlePlaceId)
     if (!reconcileMarkers(visibleRouteMarkers(nextPersonal, tripData, date, nextHidden))) return
-    setPersonal(nextPersonal)
-    setHidden(nextHidden)
-    setSelectedId('')
+    try {
+      if (!mapIdRef.current) throw new Error('目前沒有已載入的試算地圖。')
+      await controller.removeRouteMapPlace(mapIdRef.current, marker.googlePlaceId)
+      setPersonal(nextPersonal)
+      setHidden(nextHidden)
+      setSelectedId('')
+    } catch (cause) {
+      setMapSaveError(cause instanceof Error ? cause.message : '移除標記失敗。')
+    }
   }
 
   async function calculate(event: FormEvent<HTMLFormElement>) {
@@ -234,7 +433,7 @@ export default function RouteCalculatorModule() {
     <WorkspaceLayout active="route-calculator" mainClassName="route-calculator-main" shellClassName="route-calculator-shell">
       <div className="route-calculator-content">
         <header className="route-calculator-heading">
-          <div><h1>路程試算</h1><p>選擇兩個地點與交通方式，即時計算參考時間與距離；標記與試算資料只保留在本頁。</p></div>
+          <div><h1>路程試算</h1><p>地圖、後加標記、端點與交通方式會自動儲存；原行程地點仍由行程資料即時載入。</p></div>
           <RouterLink className="route-secondary" to={routes.itinerary}>返回行程</RouterLink>
         </header>
         <div className="route-calculator-workspace">
@@ -249,7 +448,14 @@ export default function RouteCalculatorModule() {
                 <RouteEndpointField key={`destination-${inputRevision.destination}`} controller={controller} label="目的地" places={places} value={destination} onChange={changeDestination} disabled={busy} source={destinationSource} onSourceChange={(source) => changeSource('destination', source)} />
                 {resolving.destination && <p className="route-field-hint" role="status">正在載入目的地標記…</p>}
                 {endpointErrors.destination && <p className="route-inline-error" role="alert">{endpointErrors.destination}</p>}
-                <label className="route-transport"><span>交通方式 <b>*</b></span><select value={transport} disabled={busy} onChange={(event) => { invalidate(); setTransport(event.target.value) }}>{transportOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
+                <label className="route-transport"><span>交通方式 <b>*</b></span><select value={transport} disabled={busy} onChange={(event) => {
+                  const next = event.target.value
+                  invalidate()
+                  setTransport(next)
+                  void saveMapChanges({ transport: next }).catch((cause: unknown) => {
+                    setMapSaveError(cause instanceof Error ? cause.message : '儲存交通方式失敗。')
+                  })
+                }}>{transportOptions.map((option) => <option value={option.value} key={option.value}>{option.label}</option>)}</select></label>
                 {!configured && <p className="route-inline-error" role="alert">尚未設定 Google Maps API key，無法計算路程。</p>}
                 {error && <p className="route-inline-error" role="alert">{error}</p>}
                 <button className="route-primary" type="submit" disabled={busy || resolving.origin || resolving.destination || !configured || !origin || !destination}>{calculating ? '正在計算…' : '路程計算'}</button>
@@ -289,15 +495,24 @@ export default function RouteCalculatorModule() {
                 </div>
               {tripId && <label className="route-transport"><span>日期範圍</span><select value={date} disabled={busy || resolving.origin || resolving.destination} onChange={(event) => {
                 const next = event.target.value
-                if (reconcileMarkers(visibleRouteMarkers(personal, tripData, next, hidden))) setDate(next)
+                if (reconcileMarkers(visibleRouteMarkers(personal, tripData, next, hidden))) {
+                  setDate(next)
+                  void saveMapChanges({ selectedDate: next || undefined }).catch((cause: unknown) => {
+                    setMapSaveError(cause instanceof Error ? cause.message : '儲存日期範圍失敗。')
+                  })
+                }
               }}><option value="">全部日期</option>{tripData?.dates.map((day) => <option key={day} value={day}>{day}</option>)}</select></label>}
               </div>
               {tripsError && <div className="route-inline-error" role="alert">{tripsError}<button type="button" onClick={() => setTripsAttempt((value) => value + 1)}>重試</button></div>}
+              {mapSaveError && <p className="route-inline-error" role="alert">{mapSaveError}</p>}
+              {mapSelectionError && <p className="route-inline-error" role="alert">{mapSelectionError}</p>}
+              {mapId && <p className="route-field-hint" role="status">目前試算地圖已自動儲存。</p>}
               {!tripsLoading && !tripsError && !trips.length && <p className="route-field-hint">尚無行程，仍可搜尋地點加入標記。</p>}
               {tripLoading && <p className="route-field-hint" role="status">正在載入行程地點標記…</p>}
               {tripError && <p className="route-inline-error" role="alert">{tripError} 可重新選擇行程重試。</p>}
               {tripId && !tripData?.dates.length && <p className="route-field-hint">此行程尚未安排地點。</p>}
               {!!tripData?.unavailable.length && <details className="route-unavailable"><summary>{tripData.unavailable.length} 個地點無法顯示</summary><ul>{tripData.unavailable.map((message, index) => <li key={index}>{message}</li>)}</ul></details>}
+              {!!routeMapUnavailable.length && <details className="route-unavailable"><summary>{routeMapUnavailable.length} 個後加地點無法顯示</summary><ul>{routeMapUnavailable.map((message, index) => <li key={index}>{message}</li>)}</ul></details>}
             </div>
           } />
         </div>

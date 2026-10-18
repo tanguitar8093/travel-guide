@@ -1,4 +1,13 @@
-import { EntityNotFoundError, itineraryItems, places, regions, trips, ValidationError } from '../../database'
+import {
+  EntityNotFoundError,
+  itineraryItems,
+  places,
+  regions,
+  routeMaps,
+  routeMapPlaces,
+  trips,
+  ValidationError,
+} from '../../database'
 import type {
   ItineraryItem,
   ItineraryItemChanges,
@@ -48,6 +57,13 @@ export class ItineraryService {
 
   deleteTrip(id: string): Promise<void> {
     return trips.delete(id)
+  }
+
+  async getTripRouteMapSummary(tripId: string): Promise<{ hasRouteMap: boolean; addedPlaceCount: number }> {
+    const map = await routeMaps.findByTripId(tripId)
+    if (!map) return { hasRouteMap: false, addedPlaceCount: 0 }
+    const markers = await routeMapPlaces.findByRouteMapId(map.id)
+    return { hasRouteMap: true, addedPlaceCount: markers.length }
   }
 
   listItems(tripId: string): Promise<ItineraryItem[]> {

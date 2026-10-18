@@ -5,12 +5,21 @@ import type { GooglePlaceDetails } from '../place/google-places.service'
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), getById: vi.fn(), details: vi.fn(), estimate: vi.fn(),
   trips: vi.fn(), items: vi.fn(),
+  routeMapCreate: vi.fn(), routeMapUpdate: vi.fn(), routeMapGet: vi.fn(), routeMapList: vi.fn(), routeMapFindByTrip: vi.fn(),
+  routeMapPlaceCreate: vi.fn(), routeMapPlaceDelete: vi.fn(), routeMapPlaceFind: vi.fn(),
 }))
 vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
   places: { list: mocks.list, getById: mocks.getById },
   trips: { list: mocks.trips },
   itineraryItems: { findByTripId: mocks.items },
+  routeMaps: {
+    create: mocks.routeMapCreate, update: mocks.routeMapUpdate, getById: mocks.routeMapGet,
+    list: mocks.routeMapList, findByTripId: mocks.routeMapFindByTrip,
+  },
+  routeMapPlaces: {
+    create: mocks.routeMapPlaceCreate, delete: mocks.routeMapPlaceDelete, findByRouteMapId: mocks.routeMapPlaceFind,
+  },
 }))
 vi.mock('../place/google-places.service', () => ({
   getGooglePlaceDetails: mocks.details,
@@ -40,6 +49,14 @@ beforeEach(() => {
   mocks.estimate.mockResolvedValue({ durationMinutes: 12, distanceMeters: 800 })
   mocks.items.mockResolvedValue([])
   mocks.trips.mockResolvedValue([])
+  mocks.routeMapCreate.mockResolvedValue('map-id')
+  mocks.routeMapUpdate.mockResolvedValue(undefined)
+  mocks.routeMapGet.mockResolvedValue({ id: 'map-id', name: 'Map', transport: 'DRIVING' })
+  mocks.routeMapList.mockResolvedValue([])
+  mocks.routeMapFindByTrip.mockResolvedValue(undefined)
+  mocks.routeMapPlaceCreate.mockResolvedValue('marker-id')
+  mocks.routeMapPlaceDelete.mockResolvedValue(undefined)
+  mocks.routeMapPlaceFind.mockResolvedValue([])
 })
 
 it('reads all saved places through the existing repository without filtering by trip region', async () => {
@@ -159,6 +176,51 @@ it('surfaces trip repository failures rather than returning empty success', asyn
 it('reads trips through the existing facade', async () => {
   mocks.trips.mockResolvedValue([{ id: 'trip', name: '旅行' }])
   expect(await new RouteCalculatorService().listTrips()).toEqual([{ id: 'trip', name: '旅行' }])
+})
+
+it('reuses the trip map and creates a linked map only when one does not exist', async () => {
+  const existing = { id: 'existing-map', name: 'Trip map', tripId: 'trip', transport: 'WALKING' }
+  mocks.routeMapFindByTrip.mockResolvedValueOnce(existing).mockResolvedValueOnce(undefined)
+  mocks.trips.mockResolvedValue([{ id: 'trip', name: '旅行' }])
+
+  await expect(new RouteCalculatorService().getOrCreateRouteMap('trip')).resolves.toEqual(existing)
+  expect(mocks.routeMapCreate).not.toHaveBeenCalled()
+
+  mocks.routeMapCreate.mockResolvedValueOnce('new-map')
+  mocks.routeMapGet.mockResolvedValueOnce({ id: 'new-map', name: '旅行 路程試算', tripId: 'trip', transport: 'DRIVING' })
+  await expect(new RouteCalculatorService().getOrCreateRouteMap('trip')).resolves.toMatchObject({
+    tripId: 'trip', name: '旅行 路程試算',
+  })
+  expect(mocks.routeMapCreate).toHaveBeenCalledWith({
+    name: '旅行 路程試算', tripId: 'trip', transport: 'DRIVING',
+  })
+})
+
+it('restores an unambiguous map when no device-local active map is available', async () => {
+  const standalone = { id: 'standalone', name: 'Independent map', transport: 'DRIVING' }
+  mocks.routeMapList.mockResolvedValueOnce([standalone, { id: 'trip-map', name: 'Trip', tripId: 'trip', transport: 'WALKING' }])
+  await expect(new RouteCalculatorService().getInitialRouteMap()).resolves.toEqual(standalone)
+
+  mocks.routeMapList.mockResolvedValueOnce([
+    { id: 'trip-a', name: 'Trip A', tripId: 'a', transport: 'DRIVING' },
+    { id: 'trip-b', name: 'Trip B', tripId: 'b', transport: 'DRIVING' },
+  ])
+  await expect(new RouteCalculatorService().getInitialRouteMap()).resolves.toBeUndefined()
+})
+
+it('persists only a Google place ID for an added route-map marker and loads its location on demand', async () => {
+  const map = { id: 'map-id', name: 'Map', transport: 'DRIVING' }
+  mocks.routeMapGet.mockResolvedValue(map)
+  mocks.routeMapPlaceFind.mockResolvedValueOnce([])
+  await new RouteCalculatorService().addRouteMapPlace('map-id', 'station')
+  expect(mocks.routeMapPlaceCreate).toHaveBeenCalledWith({ routeMapId: 'map-id', googlePlaceId: 'station' })
+
+  mocks.routeMapPlaceFind.mockResolvedValue([{ id: 'marker-id', routeMapId: 'map-id', googlePlaceId: 'station' }])
+  const service = new RouteCalculatorService()
+  const loaded = await service.loadRouteMap('map-id')
+  expect(loaded.map).toEqual(map)
+  expect(loaded.markers).toMatchObject([{ googlePlaceId: 'station', name: saved.name, position: { lat: 25.04, lng: 121.55 } }])
+  expect(mocks.details).toHaveBeenCalledWith('station')
 })
 
 it('limits concurrent Google detail requests when loading a large trip', async () => {

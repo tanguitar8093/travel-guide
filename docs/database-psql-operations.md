@@ -92,3 +92,41 @@ node --env-file=.env.local scripts/db-psql.mjs \
 - Build, lint, browser validation and live business-data/RLS smoke tests were
   not run for this extension. Passing isolated SQL tests does not establish
   real Google Routes results or live cross-device correctness.
+
+## Route-map persistence record — 2026-10-19
+
+- Reconciled the incremental SQL with the existing live sync and backup
+  functions before applying. The migration adds `route_maps` and
+  `route_map_places`, a dedicated owner-assignment trigger function, route-map
+  sync serialization, backup validation/replacement support, and grants/RLS for
+  owner/admin access. It does not replay the baseline, distance, or prior sync
+  migrations.
+- Applied the [incremental migration](../supabase/migrations/20261019010000_route_maps.sql)
+  successfully with:
+
+  ```bash
+  node --env-file=.env.local scripts/db-psql.mjs \
+    -f supabase/migrations/20261019010000_route_maps.sql
+  ```
+
+- Post-apply read-only verification confirmed both new tables exist, both are
+  initially empty, and the previously checked business-table row counts remain
+  `regions=2`, `places=22`, `labels=19`, `trips=1`, `itinerary_items=17`.
+  Read-only catalog checks also confirmed the updated sync/backup functions are
+  present in `public`/`sync_private`.
+- Authorized focused validation completed before live apply:
+  `npm run build` passed, and 13 focused Vitest files (106 tests) passed using
+  `NODE_OPTIONS=--experimental-websocket`. Coverage included local repositories,
+  hybrid outbox/sync behavior, backup validation, PGlite sync SQL, route-map
+  cloud migration tests, and automatic-sync integration.
+- During validation we fixed two SQL edge cases in the migration source before
+  applying:
+  1. the route-map owner trigger now branches by table before touching
+     table-specific columns, avoiding `NEW.trip_id` access on route-map-place
+     writes;
+  2. backup payload validation no longer reuses the PL/pgSQL `item` variable
+     name in aggregate subqueries, avoiding ambiguous-column failures.
+- This phase still does **not** include the route-calculator UI saving/restoring
+  data, user-facing trip-delete warnings for stored route maps, or any live
+  business-data write smoke test beyond the migration transaction itself.
+  Cross-device/manual browser validation was not run here.

@@ -4,11 +4,12 @@ import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
 import baseline from '../../supabase/migrations/20261017153621_repository_baseline.sql?raw'
 import migration from '../../supabase/migrations/20261017153641_local_first_sync.sql?raw'
 import distanceMigration from '../../supabase/migrations/20261018220000_itinerary_travel_distance.sql?raw'
+import routeMapsMigration from '../../supabase/migrations/20261019010000_route_maps.sql?raw'
 import { syncCloudAdapter } from './sync-cloud.adapter'
 import { supabase } from './supabase.client'
 import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore } from './hybrid.runtime'
 import { setDatabaseMode, setSyncMode } from './runtime'
-import { regions, labels, places, trips, itineraryItems } from './index'
+import { regions, labels, places, trips, itineraryItems, routeMaps, routeMapPlaces } from './index'
 import { SyncDatabase } from './sync.database'
 import { placeController } from '../modules/place/place.controller'
 import { setDatabaseModeRole } from './mode-access'
@@ -32,7 +33,8 @@ beforeAll(async () => {
     update public.user_roles set role='admin' where user_id='${uid}';`)
   await sql.exec(migration)
   await sql.exec(distanceMigration)
-}, 30000)
+  await sql.exec(routeMapsMigration)
+}, 120000)
 
 afterEach(async () => {
   setSyncMode('manual')
@@ -94,7 +96,9 @@ it('automatically persists an admin label, place and itinerary item in productio
     travelDurationMinutes: 25, travelDistanceMeters: 12300,
   })
   const store = requireHybridStore()
-  expect(await store.listTasks()).toHaveLength(5)
+  const mapId = await routeMaps.create({ name: 'Trip map', tripId, transport: 'WALKING' })
+  const markerId = await routeMapPlaces.create({ routeMapId: mapId, googlePlaceId: 'added-location' })
+  expect(await store.listTasks()).toHaveLength(7)
 
   await vi.advanceTimersByTimeAsync(1999)
   expect(rpc).not.toHaveBeenCalled()
@@ -118,6 +122,10 @@ it('automatically persists an admin label, place and itinerary item in productio
     .toEqual([{ distance: '12300' }])
   expect((await syncCloudAdapter.snapshot()).records.find((row) => row.id === itemId)?.record)
     .toMatchObject({ travelDistanceMeters: 12300 })
+  expect((await sql.query('select id,trip_id from public.route_maps where id=$1', [mapId])).rows)
+    .toEqual([{ id: mapId, trip_id: tripId }])
+  expect((await sql.query('select id,google_place_id from public.route_map_places where id=$1', [markerId])).rows)
+    .toEqual([{ id: markerId, google_place_id: 'added-location' }])
 
   const beforePlaceUpdateSync = (await store.getSummary()).lastSyncedAt
   await places.update(placeId, { name: 'Updated cafe' })

@@ -86,4 +86,26 @@ export type RegionChanges = Partial<NewRegion>
 export type PlaceChanges = Partial<NewPlace>
 export type LabelChanges = Partial<NewLabel>
 export type TripChanges = Partial<NewTrip>
+
+export interface RouteMap {
+  id: string
+  name: string
+  tripId?: string
+  selectedDate?: string
+  originGooglePlaceId?: string
+  destinationGooglePlaceId?: string
+  transport: string
+}
+
+export interface RouteMapPlace {
+  id: string
+  routeMapId: string
+  googlePlaceId: string
+  name?: string
+}
+
+export type NewRouteMap = Omit<RouteMap, 'id'>
+export type RouteMapChanges = Partial<NewRouteMap>
+export type NewRouteMapPlace = Omit<RouteMapPlace, 'id'>
+export type RouteMapPlaceChanges = Partial<NewRouteMapPlace>
 export type ItineraryItemChanges = Partial<NewItineraryItem>

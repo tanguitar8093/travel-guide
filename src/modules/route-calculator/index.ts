@@ -7,5 +7,6 @@ export type {
   RouteCalculationInput,
   RouteCalculationResult,
   RouteMapPlace,
+  RouteMapData,
   TripMapData,
 } from './route-calculator.service'

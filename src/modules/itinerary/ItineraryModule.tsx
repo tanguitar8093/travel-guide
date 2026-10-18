@@ -24,6 +24,11 @@ import "./ItineraryModule.css";
 import { SearchableSelect } from "../../common/SearchableSelect";
 import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
 
+type DeleteRouteMapCheck =
+  | { tripId: string; status: "loading" }
+  | { tripId: string; status: "ready"; hasRouteMap: boolean; addedPlaceCount: number }
+  | { tripId: string; status: "error"; message: string };
+
 interface TripDraft {
   name: string;
   regionId: string;
@@ -161,6 +166,8 @@ function ItineraryModule() {
   const [creatingTrip, setCreatingTrip] = useState(false);
   const [editingTrip, setEditingTrip] = useState(false);
   const [deleteTripDialogOpen, setDeleteTripDialogOpen] = useState(false);
+  const [deleteRouteMapCheck, setDeleteRouteMapCheck] =
+    useState<DeleteRouteMapCheck>();
   const [expandedPlaceNotes, setExpandedPlaceNotes] = useState<Set<string>>(
     () => new Set(),
   );
@@ -185,6 +192,7 @@ function ItineraryModule() {
   const focusModeTriggerRef = useRef<HTMLButtonElement>(null);
   const focusModeCloseRef = useRef<HTMLButtonElement>(null);
   const placePickerInputRef = useRef<HTMLInputElement>(null);
+  const deleteRouteMapCheckGeneration = useRef(0);
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
   const selectedRegionId = selectedTrip?.regionId;
@@ -465,7 +473,10 @@ function ItineraryModule() {
   useEffect(() => {
     if (!deleteTripDialogOpen || saving) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDeleteTripDialogOpen(false);
+      if (event.key === "Escape") {
+        deleteRouteMapCheckGeneration.current += 1;
+        setDeleteTripDialogOpen(false);
+      }
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
@@ -665,9 +676,39 @@ function ItineraryModule() {
     }
   }
 
+  function closeDeleteTripDialog() {
+    deleteRouteMapCheckGeneration.current += 1;
+    setDeleteTripDialogOpen(false);
+  }
+
+  function openDeleteTripDialog() {
+    if (!selectedTrip) return;
+    const tripId = selectedTrip.id;
+    const generation = ++deleteRouteMapCheckGeneration.current;
+    setError("");
+    setDeleteRouteMapCheck({ tripId, status: "loading" });
+    setDeleteTripDialogOpen(true);
+    void itineraryController.getTripRouteMapSummary(tripId).then((summary) => {
+      if (deleteRouteMapCheckGeneration.current === generation) {
+        setDeleteRouteMapCheck({ tripId, status: "ready", ...summary });
+      }
+    }).catch((cause: unknown) => {
+      if (deleteRouteMapCheckGeneration.current === generation) {
+        setDeleteRouteMapCheck({
+          tripId,
+          status: "error",
+          message: cause instanceof Error ? cause.message : "讀取試算地圖資料失敗。",
+        });
+      }
+    });
+  }
+
   async function handleDeleteTrip() {
-    if (!selectedTrip || saving) return;
+    if (!selectedTrip || saving ||
+        deleteRouteMapCheck?.tripId !== selectedTrip.id ||
+        deleteRouteMapCheck.status !== "ready") return;
     const deletingTrip = selectedTrip;
+    const routeMapSummary = deleteRouteMapCheck;
     setSaving(true);
     setError("");
     setNotice("");
@@ -675,7 +716,9 @@ function ItineraryModule() {
       await itineraryController.deleteTrip(deletingTrip.id);
       setDeleteTripDialogOpen(false);
       await refreshWorkspace();
-      setNotice(`行程「${deletingTrip.name}」及其行程項目已刪除。`);
+      setNotice(routeMapSummary.hasRouteMap
+        ? `行程「${deletingTrip.name}」、每日安排及試算地圖（含 ${routeMapSummary.addedPlaceCount} 個後加標記）已刪除。`
+        : `行程「${deletingTrip.name}」及其行程項目已刪除。`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "刪除行程失敗。");
     } finally {
@@ -931,10 +974,7 @@ function ItineraryModule() {
                   type="button"
                   className="itinerary-delete"
                   disabled={saving}
-                  onClick={() => {
-                    setError("");
-                    setDeleteTripDialogOpen(true);
-                  }}
+                  onClick={openDeleteTripDialog}
                 >
                   刪除
                 </button>
@@ -1828,7 +1868,7 @@ function ItineraryModule() {
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving)
-              setDeleteTripDialogOpen(false);
+            closeDeleteTripDialog();
           }}
         >
           <section
@@ -1849,7 +1889,7 @@ function ItineraryModule() {
                 type="button"
                 aria-label="關閉"
                 disabled={saving}
-                onClick={() => setDeleteTripDialogOpen(false)}
+                onClick={closeDeleteTripDialog}
               >
                 ×
               </button>
@@ -1858,9 +1898,26 @@ function ItineraryModule() {
               <strong aria-hidden="true">!</strong>
               <p>
                 刪除後無法復原。此操作會一併刪除此行程的每日安排及備註；
-                收藏地點、標籤與區域不受影響。
+                {deleteRouteMapCheck?.status === "ready" && deleteRouteMapCheck.hasRouteMap
+                  ? "關聯的試算地圖與後加標記也會一起刪除；收藏地點、標籤與區域不受影響。"
+                  : "收藏地點、標籤與區域不受影響。"}
               </p>
             </div>
+            {deleteRouteMapCheck?.status === "loading" && (
+              <p className="itinerary-feedback" role="status">正在確認是否有關聯的試算地圖…</p>
+            )}
+            {deleteRouteMapCheck?.status === "error" && (
+              <div className="itinerary-feedback itinerary-error" role="alert">
+                無法確認試算地圖是否存在：{deleteRouteMapCheck.message}
+                <button type="button" disabled={saving} onClick={openDeleteTripDialog}>重試</button>
+              </div>
+            )}
+            {deleteRouteMapCheck?.status === "ready" && deleteRouteMapCheck.hasRouteMap && (
+              <div className="itinerary-delete-summary">
+                <span>將一併刪除的試算地圖</span>
+                <strong>1 張地圖、{deleteRouteMapCheck.addedPlaceCount} 個後加標記</strong>
+              </div>
+            )}
             <div className="itinerary-delete-summary">
               <span>將一併刪除的行程項目</span>
               <strong>{tripItems.length} 個地點</strong>
@@ -1878,14 +1935,15 @@ function ItineraryModule() {
                 type="button"
                 className="itinerary-secondary"
                 disabled={saving}
-                onClick={() => setDeleteTripDialogOpen(false)}
+                onClick={closeDeleteTripDialog}
               >
                 取消
               </button>
               <button
                 type="button"
                 className="itinerary-delete"
-                disabled={saving}
+                disabled={saving || deleteRouteMapCheck?.status !== "ready" ||
+                  deleteRouteMapCheck.tripId !== selectedTrip.id}
                 onClick={() => void handleDeleteTrip()}
               >
                 {saving ? "刪除中…" : "刪除行程與項目"}

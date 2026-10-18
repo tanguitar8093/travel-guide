@@ -43,7 +43,7 @@ describe('backup repository validation', () => {
     })
 
     expect(backup.format).toBe('travel-planner-backup')
-    expect(backup.version).toBe(1)
+    expect(backup.version).toBe(2)
     expect(backup.data.regions).toHaveLength(0)
   })
 

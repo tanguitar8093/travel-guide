@@ -54,7 +54,7 @@ beforeAll(async () => {
     update public.user_roles set role='member' where user_id in ('${member}','${other}');
     update public.user_roles set role='admin' where user_id='${admin}';`)
   await db.exec(migration)
-}, 30000)
+}, 120000)
 
 afterAll(async () => { await db.close() })
 

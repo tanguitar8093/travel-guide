@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   updateItem: vi.fn(),
   getPlace: vi.fn(),
   estimate: vi.fn(),
+  findRouteMap: vi.fn(),
+  findRouteMapPlaces: vi.fn(),
 }))
 
 vi.mock('../../database', async () => ({
@@ -19,6 +21,8 @@ vi.mock('../../database', async () => ({
   places: { getById: mocks.getPlace },
   regions: {},
   trips: {},
+  routeMaps: { findByTripId: mocks.findRouteMap },
+  routeMapPlaces: { findByRouteMapId: mocks.findRouteMapPlaces },
 }))
 vi.mock('../place/google-places.service', () => ({
   getGoogleRouteEstimate: mocks.estimate,
@@ -38,6 +42,8 @@ beforeEach(() => {
   mocks.getPlace.mockImplementation(async (id: string) => place(id))
   mocks.updateItem.mockResolvedValue(undefined)
   mocks.estimate.mockResolvedValue({ durationMinutes: 25, distanceMeters: 12300 })
+  mocks.findRouteMap.mockResolvedValue(undefined)
+  mocks.findRouteMapPlaces.mockResolvedValue([])
 })
 
 it('saves time and distance in one existing repository update', async () => {
@@ -67,4 +73,15 @@ it('rejects results when a place Google ID changes during calculation', async ()
     .mockResolvedValueOnce({ ...place('a'), googlePlaceId: 'changed' }).mockResolvedValueOnce(place('b'))
   await expect(new ItineraryService().calculateTravelDuration(second.id)).rejects.toThrow('位置已變更')
   expect(mocks.updateItem).not.toHaveBeenCalled()
+})
+
+it('reports whether deleting a trip will also remove a route map and its added places', async () => {
+  mocks.findRouteMap.mockResolvedValue({ id: 'map', tripId: 'trip' })
+  mocks.findRouteMapPlaces.mockResolvedValue([{ id: 'marker-1' }, { id: 'marker-2' }])
+  await expect(new ItineraryService().getTripRouteMapSummary('trip')).resolves.toEqual({
+    hasRouteMap: true,
+    addedPlaceCount: 2,
+  })
+  expect(mocks.findRouteMap).toHaveBeenCalledExactlyOnceWith('trip')
+  expect(mocks.findRouteMapPlaces).toHaveBeenCalledExactlyOnceWith('map')
 })

@@ -1,4 +1,16 @@
-import { EntityNotFoundError, ValidationError, places, trips, itineraryItems } from '../../database'
+import {
+  EntityNotFoundError,
+  ValidationError,
+  places,
+  trips,
+  itineraryItems,
+  routeMaps,
+  routeMapPlaces,
+} from '../../database'
+import type {
+  RouteMap as RouteMapRecord,
+  RouteMapChanges,
+} from '../../database'
 import { isGoogleTravelMode } from '../../common/route-estimate'
 import {
   getGooglePlaceDetails,
@@ -27,6 +39,12 @@ export interface TripMapData {
   unavailable: string[]
 }
 
+export interface RouteMapData {
+  map: RouteMapRecord
+  markers: RouteMapPlace[]
+  unavailable: string[]
+}
+
 export interface ResolvedRouteEndpoint {
   googlePlaceId: string
   name: string
@@ -47,17 +65,115 @@ export interface RouteCalculationResult extends GoogleRouteEstimate {
 
 export class RouteCalculatorService {
   private readonly detailsCache = new Map<string, Promise<GooglePlaceDetails>>()
+  private readonly placeRepository: Pick<typeof places, 'list' | 'getById'>
+  private readonly fetchDetails: typeof getGooglePlaceDetails
+  private readonly estimateRoute: typeof getGoogleRouteEstimate
+  private readonly tripRepository: Pick<typeof trips, 'list'>
+  private readonly itemRepository: Pick<typeof itineraryItems, 'findByTripId'>
+  private readonly routeMapRepository: Pick<typeof routeMaps, 'create' | 'update' | 'getById' | 'list' | 'findByTripId'>
+  private readonly routeMapPlaceRepository: Pick<typeof routeMapPlaces, 'create' | 'delete' | 'findByRouteMapId'>
 
   constructor(
-    private readonly placeRepository: Pick<typeof places, 'list' | 'getById'> = places,
-    private readonly fetchDetails = getGooglePlaceDetails,
-    private readonly estimateRoute = getGoogleRouteEstimate,
-    private readonly tripRepository: Pick<typeof trips, 'list'> = trips,
-    private readonly itemRepository: Pick<typeof itineraryItems, 'findByTripId'> = itineraryItems,
-  ) {}
+    placeRepository: Pick<typeof places, 'list' | 'getById'> = places,
+    fetchDetails = getGooglePlaceDetails,
+    estimateRoute = getGoogleRouteEstimate,
+    tripRepository: Pick<typeof trips, 'list'> = trips,
+    itemRepository: Pick<typeof itineraryItems, 'findByTripId'> = itineraryItems,
+    routeMapRepository: Pick<typeof routeMaps, 'create' | 'update' | 'getById' | 'list' | 'findByTripId'> = routeMaps,
+    routeMapPlaceRepository: Pick<typeof routeMapPlaces, 'create' | 'delete' | 'findByRouteMapId'> = routeMapPlaces,
+  ) {
+    this.placeRepository = placeRepository
+    this.fetchDetails = fetchDetails
+    this.estimateRoute = estimateRoute
+    this.tripRepository = tripRepository
+    this.itemRepository = itemRepository
+    this.routeMapRepository = routeMapRepository
+    this.routeMapPlaceRepository = routeMapPlaceRepository
+  }
 
   listTrips() {
     return this.tripRepository.list()
+  }
+
+  async getRouteMap(id: string): Promise<RouteMapRecord> {
+    const map = await this.routeMapRepository.getById(id)
+    if (!map) throw new EntityNotFoundError('Route map', id)
+    return map
+  }
+
+  async getInitialRouteMap(): Promise<RouteMapRecord | undefined> {
+    const maps = await this.routeMapRepository.list()
+    if (maps.length === 1) return maps[0]
+    const standaloneMaps = maps.filter((map) => !map.tripId)
+    return standaloneMaps.length === 1 ? standaloneMaps[0] : undefined
+  }
+
+  async getOrCreateRouteMap(tripId?: string): Promise<RouteMapRecord> {
+    if (tripId) {
+      const existing = await this.routeMapRepository.findByTripId(tripId)
+      if (existing) return existing
+    } else {
+      const existing = (await this.routeMapRepository.list()).find((map) => !map.tripId)
+      if (existing) return existing
+    }
+    const trip = tripId ? (await this.tripRepository.list()).find((record) => record.id === tripId) : undefined
+    if (tripId && !trip) throw new EntityNotFoundError('Trip', tripId)
+    const id = await this.routeMapRepository.create({
+      name: trip ? `${trip.name} 路程試算` : '路程試算',
+      ...(tripId ? { tripId } : {}),
+      transport: 'DRIVING',
+    })
+    return this.getRouteMap(id)
+  }
+
+  updateRouteMap(id: string, changes: RouteMapChanges): Promise<void> {
+    return this.routeMapRepository.update(id, changes)
+  }
+
+  async loadRouteMap(id: string): Promise<RouteMapData> {
+    const [map, savedMarkers] = await Promise.all([
+      this.getRouteMap(id),
+      this.routeMapPlaceRepository.findByRouteMapId(id),
+    ])
+    const savedPlaces = savedMarkers.length ? await this.placeRepository.list() : []
+    const markers: RouteMapPlace[] = []
+    const unavailable: string[] = []
+    let cursor = 0
+    const work = async () => {
+      while (cursor < savedMarkers.length) {
+        const savedMarker = savedMarkers[cursor++]
+        const place = savedPlaces.find((candidate) => candidate.googlePlaceId === savedMarker.googlePlaceId)
+        try {
+          const resolved = place
+            ? await this.resolveEndpoint({ source: 'saved', placeId: place.id })
+            : await this.resolveEndpoint({
+              source: 'google',
+              place: { id: savedMarker.googlePlaceId },
+            })
+          markers.push({
+            ...resolved,
+            ...(savedMarker.name ? { name: savedMarker.name } : {}),
+          })
+        } catch (cause) {
+          unavailable.push(`${savedMarker.name ?? savedMarker.googlePlaceId}：${cause instanceof Error ? cause.message : '無法取得地圖位置'}`)
+        }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(3, savedMarkers.length) }, work))
+    return { map, markers, unavailable }
+  }
+
+  async addRouteMapPlace(routeMapId: string, googlePlaceId: string): Promise<void> {
+    const existing = await this.routeMapPlaceRepository.findByRouteMapId(routeMapId)
+    if (existing.some((place) => place.googlePlaceId === googlePlaceId)) return
+    await this.routeMapPlaceRepository.create({ routeMapId, googlePlaceId })
+  }
+
+  async removeRouteMapPlace(routeMapId: string, googlePlaceId: string): Promise<void> {
+    const existing = await this.routeMapPlaceRepository.findByRouteMapId(routeMapId)
+    const marker = existing.find((place) => place.googlePlaceId === googlePlaceId)
+    if (!marker) throw new EntityNotFoundError('Route map place', googlePlaceId)
+    await this.routeMapPlaceRepository.delete(marker.id)
   }
 
   private details(id: string) {

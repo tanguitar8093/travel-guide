@@ -1,4 +1,4 @@
-import type { ItineraryItem, Label, Place, Region, Trip } from './models'
+import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
 
 export interface SyncAccount {
   projectId: string
@@ -11,6 +11,14 @@ export interface SyncEntities {
   labels: Label
   trips: Trip
   itineraryItems: ItineraryItem
+  routeMaps: RouteMap
+  routeMapPlaces: RouteMapPlace
+}
+
+export const syncEntityNames = ['regions', 'labels', 'places', 'trips', 'itineraryItems', 'routeMaps', 'routeMapPlaces'] as const satisfies readonly (keyof SyncEntities)[]
+
+export function emptySyncData(): Record<SyncEntityName, SyncRecord[]> {
+  return { regions: [], labels: [], places: [], trips: [], itineraryItems: [], routeMaps: [], routeMapPlaces: [] }
 }
 
 export type SyncEntityName = keyof SyncEntities

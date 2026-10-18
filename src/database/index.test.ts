@@ -38,5 +38,7 @@ describe('database barrel exports', () => {
     expect(typeof database.places.findByLabelIds).toBe('function')
     expect(typeof database.labels.getDescendantIds).toBe('function')
     expect(typeof database.backupRepository.validateImport).toBe('function')
+    expect(typeof database.routeMaps.findByTripId).toBe('function')
+    expect(typeof database.routeMapPlaces.findByRouteMapId).toBe('function')
   })
 })

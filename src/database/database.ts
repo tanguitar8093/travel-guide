@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { ItineraryItem, Label, Place, Region, Trip } from './models'
+import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
 
 export class TravelDatabase extends Dexie {
   regions!: Table<Region, string>
@@ -7,6 +7,8 @@ export class TravelDatabase extends Dexie {
   labels!: Table<Label, string>
   trips!: Table<Trip, string>
   itineraryItems!: Table<ItineraryItem, string>
+  routeMaps!: Table<RouteMap, string>
+  routeMapPlaces!: Table<RouteMapPlace, string>
 
   constructor(name = 'travel-planner') {
     super(name)
@@ -57,6 +59,10 @@ export class TravelDatabase extends Dexie {
       labels: '&id, name, parentId',
       trips: '&id, regionId, startDate, endDate',
       itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
+    })
+    this.version(7).stores({
+      routeMaps: '&id, &tripId',
+      routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId]',
     })
   }
 }

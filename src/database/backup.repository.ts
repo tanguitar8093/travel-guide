@@ -1,17 +1,19 @@
 import { database } from './database'
 import { ValidationError } from './errors'
-import type { ItineraryItem, Label, Place, Region, Trip } from './models'
+import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
 import {
   validateItineraryItem,
   validateLabel,
   validatePlace,
   validateRegion,
   validateTrip,
+  validateRouteMap,
+  validateRouteMapPlace,
 } from './validation'
 
 export interface TravelBackup {
   format: 'travel-planner-backup'
-  version: 1
+  version: 1 | 2
   exportedAt: string
   data: {
     regions: Region[]
@@ -19,7 +21,13 @@ export interface TravelBackup {
     labels: Label[]
     trips: Trip[]
     itineraryItems: ItineraryItem[]
+    routeMaps?: RouteMap[]
+    routeMapPlaces?: RouteMapPlace[]
   }
+}
+
+export interface NormalizedTravelBackup extends TravelBackup {
+  data: TravelBackup['data'] & { routeMaps: RouteMap[]; routeMapPlaces: RouteMapPlace[] }
 }
 
 export interface BackupCounts {
@@ -28,6 +36,8 @@ export interface BackupCounts {
   labels: number
   trips: number
   itineraryItems: number
+  routeMaps?: number
+  routeMapPlaces?: number
 }
 
 const backupKeys = ['format', 'version', 'exportedAt', 'data']
@@ -86,11 +96,26 @@ function validateUniqueIds<T extends { id: string }>(records: T[], entity: strin
   }
 }
 
-function validateReferences(backup: TravelBackup): void {
+function validateReferences(backup: NormalizedTravelBackup): void {
   const regionIds = new Set(backup.data.regions.map((region) => region.id))
   const placeIds = new Set(backup.data.places.map((place) => place.id))
   const labelById = new Map(backup.data.labels.map((label) => [label.id, label]))
   const tripById = new Map(backup.data.trips.map((trip) => [trip.id, trip]))
+  const mapIds = new Set(backup.data.routeMaps.map((map) => map.id))
+  const mapTrips = new Set<string>()
+  for (const map of backup.data.routeMaps) {
+    if (!map.tripId) continue
+    if (!tripById.has(map.tripId)) throw new ValidationError(`Route map "${map.id}" references a missing trip.`)
+    if (mapTrips.has(map.tripId)) throw new ValidationError('A trip cannot have multiple route maps.')
+    mapTrips.add(map.tripId)
+  }
+  const mapPlaces = new Set<string>()
+  for (const place of backup.data.routeMapPlaces) {
+    if (!mapIds.has(place.routeMapId)) throw new ValidationError(`Route map place "${place.id}" references a missing map.`)
+    const key = JSON.stringify([place.routeMapId, place.googlePlaceId])
+    if (mapPlaces.has(key)) throw new ValidationError('Duplicate route map Google place.')
+    mapPlaces.add(key)
+  }
 
   for (const place of backup.data.places) {
     for (const regionId of place.regionIds) {
@@ -146,10 +171,10 @@ function validateReferences(backup: TravelBackup): void {
   }
 }
 
-function validateBackup(value: unknown): TravelBackup {
+function validateBackup(value: unknown): NormalizedTravelBackup {
   const root = requireRecord(value, 'Backup')
   requireExactKeys(root, backupKeys)
-  if (root.format !== 'travel-planner-backup' || root.version !== 1) {
+  if (root.format !== 'travel-planner-backup' || (root.version !== 1 && root.version !== 2)) {
     throw new ValidationError('Unsupported backup format or version.')
   }
   requireString(root.exportedAt, 'Backup exportedAt')
@@ -158,8 +183,9 @@ function validateBackup(value: unknown): TravelBackup {
   }
 
   const data = requireRecord(root.data, 'Backup data')
-  requireExactKeys(data, dataKeys)
-  for (const key of dataKeys) {
+  const keys = root.version === 2 ? [...dataKeys, 'routeMaps', 'routeMapPlaces'] : dataKeys
+  requireExactKeys(data, keys)
+  for (const key of keys) {
     if (!Array.isArray(data[key])) {
       throw new ValidationError(`Backup data "${key}" must be an array.`)
     }
@@ -203,64 +229,67 @@ function validateBackup(value: unknown): TravelBackup {
       validateItineraryItem,
     ),
   )
+  const routeMaps = ((data.routeMaps ?? []) as unknown[]).map((record) =>
+    validateRecord<RouteMap>(record, 'Route map', ['name', 'transport'],
+      ['tripId', 'selectedDate', 'originGooglePlaceId', 'destinationGooglePlaceId'], validateRouteMap))
+  const routeMapPlaces = ((data.routeMapPlaces ?? []) as unknown[]).map((record) =>
+    validateRecord<RouteMapPlace>(record, 'Route map place', ['routeMapId', 'googlePlaceId'], ['name'], validateRouteMapPlace))
   validateUniqueIds(regions, 'region')
   validateUniqueIds(places, 'place')
   validateUniqueIds(labels, 'label')
   validateUniqueIds(trips, 'trip')
   validateUniqueIds(itineraryItems, 'itinerary item')
+  validateUniqueIds(routeMaps, 'route map')
+  validateUniqueIds(routeMapPlaces, 'route map place')
 
-  const backup: TravelBackup = {
+  const backup: NormalizedTravelBackup = {
     format: 'travel-planner-backup',
-    version: 1,
+    version: 2,
     exportedAt: root.exportedAt,
-    data: { regions, places, labels, trips, itineraryItems },
+    data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
   }
   validateReferences(backup)
   return backup
 }
 
 export class BackupRepository {
-  async exportAll(): Promise<TravelBackup> {
+  async exportAll(): Promise<NormalizedTravelBackup> {
     return database.transaction(
       'r',
-      database.regions,
-      database.places,
-      database.labels,
-      database.trips,
-      database.itineraryItems,
+      database.tables,
       async () => {
-        const [regions, places, labels, trips, itineraryItems] = await Promise.all([
+        const [regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces] = await Promise.all([
           database.regions.toArray(),
           database.places.toArray(),
           database.labels.toArray(),
           database.trips.toArray(),
           database.itineraryItems.toArray(),
+          database.routeMaps.toArray(),
+          database.routeMapPlaces.toArray(),
         ])
         return validateBackup({
           format: 'travel-planner-backup',
-          version: 1,
+          version: 2,
           exportedAt: new Date().toISOString(),
-          data: { regions, places, labels, trips, itineraryItems },
+          data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
         })
       },
     )
   }
 
-  validateImport(value: unknown): TravelBackup {
+  validateImport(value: unknown): NormalizedTravelBackup {
     return validateBackup(value)
   }
 
   async replaceAll(value: unknown): Promise<BackupCounts> {
     const backup = validateBackup(value)
-    const { regions, places, labels, trips, itineraryItems } = backup.data
+    const { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces } = backup.data
     await database.transaction(
       'rw',
-      database.regions,
-      database.places,
-      database.labels,
-      database.trips,
-      database.itineraryItems,
+      database.tables,
       async () => {
+        await database.routeMapPlaces.clear()
+        await database.routeMaps.clear()
         await database.itineraryItems.clear()
         await database.trips.clear()
         await database.places.clear()
@@ -271,6 +300,8 @@ export class BackupRepository {
         await database.labels.bulkAdd(labels)
         await database.trips.bulkAdd(trips)
         await database.itineraryItems.bulkAdd(itineraryItems)
+        await database.routeMaps.bulkAdd(routeMaps)
+        await database.routeMapPlaces.bulkAdd(routeMapPlaces)
       },
     )
     return {
@@ -279,18 +310,18 @@ export class BackupRepository {
       labels: labels.length,
       trips: trips.length,
       itineraryItems: itineraryItems.length,
+      routeMaps: routeMaps.length,
+      routeMapPlaces: routeMapPlaces.length,
     }
   }
 
   async clearAllData(): Promise<void> {
     await database.transaction(
       'rw',
-      database.regions,
-      database.places,
-      database.labels,
-      database.trips,
-      database.itineraryItems,
+      database.tables,
       async () => {
+        await database.routeMapPlaces.clear()
+        await database.routeMaps.clear()
         await database.itineraryItems.clear()
         await database.trips.clear()
         await database.places.clear()

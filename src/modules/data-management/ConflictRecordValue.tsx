@@ -5,6 +5,7 @@ type Row = SyncConflictReview['rows'][number]
 const references: Record<string, SyncEntityName> = {
   tripId: 'trips', placeId: 'places', regionId: 'regions', regionIds: 'regions',
   labelIds: 'labels', parentId: 'labels',
+  routeMapId: 'routeMaps',
 }
 
 function findName(review: SyncConflictReview, side: Side, entity: SyncEntityName, id: string): string | undefined {
@@ -23,7 +24,8 @@ function recordName(record: SyncRecord | null): string | undefined {
 function conflictRecordTitle(review: SyncConflictReview, row: Row, side: Side): string {
   const record = row[side]
   if (!record) return '已刪除／不存在'
-  if ('name' in record) return record.name
+  if ('name' in record && record.name) return record.name
+  if ('routeMapId' in record) return record.googlePlaceId
   if ('tripId' in record && 'placeId' in record) {
     const trip = findName(review, side, 'trips', record.tripId) ?? '未知行程'
     const place = findName(review, side, 'places', record.placeId) ?? '未知地點'

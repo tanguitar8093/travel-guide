@@ -56,7 +56,11 @@ export type {
   TripChanges,
 } from './models'
 export { placeIcons } from './models'
+export type { RouteMap, RouteMapPlace, NewRouteMap, NewRouteMapPlace, RouteMapChanges, RouteMapPlaceChanges } from './models'
+export { RouteMapRepository, RouteMapPlaceRepository } from './route-map.repository'
 
+import { routeMaps as indexedRouteMaps, routeMapPlaces as indexedRouteMapPlaces } from './route-map.repository'
+import { supabaseRouteMaps, supabaseRouteMapPlaces } from './supabase.route-map.repository'
 import { backupRepository as indexedBackupRepository } from './backup.repository'
 import type { BackupCounts, TravelBackup } from './backup.repository'
 import { labels as indexedLabels } from './label.repository'
@@ -140,6 +144,8 @@ type DatabaseBackend = {
   trips: TripRepositoryLike
   itineraryItems: ItineraryItemRepositoryLike
   backupRepository: BackupRepositoryLike
+  routeMaps: Pick<typeof indexedRouteMaps, 'create' | 'update' | 'delete' | 'getById' | 'list' | 'findByTripId'>
+  routeMapPlaces: Pick<typeof indexedRouteMapPlaces, 'create' | 'update' | 'delete' | 'getById' | 'list' | 'findByRouteMapId'>
 }
 
 const indexedDbBackend: DatabaseBackend = {
@@ -149,6 +155,8 @@ const indexedDbBackend: DatabaseBackend = {
   trips: indexedTrips,
   itineraryItems: indexedItineraryItems,
   backupRepository: indexedBackupRepository,
+  routeMaps: indexedRouteMaps,
+  routeMapPlaces: indexedRouteMapPlaces,
 }
 
 const supabaseBackend: DatabaseBackend = {
@@ -158,6 +166,8 @@ const supabaseBackend: DatabaseBackend = {
   trips: supabaseTrips,
   itineraryItems: supabaseItineraryItems,
   backupRepository: supabaseBackupRepository,
+  routeMaps: supabaseRouteMaps,
+  routeMapPlaces: supabaseRouteMapPlaces,
 }
 
 const databaseBackends: Record<DatabaseMode, DatabaseBackend> = {
@@ -168,6 +178,24 @@ const databaseBackends: Record<DatabaseMode, DatabaseBackend> = {
 
 function activeBackend(): DatabaseBackend {
   return databaseBackends[getDatabaseMode()]
+}
+
+export const routeMaps: DatabaseBackend['routeMaps'] = {
+  create: (input) => activeBackend().routeMaps.create(input),
+  update: (id, changes) => activeBackend().routeMaps.update(id, changes),
+  delete: (id) => activeBackend().routeMaps.delete(id),
+  getById: (id) => activeBackend().routeMaps.getById(id),
+  list: () => activeBackend().routeMaps.list(),
+  findByTripId: (id) => activeBackend().routeMaps.findByTripId(id),
+}
+
+export const routeMapPlaces: DatabaseBackend['routeMapPlaces'] = {
+  create: (input) => activeBackend().routeMapPlaces.create(input),
+  update: (id, changes) => activeBackend().routeMapPlaces.update(id, changes),
+  delete: (id) => activeBackend().routeMapPlaces.delete(id),
+  getById: (id) => activeBackend().routeMapPlaces.getById(id),
+  list: () => activeBackend().routeMapPlaces.list(),
+  findByRouteMapId: (id) => activeBackend().routeMapPlaces.findByRouteMapId(id),
 }
 
 export const regions = {

@@ -19,6 +19,7 @@ import type {
 import { validateItineraryItem, validateLabel, validatePlace, validateTrip } from './validation'
 import { mapSupabasePermissionError, requireAuthenticatedUserId, withSupabaseTimeout, type SupabaseErrorLike } from './supabase.utils'
 import { SupabaseRegionRepository } from './supabase.region.repository'
+import { supabaseRouteMaps, supabaseRouteMapPlaces } from './supabase.route-map.repository'
 
 interface SupabaseLabelRow {
   id: string
@@ -1118,6 +1119,8 @@ export class SupabaseBackupRepository {
       labels: counts.labels,
       trips: counts.trips,
       itineraryItems: counts.itineraryItems,
+      ...(counts.routeMaps !== undefined ? { routeMaps: counts.routeMaps } : {}),
+      ...(counts.routeMapPlaces !== undefined ? { routeMapPlaces: counts.routeMapPlaces } : {}),
     }
   }
 
@@ -1126,19 +1129,21 @@ export class SupabaseBackupRepository {
   }
 
   async exportAll() {
-    const [regions, labels, places, trips, itineraryItems] = await Promise.all([
+    const [regions, labels, places, trips, itineraryItems, routeMaps, routeMapPlaces] = await Promise.all([
       supabaseRegions.list(),
       loadLabelRows(),
       loadPlaceRows(),
       loadTripRows(),
       loadItineraryRows(),
+      supabaseRouteMaps.list(),
+      supabaseRouteMapPlaces.list(),
     ])
 
     return {
       format: 'travel-planner-backup' as const,
-      version: 1 as const,
+      version: 2 as const,
       exportedAt: new Date().toISOString(),
-      data: { regions, places, labels, trips, itineraryItems },
+      data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
     }
   }
 

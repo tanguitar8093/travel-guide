@@ -25,6 +25,10 @@ export class ItineraryController {
     return this.service.deleteTrip(id)
   }
 
+  getTripRouteMapSummary(tripId: string) {
+    return this.service.getTripRouteMapSummary(tripId)
+  }
+
   listItems(tripId: string) {
     return this.service.listItems(tripId)
   }

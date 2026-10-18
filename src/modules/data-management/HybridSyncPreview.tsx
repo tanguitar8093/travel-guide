@@ -4,7 +4,7 @@ import type { SyncPreview } from '../../database/sync-preview'
 import { useHybridStatus } from '../../database/useHybridStatus'
 import { HybridConflictReview } from './HybridConflictReview'
 
-const entityLabels = { regions: '區域', places: '地點', labels: '標籤', trips: '行程', itineraryItems: '行程項目' }
+const entityLabels = { regions: '區域', places: '地點', labels: '標籤', trips: '行程', itineraryItems: '行程項目', routeMaps: '試算地圖', routeMapPlaces: '試算後加地點' }
 const differenceLabels = { 'local-only': '僅本機有', 'cloud-only': '僅雲端有', different: '內容不同', same: '內容相同／兩邊皆已刪除' }
 
 export function HybridSyncPreview() {

@@ -282,8 +282,15 @@ export class TripRepository {
       'rw',
       this.database.trips,
       this.database.itineraryItems,
+      this.database.routeMaps,
+      this.database.routeMapPlaces,
       async () => {
         required(await this.database.trips.get(id), 'Trip', id)
+        const maps = await this.database.routeMaps.where('tripId').equals(id).toArray()
+        for (const map of maps) {
+          await this.database.routeMapPlaces.where('routeMapId').equals(map.id).delete()
+          await this.database.routeMaps.delete(map.id)
+        }
         await this.database.itineraryItems.where('tripId').equals(id).delete()
         await this.database.trips.delete(id)
       },

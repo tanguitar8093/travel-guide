@@ -1,11 +1,12 @@
-import { BackupRepository, type TravelBackup } from './backup.repository'
+import { BackupRepository, type NormalizedTravelBackup } from './backup.repository'
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter, type CloudSyncSnapshot } from './sync-cloud.adapter'
 import { browserSyncLock, type SyncLock } from './sync-engine'
 import type { SyncChange, SyncConflictReview, SyncEntityName, SyncRecord } from './sync.types'
+import { emptySyncData, syncEntityNames } from './sync.types'
 
-const entities: SyncEntityName[] = ['regions', 'labels', 'places', 'trips', 'itineraryItems']
+const entities: readonly SyncEntityName[] = syncEntityNames
 const keyFor = (entity: SyncEntityName, id: string) => JSON.stringify([entity, id])
 
 function fingerprint(value: unknown): string {
@@ -17,13 +18,13 @@ function fingerprint(value: unknown): string {
   return JSON.stringify(value) ?? 'undefined'
 }
 
-function validateRecords(records: Array<{ entity: SyncEntityName; record: SyncRecord | null }>): TravelBackup {
-  const data = { regions: [], labels: [], places: [], trips: [], itineraryItems: [] } as Record<SyncEntityName, SyncRecord[]>
+function validateRecords(records: Array<{ entity: SyncEntityName; record: SyncRecord | null }>): NormalizedTravelBackup {
+  const data = emptySyncData()
   for (const row of records) {
     if (!entities.includes(row.entity)) throw new ValidationError('雲端資料種類不正確。')
     if (row.record) data[row.entity].push(row.record)
   }
-  return new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 1, exportedAt: new Date().toISOString(), data })
+  return new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data })
 }
 
 function cloudFingerprint(snapshot: CloudSyncSnapshot): string {
@@ -114,7 +115,7 @@ export async function prepareConflictReview(
       localFingerprint: fingerprint(state), cloudFingerprint: cloudFingerprint(snapshot), cursor: snapshot.cursor,
       pendingOperations: state.tasks.length, rows, cloudRecords: [...remote.values()], localChoiceChanges: ordered,
       localNames: state.records.flatMap(({ entity, records }) => records.flatMap((record) =>
-        'name' in record ? [{ entity, id: record.id, name: record.name }] : [])),
+        'name' in record && record.name ? [{ entity, id: record.id, name: record.name }] : [])),
     }
     await store.syncTransaction(async (database) => {
       if (fingerprint(await store.inspectSyncState()) !== review!.localFingerprint) throw new ValidationError('本機資料已改變，請重新檢視衝突。')

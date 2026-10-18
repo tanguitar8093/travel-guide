@@ -6,7 +6,29 @@ import type {
   Place,
   Region,
   Trip,
+  NewRouteMap,
+  NewRouteMapPlace,
 } from './models'
+
+export function validateRouteMap(map: NewRouteMap): void {
+  requireText(map.name, 'Route map name')
+  if (map.tripId !== undefined) requireText(map.tripId, 'Trip ID')
+  if (map.selectedDate !== undefined) requireDate(map.selectedDate, 'Selected date')
+  if (map.originGooglePlaceId !== undefined) requireText(map.originGooglePlaceId, 'Origin Google Place ID')
+  if (map.destinationGooglePlaceId !== undefined) requireText(map.destinationGooglePlaceId, 'Destination Google Place ID')
+  if (map.originGooglePlaceId && map.originGooglePlaceId === map.destinationGooglePlaceId) {
+    throw new ValidationError('Route endpoints must be different.')
+  }
+  if (!['DRIVING', 'TRANSIT', 'WALKING', 'BICYCLING', 'TWO_WHEELER'].includes(map.transport)) {
+    throw new ValidationError('Route map transport is invalid.')
+  }
+}
+
+export function validateRouteMapPlace(place: NewRouteMapPlace): void {
+  requireText(place.routeMapId, 'Route map ID')
+  requireText(place.googlePlaceId, 'Google Place ID')
+  if (place.name !== undefined) requireText(place.name, 'Route map place name')
+}
 
 function requireText(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || !value.trim()) {

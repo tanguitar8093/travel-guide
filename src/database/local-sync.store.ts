@@ -6,11 +6,13 @@ import { LabelRepository } from './label.repository'
 import { ItineraryItemRepository, PlaceRepository, RegionRepository, TripRepository } from './repositories'
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
+import { RouteMapRepository, RouteMapPlaceRepository } from './route-map.repository'
+import { emptySyncData, syncEntityNames } from './sync.types'
 import type {
   LocalSyncSummary, SyncChange, SyncEntityName, SyncMetadata, SyncRecord, SyncTask,
 } from './sync.types'
 
-const entityNames: SyncEntityName[] = ['regions', 'places', 'labels', 'trips', 'itineraryItems']
+const entityNames: readonly SyncEntityName[] = syncEntityNames
 
 interface TrackedMutation {
   assertCurrent: () => void
@@ -28,6 +30,8 @@ export class LocalSyncStore {
     labels: LabelRepository
     trips: TripRepository
     itineraryItems: ItineraryItemRepository
+    routeMaps: RouteMapRepository
+    routeMapPlaces: RouteMapPlaceRepository
   }
 
   constructor(database: SyncDatabase, context: SyncAccountContext) {
@@ -39,6 +43,8 @@ export class LocalSyncStore {
       labels: new LabelRepository(database),
       trips: new TripRepository(database),
       itineraryItems: new ItineraryItemRepository(database),
+      routeMaps: new RouteMapRepository(database),
+      routeMapPlaces: new RouteMapPlaceRepository(database),
     }
     for (const entity of entityNames) {
       const table = database.table<SyncRecord, string>(entity)
@@ -256,7 +262,7 @@ export class LocalSyncStore {
         assertCurrent()
         return false
       }
-      const data = { regions: [], places: [], labels: [], trips: [], itineraryItems: [] } as Record<SyncEntityName, SyncRecord[]>
+      const data = emptySyncData()
       const local = new Map<string, SyncRecord>()
       for (const entity of entityNames) {
         for (const record of await this.database.table<SyncRecord, string>(entity).toArray()) {
@@ -286,7 +292,7 @@ export class LocalSyncStore {
         const [entity] = JSON.parse(key) as [SyncEntityName, string]
         data[entity].push(record)
       }
-      new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 1, exportedAt: new Date().toISOString(), data })
+      new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data })
       this.remoteTransactions.add(transaction)
       try {
         for (const row of applicable) {
