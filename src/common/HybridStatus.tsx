@@ -44,10 +44,10 @@ export function HybridStatus() {
     {status.summary?.lastSyncedAt && ` 最近完整同步：${new Date(status.summary.lastSyncedAt).toLocaleString()}。`}
     {status.lastOperationMs !== undefined && ` 最近儲存 ${status.lastOperationMs.toFixed(1)} ms。`}
     {status.error && ` ${status.error}`}
-    {hasConflicts && (
+    {(hasConflicts || status.error) && (
       <span style={{ display: 'inline-block', marginLeft: '12px' }}>
         <RouterLink to={routes.dataManagement} style={{ color: '#493300', fontWeight: 600 }}>
-          前往資料管理處理衝突
+          {hasConflicts ? '前往資料管理處理衝突' : '前往資料管理重試同步'}
         </RouterLink>
       </span>
     )}

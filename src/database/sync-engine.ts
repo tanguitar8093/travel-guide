@@ -1,6 +1,7 @@
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter } from './sync-cloud.adapter'
+import { previewHybridSync } from './sync-preview'
 
 type SyncCloud = typeof syncCloudAdapter
 export type SyncLock = (name: string, work: () => Promise<void>) => Promise<void>
@@ -10,6 +11,52 @@ export const browserSyncLock: SyncLock = async (name, work) => {
   await navigator.locks.request(`sync:${name}`, { ifAvailable: true }, async (lock) => {
     if (!lock) throw new ValidationError('另一個分頁正在同步，請稍後再試。')
     await work()
+  })
+}
+
+export async function checkHybridOnLogin(
+  store: LocalSyncStore,
+  cloud: Pick<SyncCloud, 'snapshot'> = syncCloudAdapter,
+  lock: SyncLock = browserSyncLock,
+): Promise<void> {
+  const assertCurrent = store.captureAccount()
+  await lock(store.getSyncLockName(), async () => {
+    assertCurrent()
+    const before = await store.inspectSyncState()
+    const snapshot = await cloud.snapshot()
+    assertCurrent()
+    if (!/^\d+$/.test(snapshot.cursor)) {
+      throw new ValidationError('雲端快照游標不正確，未變更任何資料。')
+    }
+    const preview = await previewHybridSync(store, { snapshot: async () => snapshot })
+    const conflicts = preview.rows.filter((row) => row.conflict)
+    await store.syncTransaction(async () => {
+      const current = await store.inspectSyncState()
+      if (JSON.stringify(before) !== JSON.stringify(current)) {
+        throw new ValidationError('登入比對期間本機資料已改變，請到資料管理重新比對。')
+      }
+      if (conflicts.length) {
+        // An uncertain upload must keep its frozen retry payload and status.
+        if (current.tasks.some((task) => task.uploadChanges && task.status !== 'conflict')) {
+          throw new ValidationError('有上傳結果尚未確認的操作，請到資料管理重試同步後再處理衝突。')
+        }
+        for (const task of current.tasks) {
+          if (!conflicts.some((row) => task.changes.some(
+            (change) => change.entity === row.entity && change.id === row.id,
+          ))) continue
+          await store.recordPushConflict(task, snapshot.records)
+        }
+        return
+      }
+      const empty = current.records.every(({ records }) => records.length === 0)
+      if (empty && current.tasks.length === 0) {
+        if (!await store.applyRemote(snapshot.records, { cursor: snapshot.cursor, initialize: true })) {
+          throw new ValidationError('登入下載遇到衝突，請到資料管理處理。')
+        }
+        await store.finishSync()
+      }
+      assertCurrent()
+    })
   })
 }
 

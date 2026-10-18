@@ -4,7 +4,7 @@ import { LocalSyncStore } from './local-sync.store'
 import { readEffectiveSyncMode as readSyncModePreference } from './mode-access'
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
-import { syncHybridManually } from './sync-engine'
+import { checkHybridOnLogin, syncHybridManually } from './sync-engine'
 import type { LocalSyncSummary, SyncAccount } from './sync.types'
 
 type LocalRepositories = Parameters<Parameters<LocalSyncStore['mutate']>[1]>[0]
@@ -216,7 +216,11 @@ export function deactivateHybridAccount(): void {
   publish({ ready: false })
 }
 
-export async function activateHybridAccount(account: SyncAccount, role: string): Promise<void> {
+export async function activateHybridAccount(
+  account: SyncAccount,
+  role: string,
+  options: { checkCloudOnLogin?: boolean } = {},
+): Promise<void> {
   deactivateHybridAccount()
   if (role !== 'member' && role !== 'admin') throw new ValidationError('目前帳號沒有混合模式權限。')
   const currentGeneration = generation
@@ -227,11 +231,21 @@ export async function activateHybridAccount(account: SyncAccount, role: string):
   try {
     await store.prepareLocal()
     if (generation !== currentGeneration) return
+    let startupError: string | undefined
+    if (options.checkCloudOnLogin) {
+      try {
+        await checkHybridOnLogin(store)
+      } catch (error) {
+        if (generation !== currentGeneration) return
+        startupError = error instanceof Error ? error.message : String(error)
+      }
+    }
+    if (generation !== currentGeneration) return
     activeStore = store
     const summary = await store.getSummary()
     if (generation !== currentGeneration) return
     installLifecycleListeners()
-    publish({ ready: true, summary })
+    publish({ ready: true, summary, error: startupError })
     if (readSyncModePreference() === 'auto') {
       scheduleHybridAutoSync()
     }

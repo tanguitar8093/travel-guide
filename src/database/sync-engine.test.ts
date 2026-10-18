@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { LocalSyncStore } from './local-sync.store'
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
-import { syncHybridManually, type SyncLock } from './sync-engine'
+import { checkHybridOnLogin, syncHybridManually, type SyncLock } from './sync-engine'
 import type { CloudSyncRecord } from './sync-cloud.adapter'
 import type { SyncTask } from './sync.types'
 
@@ -55,6 +55,109 @@ describe('manual hybrid sync', () => {
     events.push(row)
     return row
   }
+
+  it('downloads an empty device before first workspace reads without uploading', async () => {
+    const row = remoteRegion()
+    const adapter = cloud()
+    await checkHybridOnLogin(store, adapter, lock)
+    expect(await database.regions.get(row.id)).toEqual(row.record)
+    expect((await store.getSyncMetadata()).initialized).toBe(true)
+    expect((await store.getSyncMetadata()).cursor).toBe(String(sequence))
+    expect(await store.listTasks()).toEqual([])
+    expect(adapter.snapshot).toHaveBeenCalledTimes(1)
+    expect(adapter.push).not.toHaveBeenCalled()
+    expect(adapter.pull).not.toHaveBeenCalled()
+  })
+
+  it('does not change an already synchronized workspace during login', async () => {
+    remoteRegion()
+    const adapter = cloud()
+    await syncHybridManually(store, adapter, lock)
+    const before = await store.inspectSyncState()
+    const metadata = await store.getSyncMetadata()
+    adapter.push.mockClear()
+    adapter.pull.mockClear()
+    await checkHybridOnLogin(store, adapter, lock)
+    expect(await store.inspectSyncState()).toEqual(before)
+    expect(await store.getSyncMetadata()).toEqual(metadata)
+    expect(adapter.push).not.toHaveBeenCalled()
+    expect(adapter.pull).not.toHaveBeenCalled()
+  })
+
+  it('preserves nonempty local data and leaves nonconflicting differences for normal sync', async () => {
+    await create()
+    remoteRegion()
+    const before = await store.inspectSyncState()
+    const adapter = cloud()
+    await checkHybridOnLogin(store, adapter, lock)
+    expect(await store.inspectSyncState()).toEqual(before)
+    expect(adapter.push).not.toHaveBeenCalled()
+  })
+
+  it('does not mistake pending deletion of the last local record for a fresh device', async () => {
+    const row = remoteRegion()
+    const adapter = cloud()
+    await syncHybridManually(store, adapter, lock)
+    await store.mutate('region.delete', (repositories) => repositories.regions.delete(row.id))
+    const before = await store.inspectSyncState()
+    adapter.push.mockClear()
+    await checkHybridOnLogin(store, adapter, lock)
+    expect(await database.regions.count()).toBe(0)
+    expect(await store.inspectSyncState()).toEqual(before)
+    expect(adapter.push).not.toHaveBeenCalled()
+  })
+
+  it('persists login conflicts for the existing data-page resolution without overwriting', async () => {
+    const id = await create()
+    records.set(id, { entity: 'regions', id, version: 'remote', record: {
+      id, name: 'Cloud', zoom: 12, googlePlaceId: 'cloud',
+    } })
+    const adapter = cloud()
+    await checkHybridOnLogin(store, adapter, lock)
+    expect((await store.getSummary()).conflictCount).toBe(1)
+    expect(await database.regions.get(id)).toMatchObject({ name: 'Kyoto' })
+    expect(records.get(id)?.record).toMatchObject({ name: 'Cloud' })
+    expect(adapter.push).not.toHaveBeenCalled()
+  })
+
+  it('retains uncertain uploads for safe retries instead of marking them as login conflicts', async () => {
+    const id = await create()
+    await store.prepareUpload()
+    records.set(id, { entity: 'regions', id, version: 'remote', record: {
+      id, name: 'Cloud', zoom: 12, googlePlaceId: 'cloud',
+    } })
+    const before = await store.inspectSyncState()
+    await expect(checkHybridOnLogin(store, cloud(), lock)).rejects.toThrow('上傳結果尚未確認')
+    expect(await store.inspectSyncState()).toEqual(before)
+  })
+
+  it('does not apply login downloads after switching accounts or concurrent local edits', async () => {
+    remoteRegion()
+    const adapter = cloud()
+    const snapshot = adapter.snapshot.getMockImplementation()!
+    adapter.snapshot.mockImplementationOnce(async () => {
+      await create()
+      return snapshot()
+    })
+    await expect(checkHybridOnLogin(store, adapter, lock)).rejects.toThrow('本機資料已改變')
+    expect(await database.regions.count()).toBe(1)
+    expect(await store.listTasks()).toHaveLength(1)
+    adapter.snapshot.mockImplementationOnce(async () => {
+      context.deactivate()
+      return snapshot()
+    })
+    await expect(checkHybridOnLogin(store, adapter, lock)).rejects.toThrow('account')
+    expect(await database.regions.count()).toBe(1)
+  })
+
+  it('keeps local data intact when the login snapshot is unavailable', async () => {
+    await create()
+    const before = await store.inspectSyncState()
+    const adapter = cloud()
+    adapter.snapshot.mockRejectedValueOnce(new Error('offline'))
+    await expect(checkHybridOnLogin(store, adapter, lock)).rejects.toThrow('offline')
+    expect(await store.inspectSyncState()).toEqual(before)
+  })
 
   it('initializes cloud data, uploads local data and leaves no download-generated tasks', async () => {
     const remote = remoteRegion()

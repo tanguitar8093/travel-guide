@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { activateHybridAccount, deactivateHybridAccount } from '../database/hybrid.runtime'
 import { setDatabaseModeRole } from '../database/mode-access'
+import { getDatabaseMode } from '../database/runtime'
 import {
   AuthContext,
   type AuthContextValue,
@@ -85,7 +86,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
           await activateHybridAccount({
             projectId: new URL(import.meta.env.VITE_SUPABASE_URL ?? '').origin,
             userId: nextSession.user.id,
-          }, role)
+          }, role, { checkCloudOnLogin: getDatabaseMode() === 'hybrid' })
         } catch {
           if (active && generation === sessionGeneration.current) {
             setErrorMessage(role === 'admin' ? '本地混合模式準備失敗；仍可使用原有模式。' : '混合模式準備失敗，請重新登入或重新整理後再試。')

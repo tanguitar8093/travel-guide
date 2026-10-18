@@ -65,6 +65,39 @@ describe('hybrid development backend', () => {
     return account
   }
 
+  it('waits for the login cloud check before exposing the local workspace', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'login-check' }
+    accounts.push(account)
+    let release: () => void = () => {}
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    const check = vi.spyOn(syncEngine, 'checkHybridOnLogin').mockReturnValue(pending)
+    try {
+      const activation = activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+      await vi.waitFor(() => expect(check).toHaveBeenCalledTimes(1))
+      expect(getHybridStatus().ready).toBe(false)
+      expect(() => requireHybridStore()).toThrow('尚未準備好')
+      release()
+      await activation
+      expect(getHybridStatus().ready).toBe(true)
+    } finally {
+      release()
+      check.mockRestore()
+    }
+  })
+
+  it('reports a failed login check while preserving access to local recovery tools', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'login-offline' }
+    accounts.push(account)
+    const check = vi.spyOn(syncEngine, 'checkHybridOnLogin').mockRejectedValue(new Error('offline'))
+    try {
+      await activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+      expect(getHybridStatus()).toMatchObject({ ready: true, error: 'offline' })
+      expect(requireHybridStore()).toBeDefined()
+    } finally {
+      check.mockRestore()
+    }
+  })
+
   it('routes domain CRUD and backup reads through local repositories and records tasks', async () => {
     await login()
     const regionId = await hybridBackend.regions.create({ name: 'Region', zoom: 12, googlePlaceId: 'region' })
