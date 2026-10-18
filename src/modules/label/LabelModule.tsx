@@ -534,7 +534,7 @@ function LabelModule() {
     >
       <div className="page-content">
         <section className="page-heading">
-          <div>
+          <div className="workspace-page-heading-title">
             <h1>標籤</h1>
             <p>建立分類層級，讓收藏的地點更容易整理與尋找。</p>
           </div>

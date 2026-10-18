@@ -841,7 +841,7 @@ function ItineraryModule() {
     >
       <div className="itinerary-content">
         <section className="itinerary-heading">
-          <div>
+          <div className="workspace-page-heading-title">
             <h1>
               {selectedTrip?.name ??
                 (creatingTrip ? "新增行程" : "開始規劃一趟旅行")}

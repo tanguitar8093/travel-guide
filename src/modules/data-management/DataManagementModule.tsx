@@ -327,7 +327,7 @@ function DataManagementModule() {
     >
       <section className="data-management-content">
         <div className="data-management-heading">
-          <div>
+          <div className="workspace-page-heading-title">
             <h1>資料</h1>
             <p>匯出可存取的旅行資料；單機模式可匯入備份或清空本機資料。</p>
           </div>

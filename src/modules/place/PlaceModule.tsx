@@ -406,7 +406,7 @@ function PlaceModule() {
     >
         <div className="page-content place-page-content">
           <section className="page-heading">
-            <div>
+            <div className="workspace-page-heading-title">
               <h1>地點資料庫</h1>
               <p>搜尋並收藏想去的地點，套用標籤與區域，規劃行程時即可快速挑選。</p>
             </div>

@@ -358,7 +358,7 @@ function RegionModule() {
     >
       <div className="region-content">
         <section className="region-heading">
-          <div>
+          <div className="workspace-page-heading-title">
             <h1>區域</h1>
             <p>建立行程使用的區域，也可將收藏地點歸入相同區域。</p>
           </div>

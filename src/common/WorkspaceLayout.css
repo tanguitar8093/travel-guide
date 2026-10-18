@@ -238,6 +238,13 @@ div.workspace-layout > main.workspace-main {
 }
 
 @media (max-width: 760px) {
+  .workspace-main .workspace-page-heading-title {
+    min-width: 0;
+    box-sizing: border-box;
+    padding-left: 48px;
+    overflow-wrap: anywhere;
+  }
+
   .workspace-layout > .workspace-sidebar {
     width: min(280px, calc(100vw - 56px));
     min-height: 100dvh;
