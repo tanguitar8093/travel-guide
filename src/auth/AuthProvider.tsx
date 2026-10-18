@@ -29,6 +29,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const sessionGeneration = useRef(0)
+  const currentUserId = useRef<string | null>(null)
+  const currentUserRole = useRef<AuthContextValue['userRole']>(null)
 
   useEffect(() => {
     let active = true
@@ -40,8 +42,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setDatabaseModeRole(null)
 
       setSession(nextSession)
+      if (currentUserId.current !== nextSession?.user.id) {
+        currentUserRole.current = null
+      }
+      currentUserId.current = nextSession?.user.id ?? null
       if (!nextSession) {
         setUserRole(null)
+        currentUserRole.current = null
         setHasWorkspaceAccess(false)
         setStatus('unauthenticated')
         return
@@ -55,6 +62,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (error) {
         setErrorMessage('無法讀取使用者權限，請稍後再試。')
         setUserRole(null)
+        currentUserRole.current = null
         setHasWorkspaceAccess(false)
         setStatus('authenticated')
         return
@@ -63,12 +71,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!role) {
         setErrorMessage('無法讀取使用者權限，請稍後再試。')
         setUserRole(null)
+        currentUserRole.current = null
         setHasWorkspaceAccess(false)
         setStatus('authenticated')
         return
       }
 
       setUserRole(role)
+      currentUserRole.current = role
       setDatabaseModeRole(role)
       if (role === 'member' || role === 'admin') {
         try {
@@ -107,8 +117,35 @@ export function AuthProvider({ children }: AuthProviderProps) {
       void applySession(currentSession)
     })
 
-    const unsubscribe = subscribeSessionChange((nextSession) => {
+    const unsubscribe = subscribeSessionChange((nextSession, event) => {
       setErrorMessage(null)
+      if (
+        nextSession &&
+        currentUserId.current === nextSession.user.id &&
+        (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')
+      ) {
+        setSession(nextSession)
+        if (event === 'SIGNED_IN') {
+          const generation = sessionGeneration.current
+          void fetchUserRole(nextSession.user.id).then(({ role, error }) => {
+            if (
+              !active ||
+              generation !== sessionGeneration.current ||
+              currentUserId.current !== nextSession.user.id
+            ) {
+              return
+            }
+            if (error || !role) {
+              setErrorMessage('無法重新確認使用者權限，請稍後再試。')
+              return
+            }
+            if (role !== currentUserRole.current) {
+              void applySession(nextSession)
+            }
+          })
+        }
+        return
+      }
       void applySession(nextSession)
     })
 

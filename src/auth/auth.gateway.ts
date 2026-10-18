@@ -1,4 +1,4 @@
-import type { Session } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 import {
   supabase,
@@ -22,11 +22,13 @@ export async function fetchCurrentSession(): Promise<{ session: Session | null; 
   }
 }
 
-export function subscribeSessionChange(onChange: (session: Session | null) => void): () => void {
+export function subscribeSessionChange(
+  onChange: (session: Session | null, event: AuthChangeEvent) => void,
+): () => void {
   const {
     data: { subscription },
-  } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-    onChange(nextSession)
+  } = supabase.auth.onAuthStateChange((event, nextSession) => {
+    onChange(nextSession, event)
   })
 
   return () => {
