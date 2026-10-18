@@ -36,10 +36,10 @@ parallel framework.
   `local-sync.store.ts`. Repositories support database injection. This is
   application-managed isolation, not IndexedDB roles or RLS.
 - Phase 3 connects login/account context and a DEV-only hybrid mode using the
-  existing facade and UI. Production keeps original modes. Read
-  `docs/local-first-sync-design.md` and `docs/local-first-sync-phase2-review.md`
-  and `docs/local-first-sync-phase3-review.md` before sync work; proceed only
-  within the user-authorized phase. Phase 4 sync RPCs/migrations are tested
+  existing facade and UI. Production keeps original modes. Before any sync
+  work, ask the user which specific project Markdown documents may be read;
+  consult only the documents they authorize, and proceed only within the
+  user-authorized phase. Phase 4 sync RPCs/migrations are tested
   locally; only the sync migration was installed to the configured cloud on
   2026-10-18 after explicit approval (baseline was not replayed). See the live
   installation/validation limits in `docs/local-first-sync-phase5-review.md`

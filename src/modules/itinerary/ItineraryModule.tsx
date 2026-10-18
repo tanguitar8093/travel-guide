@@ -430,6 +430,48 @@ function ItineraryModule() {
   }, [selectedTripId, selectedDate]);
 
   useEffect(() => {
+    if (!addingItem || !selectedTripId) return;
+    const tripId = selectedTripId;
+    let active = true;
+
+    async function refreshAvailablePlaces() {
+      try {
+        const [workspace, labelTree, nextItems] = await Promise.all([
+          itineraryController.loadWorkspace(),
+          labelController.listTree(),
+          itineraryController.listItems(tripId),
+        ]);
+        if (!active) return;
+        setPlaces(workspace.places);
+        setRegions(workspace.regions);
+        setTrips(workspace.trips);
+        setLabels(flattenLabels(labelTree));
+        setItems(nextItems);
+      } catch (cause) {
+        if (active) {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "重新載入地點清單失敗。",
+          );
+        }
+      }
+    }
+
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        void refreshAvailablePlaces();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      active = false;
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, [addingItem, selectedTripId]);
+
+  useEffect(() => {
     if (!hasPendingDayReorder) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
@@ -1237,88 +1279,101 @@ function ItineraryModule() {
                               地點 <b>*</b>
                             </label>
                             <div className="itinerary-place-picker">
-                              <input
-                                ref={placePickerInputRef}
-                                id="itinerary-place-search"
-                                type="text"
-                                role="combobox"
-                                aria-autocomplete="list"
-                                aria-expanded={placePickerOpen}
-                                aria-controls="itinerary-place-options"
-                                aria-activedescendant={
-                                  activePlaceOptionIndex >= 0
-                                    ? `itinerary-place-option-${activePlaceOptionIndex}`
-                                    : undefined
-                                }
-                                aria-required="true"
-                                autoComplete="off"
-                                value={placeSearchQuery}
-                                placeholder="搜尋或選擇地點"
-                                disabled={saving}
-                                onFocus={() => {
-                                  if (itemDraft.placeId) {
-                                    setPlaceSearchQuery("");
+                              <div className="itinerary-place-picker-row">
+                                <input
+                                  ref={placePickerInputRef}
+                                  id="itinerary-place-search"
+                                  type="text"
+                                  role="combobox"
+                                  aria-autocomplete="list"
+                                  aria-expanded={placePickerOpen}
+                                  aria-controls="itinerary-place-options"
+                                  aria-activedescendant={
+                                    activePlaceOptionIndex >= 0
+                                      ? `itinerary-place-option-${activePlaceOptionIndex}`
+                                      : undefined
                                   }
-                                  setPlacePickerOpen(true);
-                                  setActivePlaceOptionIndex(-1);
-                                }}
-                                onBlur={() => {
-                                  setPlacePickerOpen(false);
-                                  if (itemDraft.placeId && !placeSearchQuery) {
-                                    setPlaceSearchQuery(
-                                      places.find(
-                                        (place) =>
-                                          place.id === itemDraft.placeId,
-                                      )?.name ?? "",
-                                    );
-                                  }
-                                }}
-                                onChange={(event) => {
-                                  setPlaceSearchQuery(event.target.value);
-                                  setItemDraft((current) => ({
-                                    ...current,
-                                    placeId: "",
-                                  }));
-                                  setPlacePickerOpen(true);
-                                  setActivePlaceOptionIndex(-1);
-                                  setError("");
-                                }}
-                                onKeyDown={(event) => {
-                                  if (event.key === "ArrowDown") {
-                                    event.preventDefault();
+                                  aria-required="true"
+                                  autoComplete="off"
+                                  value={placeSearchQuery}
+                                  placeholder="搜尋或選擇地點"
+                                  disabled={saving}
+                                  onFocus={() => {
+                                    if (itemDraft.placeId) {
+                                      setPlaceSearchQuery("");
+                                    }
                                     setPlacePickerOpen(true);
-                                    setActivePlaceOptionIndex((current) =>
-                                      Math.min(
-                                        current + 1,
-                                        filteredTripPlaces.length - 1,
-                                      ),
-                                    );
-                                  } else if (event.key === "ArrowUp") {
-                                    event.preventDefault();
-                                    setPlacePickerOpen(true);
-                                    setActivePlaceOptionIndex((current) =>
-                                      Math.min(
-                                        Math.max(current - 1, 0),
-                                        filteredTripPlaces.length - 1,
-                                      ),
-                                    );
-                                  } else if (
-                                    event.key === "Enter" &&
-                                    placePickerOpen &&
-                                    filteredTripPlaces[activePlaceOptionIndex]
-                                  ) {
-                                    event.preventDefault();
-                                    selectItemPlace(
-                                      filteredTripPlaces[
-                                        activePlaceOptionIndex
-                                      ],
-                                    );
-                                  } else if (event.key === "Escape") {
-                                    setPlacePickerOpen(false);
                                     setActivePlaceOptionIndex(-1);
-                                  }
-                                }}
-                              />
+                                  }}
+                                  onBlur={() => {
+                                    setPlacePickerOpen(false);
+                                    if (itemDraft.placeId && !placeSearchQuery) {
+                                      setPlaceSearchQuery(
+                                        places.find(
+                                          (place) =>
+                                            place.id === itemDraft.placeId,
+                                        )?.name ?? "",
+                                      );
+                                    }
+                                  }}
+                                  onChange={(event) => {
+                                    setPlaceSearchQuery(event.target.value);
+                                    setItemDraft((current) => ({
+                                      ...current,
+                                      placeId: "",
+                                    }));
+                                    setPlacePickerOpen(true);
+                                    setActivePlaceOptionIndex(-1);
+                                    setError("");
+                                  }}
+                                  onKeyDown={(event) => {
+                                    if (event.key === "ArrowDown") {
+                                      event.preventDefault();
+                                      setPlacePickerOpen(true);
+                                      setActivePlaceOptionIndex((current) =>
+                                        Math.min(
+                                          current + 1,
+                                          filteredTripPlaces.length - 1,
+                                        ),
+                                      );
+                                    } else if (event.key === "ArrowUp") {
+                                      event.preventDefault();
+                                      setPlacePickerOpen(true);
+                                      setActivePlaceOptionIndex((current) =>
+                                        Math.min(
+                                          Math.max(current - 1, 0),
+                                          filteredTripPlaces.length - 1,
+                                        ),
+                                      );
+                                    } else if (
+                                      event.key === "Enter" &&
+                                      placePickerOpen &&
+                                      filteredTripPlaces[activePlaceOptionIndex]
+                                    ) {
+                                      event.preventDefault();
+                                      selectItemPlace(
+                                        filteredTripPlaces[
+                                          activePlaceOptionIndex
+                                        ],
+                                      );
+                                    } else if (event.key === "Escape") {
+                                      setPlacePickerOpen(false);
+                                      setActivePlaceOptionIndex(-1);
+                                    }
+                                  }}
+                                />
+                                <a
+                                  className="itinerary-add-place-link"
+                                  href={`${routes.places}?create=1`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label="在新分頁新增地點"
+                                  title="在新分頁新增地點"
+                                >
+                                  <span aria-hidden="true">＋</span>
+                                  新增地點
+                                </a>
+                              </div>
                               {placePickerOpen && (
                                 <ul
                                   id="itinerary-place-options"
@@ -1507,15 +1562,21 @@ function ItineraryModule() {
                     ) : (
                       <div className="itinerary-no-places">
                         <p>目前沒有歸入「{selectedRegion?.name}」的地點。</p>
-                        <RouterLink to={routes.places}>
-                          前往地點模組，建立地點並設定所屬區域。
-                        </RouterLink>
+                        <a
+                          href={`${routes.places}?create=1`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          前往地點模組新增地點並設定所屬區域。
+                        </a>
                       </div>
                     )}
                   </form>
                 )}
 
-                <div className="itinerary-items-heading">
+                {!itemFormVisible && (
+                  <>
+                    <div className="itinerary-items-heading">
                   <div>
                     <h3>當日安排</h3>
                     <span>{dayItems.length} 個地點</span>
@@ -1775,7 +1836,9 @@ function ItineraryModule() {
                       請先到地點模組，將地點加入「{selectedRegion?.name}」區域。
                     </p>
                   )}
-                </div>
+                    </div>
+                  </>
+                )}
               </>
             ) : (
               <div className="itinerary-empty-detail">

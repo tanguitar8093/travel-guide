@@ -288,6 +288,9 @@ function PlaceModule() {
   const [googleDetailsForId, setGoogleDetailsForId] = useState<string>()
   const [googleDetailsErrorForId, setGoogleDetailsErrorForId] = useState<string>()
   const autocompleteContainerRef = useRef<HTMLDivElement>(null)
+  const createFromLinkRef = useRef(
+    new URLSearchParams(window.location.search).get('create') === '1',
+  )
   const [filterText, setFilterText] = useState('')
   const [selectedFilterLabelIds, setSelectedFilterLabelIds] = useState<string[]>([])
   const [includeDescendants, setIncludeDescendants] = useState(true)
@@ -346,8 +349,19 @@ function PlaceModule() {
         setLabels(workspace.labels)
         setRegions(workspace.regions)
         setFilteredPlaces(results)
-        setSelectedPlaceId(results[0]?.id)
-        if (results[0]) setDraft(toDraft(results[0]))
+        if (createFromLinkRef.current) {
+          createFromLinkRef.current = false
+          setCreating(true)
+          setEditing(true)
+          setSelectedPlaceId(undefined)
+          setDraft(emptyDraft)
+          const url = new URL(window.location.href)
+          url.searchParams.delete('create')
+          window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
+        } else {
+          setSelectedPlaceId(results[0]?.id)
+          if (results[0]) setDraft(toDraft(results[0]))
+        }
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -951,6 +965,27 @@ function PlaceModule() {
                   </div>
 
                   {error && <div className="form-inline-error" role="alert">{error}</div>}
+                  <div className="place-form-actions">
+                    <button
+                      className="cancel-button"
+                      type="button"
+                      disabled={saving}
+                      onClick={cancelEditing}
+                    >
+                      取消
+                    </button>
+                    <button
+                      className="save-button"
+                      type="submit"
+                      disabled={saving || !draft.name.trim()}
+                    >
+                      {saving
+                        ? '儲存中…'
+                        : creating
+                          ? '建立地點'
+                          : '儲存變更'}
+                    </button>
+                  </div>
                 </form>
               ) : selectedPlace ? (
                 <div className="place-readonly">

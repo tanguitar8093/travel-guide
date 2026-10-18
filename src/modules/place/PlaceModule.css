@@ -570,6 +570,13 @@
   gap: 8px;
 }
 
+.place-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 16px;
+}
+
 .place-form-grid {
   display: grid;
   min-width: 0;
@@ -1194,6 +1201,17 @@
   .place-readonly,
   .place-form {
     padding-inline: 14px;
+  }
+
+  .place-form-actions {
+    position: sticky;
+    bottom: 0;
+    z-index: 6;
+    margin: 8px -14px 0;
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: rgba(255, 255, 255, .96);
+    box-shadow: 0 -5px 16px rgba(42, 57, 46, .08);
+    backdrop-filter: blur(8px);
   }
 
 }
