@@ -554,13 +554,14 @@
 
 .place-form .place-detail-heading {
   flex: 0 0 auto;
+  border-bottom: 0;
 }
 
-.place-app-shell .subtle-icon-button {
-  width: 29px;
-  height: 29px;
-  border-radius: 6px;
-  font-size: 17px;
+.place-form-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
 }
 
 .place-form-grid {
@@ -904,23 +905,6 @@
   line-height: 1.55;
 }
 
-.place-form-actions {
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 0 20px;
-  padding-top: 17px;
-  border-top: 1px solid #eff1ef;
-}
-
-.place-form-actions-right {
-  display: flex;
-  gap: 8px;
-  margin-left: auto;
-}
-
 .place-app-shell .cancel-button,
 .place-app-shell .delete-place-button {
   min-height: 31px;
@@ -1030,9 +1014,6 @@
     padding-inline: 14px;
   }
 
-  .place-form-actions {
-    margin-bottom: 14px;
-  }
 }
 .bulk-label-field {
   min-width: 0;

@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
-import { getDatabaseModeLabel } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
-import { AdminInfo } from "../../common/AdminInfo";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
 import "./LabelModule.css";
@@ -607,16 +605,32 @@ function LabelModule() {
                       {selectedLabel.name}
                     </h2>
                   </div>
-                  <button
-                    className="delete-label-button"
-                    type="button"
-                    aria-label={`刪除${selectedLabel.name}`}
-                    title="刪除標籤"
-                    disabled={saving}
-                    onClick={() => void handleDelete(selectedLabel)}
-                  >
-                    刪除標籤
-                  </button>
+                  <div className="detail-heading-actions">
+                    <button
+                      className="save-button"
+                      type="button"
+                      disabled={
+                        saving ||
+                        !draftName.trim() ||
+                        (draftName.trim() === selectedLabel.name &&
+                          draftColor === selectedLabel.color &&
+                          (draftParentId || undefined) === selectedLabel.parentId)
+                      }
+                      onClick={() => void handleSave()}
+                    >
+                      {saving ? "儲存中…" : "儲存變更"}
+                    </button>
+                    <button
+                      className="delete-label-button"
+                      type="button"
+                      aria-label={`刪除${selectedLabel.name}`}
+                      title="刪除標籤"
+                      disabled={saving}
+                      onClick={() => void handleDelete(selectedLabel)}
+                    >
+                      刪除標籤
+                    </button>
+                  </div>
                 </div>
 
                 <div className="form-fields">
@@ -684,23 +698,6 @@ function LabelModule() {
                   </label>
                 </div>
 
-                <div className="detail-actions">
-                  <AdminInfo><span>資料即時儲存於 {getDatabaseModeLabel()}</span></AdminInfo>
-                  <button
-                    className="save-button"
-                    type="button"
-                    disabled={
-                      saving ||
-                      !draftName.trim() ||
-                      (draftName.trim() === selectedLabel.name &&
-                        draftColor === selectedLabel.color &&
-                        (draftParentId || undefined) === selectedLabel.parentId)
-                    }
-                    onClick={() => void handleSave()}
-                  >
-                    {saving ? "儲存中…" : "儲存變更"}
-                  </button>
-                </div>
               </section>
             ) : (
               <section className="panel no-selection-panel">

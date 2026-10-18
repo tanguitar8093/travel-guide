@@ -552,6 +552,13 @@ kbd {
   border-bottom: 1px solid #eff1ef;
 }
 
+.detail-heading-actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .delete-label-button {
   flex: 0 0 auto;
   min-height: 34px;
@@ -692,19 +699,6 @@ kbd {
 .form-field small {
   color: #a1aaa3;
   font-size: 9px;
-}
-
-.detail-actions {
-  min-height: 55px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin: 0 -19px;
-  padding: 0 19px;
-  border-top: 1px solid #eff1ef;
-  color: #a1aaa3;
-  font-size: 10px;
 }
 
 .save-button {

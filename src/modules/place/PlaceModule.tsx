@@ -575,7 +575,27 @@ function PlaceModule() {
                         {creating ? '建立地點' : draft.name || '編輯地點'}
                       </h2>
                     </div>
-                    <button className="subtle-icon-button" type="button" aria-label="取消編輯" onClick={cancelEditing}>×</button>
+                    <div className="place-form-heading-actions">
+                      <button
+                        className="cancel-button"
+                        type="button"
+                        disabled={saving}
+                        onClick={cancelEditing}
+                      >
+                        取消
+                      </button>
+                      <button
+                        className="save-button"
+                        type="submit"
+                        disabled={saving || !draft.name.trim()}
+                      >
+                        {saving
+                          ? '儲存中…'
+                          : creating
+                            ? '建立地點'
+                            : '儲存變更'}
+                      </button>
+                    </div>
                   </div>
 
                   <div className="place-form-grid">
@@ -633,34 +653,6 @@ function PlaceModule() {
                         disabled={formDisabled}
                       />
                     </label>
-
-                    <fieldset className="place-icon-field">
-                      <legend>地點圖示（選填）</legend>
-                      <div className="place-icon-options">
-                        <button
-                          type="button"
-                          className={`place-icon-option place-icon-none${draft.icon ? '' : ' selected'}`}
-                          aria-pressed={!draft.icon}
-                          onClick={() => setDraft({ ...draft, icon: undefined })}
-                          disabled={formDisabled}
-                        >
-                          無
-                        </button>
-                        {placeIcons.map((icon) => (
-                          <button
-                            type="button"
-                            className={`place-icon-option${draft.icon === icon ? ' selected' : ''}`}
-                            key={icon}
-                            aria-label={`選擇圖示 ${icon}`}
-                            aria-pressed={draft.icon === icon}
-                            onClick={() => setDraft({ ...draft, icon })}
-                            disabled={formDisabled}
-                          >
-                            {icon}
-                          </button>
-                        ))}
-                      </div>
-                    </fieldset>
 
                     {!draft.googlePlaceId ? (
                       <label className="form-field place-url-field">
@@ -722,6 +714,34 @@ function PlaceModule() {
                       )}
                     </fieldset>
 
+                    <fieldset className="place-icon-field">
+                      <legend>地點圖示（選填）</legend>
+                      <div className="place-icon-options">
+                        <button
+                          type="button"
+                          className={`place-icon-option place-icon-none${draft.icon ? '' : ' selected'}`}
+                          aria-pressed={!draft.icon}
+                          onClick={() => setDraft({ ...draft, icon: undefined })}
+                          disabled={formDisabled}
+                        >
+                          無
+                        </button>
+                        {placeIcons.map((icon) => (
+                          <button
+                            type="button"
+                            className={`place-icon-option${draft.icon === icon ? ' selected' : ''}`}
+                            key={icon}
+                            aria-label={`選擇圖示 ${icon}`}
+                            aria-pressed={draft.icon === icon}
+                            onClick={() => setDraft({ ...draft, icon })}
+                            disabled={formDisabled}
+                          >
+                            {icon}
+                          </button>
+                        ))}
+                      </div>
+                    </fieldset>
+
                     <label className="form-field place-notes-field">
                       <span>備註</span>
                       <textarea
@@ -735,14 +755,6 @@ function PlaceModule() {
                   </div>
 
                   {error && <div className="form-inline-error" role="alert">{error}</div>}
-                  <div className="place-form-actions">
-                    <div className="place-form-actions-right">
-                      <button className="cancel-button" type="button" disabled={saving} onClick={cancelEditing}>取消</button>
-                      <button className="save-button" type="submit" disabled={saving || !draft.name.trim()}>
-                        {saving ? '儲存中…' : creating ? '建立地點' : '儲存變更'}
-                      </button>
-                    </div>
-                  </div>
                 </form>
               ) : selectedPlace ? (
                 <div className="place-readonly">
