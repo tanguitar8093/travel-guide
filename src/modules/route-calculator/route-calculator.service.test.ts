@@ -4,10 +4,13 @@ import type { GooglePlaceDetails } from '../place/google-places.service'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), getById: vi.fn(), details: vi.fn(), estimate: vi.fn(),
+  trips: vi.fn(), items: vi.fn(),
 }))
 vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
   places: { list: mocks.list, getById: mocks.getById },
+  trips: { list: mocks.trips },
+  itineraryItems: { findByTripId: mocks.items },
 }))
 vi.mock('../place/google-places.service', () => ({
   getGooglePlaceDetails: mocks.details,
@@ -35,6 +38,8 @@ beforeEach(() => {
   mocks.getById.mockResolvedValue(saved)
   mocks.details.mockResolvedValue({ id: 'station', location: { lat: 25.04, lng: 121.55 } })
   mocks.estimate.mockResolvedValue({ durationMinutes: 12, distanceMeters: 800 })
+  mocks.items.mockResolvedValue([])
+  mocks.trips.mockResolvedValue([])
 })
 
 it('reads all saved places through the existing repository without filtering by trip region', async () => {
@@ -66,10 +71,12 @@ it('supports two freely searched endpoints without database lookup or detail ref
 })
 
 it('supports two saved endpoints through current repository data', async () => {
+  mocks.getById.mockResolvedValueOnce(saved).mockResolvedValueOnce({ ...saved, id: 'second', googlePlaceId: 'second-google' })
+  mocks.details.mockImplementation(async (id: string) => ({ id, location: { lat: 25, lng: 121 } }))
   await new RouteCalculatorService().calculate({
-    ...input, destination: { source: 'saved', placeId: saved.id },
+    ...input, destination: { source: 'saved', placeId: 'second' },
   })
-  expect(mocks.estimate).toHaveBeenCalledWith('station', 'station', 'WALKING')
+  expect(mocks.estimate).toHaveBeenCalledWith('station', 'second-google', 'WALKING')
 })
 
 it('does not request a route for a deleted saved place', async () => {
@@ -99,4 +106,75 @@ it('rejects a selected place without usable coordinates', async () => {
 it('surfaces provider failures instead of returning a successful-looking estimate', async () => {
   mocks.estimate.mockRejectedValue(new Error('no route'))
   await expect(new RouteCalculatorService().calculate(input)).rejects.toThrow('no route')
+})
+
+it('resolves marker endpoints without reading or writing saved places', async () => {
+  await new RouteCalculatorService().calculate({ ...input, origin: { source: 'marker', place: { ...google, id: 'marker' } } })
+  expect(mocks.getById).not.toHaveBeenCalled()
+  expect(mocks.details).not.toHaveBeenCalled()
+  expect(mocks.estimate).toHaveBeenCalledWith('marker', 'cafe', 'WALKING')
+})
+
+it('rejects the same Google location across different endpoint sources before requesting routes', async () => {
+  await expect(new RouteCalculatorService().calculate({
+    ...input, origin: { source: 'marker', place: google },
+  })).rejects.toThrow('出發點與目的地相同')
+  expect(mocks.estimate).not.toHaveBeenCalled()
+})
+
+it('loads only scheduled places and reports unavailable locations explicitly', async () => {
+  mocks.items.mockResolvedValue([
+    { placeId: 'saved', date: '2026-10-19' },
+    { placeId: 'saved', date: '2026-10-18' },
+    { placeId: 'custom', date: '2026-10-18' },
+  ])
+  mocks.getById.mockImplementation(async (id: string) => id === 'saved' ? saved : { ...saved, id, name: '自訂地點', googlePlaceId: undefined })
+  const data = await new RouteCalculatorService().loadTripMarkers('trip')
+  expect(mocks.items).toHaveBeenCalledExactlyOnceWith('trip')
+  expect(mocks.list).not.toHaveBeenCalled()
+  expect(data.dates).toEqual(['2026-10-18', '2026-10-19'])
+  expect(data.markers).toHaveLength(1)
+  expect(data.markers[0].dates).toEqual(['2026-10-19', '2026-10-18'])
+  expect(data.unavailable).toHaveLength(1)
+  expect(data.unavailable[0]).toContain('自訂地點')
+})
+
+it('shares detail requests only within a service instance and retries failed requests', async () => {
+  const service = new RouteCalculatorService()
+  await Promise.all([service.resolveEndpoint(input.origin), service.resolveEndpoint(input.origin)])
+  expect(mocks.details).toHaveBeenCalledTimes(1)
+  await new RouteCalculatorService().resolveEndpoint(input.origin)
+  expect(mocks.details).toHaveBeenCalledTimes(2)
+  const other = new RouteCalculatorService()
+  mocks.details.mockRejectedValueOnce(new Error('temporary'))
+  await expect(other.resolveEndpoint(input.origin)).rejects.toThrow('temporary')
+  await expect(other.resolveEndpoint(input.origin)).resolves.toMatchObject({ googlePlaceId: 'station' })
+})
+
+it('surfaces trip repository failures rather than returning empty success', async () => {
+  mocks.items.mockRejectedValue(new Error('read failed'))
+  await expect(new RouteCalculatorService().loadTripMarkers('trip')).rejects.toThrow('read failed')
+})
+
+it('reads trips through the existing facade', async () => {
+  mocks.trips.mockResolvedValue([{ id: 'trip', name: '旅行' }])
+  expect(await new RouteCalculatorService().listTrips()).toEqual([{ id: 'trip', name: '旅行' }])
+})
+
+it('limits concurrent Google detail requests when loading a large trip', async () => {
+  const items = Array.from({ length: 8 }, (_, index) => ({ placeId: `p${index}`, date: '2026-10-18' }))
+  mocks.items.mockResolvedValue(items)
+  mocks.getById.mockImplementation(async (id: string) => ({ ...saved, id, googlePlaceId: id }))
+  let active = 0
+  let maximum = 0
+  mocks.details.mockImplementation(async (id: string) => {
+    active += 1
+    maximum = Math.max(maximum, active)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    active -= 1
+    return { id, location: { lat: 25, lng: 121 } }
+  })
+  const data = await new RouteCalculatorService().loadTripMarkers('trip')
+  expect(data.markers).toHaveLength(8)
+  expect(maximum).toBeLessThanOrEqual(3)
 })

@@ -6,4 +6,6 @@ export type {
   ResolvedRouteEndpoint,
   RouteCalculationInput,
   RouteCalculationResult,
+  RouteMapPlace,
+  TripMapData,
 } from './route-calculator.service'

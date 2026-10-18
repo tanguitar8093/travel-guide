@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Place } from '../../database'
 import { SearchableSelect } from '../../common/SearchableSelect'
-import { routeCalculatorController } from './route-calculator.controller'
+import type { RouteCalculatorController } from './route-calculator.controller'
 import type { RouteEndpoint } from './route-calculator.service'
 
 interface RouteEndpointFieldProps {
@@ -11,18 +11,23 @@ interface RouteEndpointFieldProps {
   onChange: (endpoint: RouteEndpoint | null) => void
   disabled: boolean
   autoFocus?: boolean
+  controller: RouteCalculatorController
+  source: RouteEndpoint['source']
+  onSourceChange: (source: RouteEndpoint['source']) => void
+  picking: boolean
+  onPick: () => void
 }
 
 export function RouteEndpointField({
   label, places, value, onChange, disabled, autoFocus = false,
+  controller, source, onSourceChange, picking, onPick,
 }: RouteEndpointFieldProps) {
   const id = useId()
-  const [source, setSource] = useState<RouteEndpoint['source']>(() => value?.source ?? 'saved')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const container = useRef<HTMLDivElement>(null)
-  const configured = routeCalculatorController.isGooglePlacesConfigured()
+  const configured = controller.isGooglePlacesConfigured()
 
   useEffect(() => {
     if (source !== 'google' || !configured || !container.current) return
@@ -32,7 +37,7 @@ export function RouteEndpointField({
     container.current.replaceChildren(host)
     setLoading(true)
     setError('')
-    void routeCalculatorController.mountAutocomplete(
+    void controller.mountAutocomplete(
       host,
       (place) => { if (active) { setError(''); onChange({ source: 'google', place }) } },
       (cause) => { if (active) { setError(cause.message); onChange(null) } },
@@ -49,7 +54,7 @@ export function RouteEndpointField({
       }
     })
     return () => { active = false; destroy?.(); host.remove() }
-  }, [source, configured, onChange, label, attempt])
+  }, [source, configured, onChange, label, attempt, controller])
 
   return (
     <fieldset className="route-endpoint" disabled={disabled}>
@@ -59,16 +64,17 @@ export function RouteEndpointField({
           type="button" aria-pressed={source === 'saved'}
           onClick={() => {
             if (source === 'saved') return
-            setSource('saved'); setError(''); onChange(null)
+            onSourceChange('saved'); setError('')
           }}
         >已存地點</button>
         <button
           type="button" aria-pressed={source === 'google'}
           onClick={() => {
             if (source === 'google') return
-            setSource('google'); setError(''); onChange(null)
+            onSourceChange('google'); setError('')
           }}
         >Google 搜尋</button>
+        <button type="button" aria-pressed={source === 'marker'} onClick={() => { onSourceChange('marker'); setError('') }}>選取標記</button>
       </div>
       {source === 'saved' ? (
         <>
@@ -89,6 +95,12 @@ export function RouteEndpointField({
             autoFocus={autoFocus}
           />
           {!places.length && <p className="route-field-hint">目前沒有已存地點，可切換 Google 搜尋直接選擇。</p>}
+        </>
+      ) : source === 'marker' ? (
+        <>
+          <button type="button" className="route-secondary" aria-pressed={picking} onClick={onPick}>{picking ? '取消選取標記' : `從地圖選擇${label}`}</button>
+          <p className="route-field-hint" role="status">{picking ? `請點選地圖圖釘，或使用下方的標記清單，設為${label}。` : '可選擇行程載入標記，或先用 Google 搜尋加入標記。'}</p>
+          {value?.source === 'marker' && <p className="route-selected-place">已選擇：{value.place.displayName}<small>{value.place.formattedAddress}</small></p>}
         </>
       ) : (
         <>
