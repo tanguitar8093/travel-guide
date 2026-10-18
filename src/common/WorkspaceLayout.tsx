@@ -7,6 +7,7 @@ import "./WorkspaceLayout.css";
 import { HybridStatus } from './HybridStatus';
 import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 import { useAdminLayoutDebug } from './useAdminLayoutDebug';
+import { startLayoutDebug } from './layout-debug';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "route-calculator" | "data";
 
@@ -71,40 +72,10 @@ export function WorkspaceLayout({
 
   useEffect(() => {
     if (!layoutDebug.enabled) return;
-    const timer = window.setTimeout(() => {
-      const { mobile, compact, narrow } = debugLayoutBreakpoints[active];
-      const matchesWidth = (width: number) =>
-        window.matchMedia(`(max-width: ${width}px)`).matches;
-      const contentLayout =
-        narrow !== undefined && matchesWidth(narrow)
-          ? `手機窄版（≤ ${narrow}px）`
-          : matchesWidth(mobile)
-            ? `手機版（≤ ${mobile}px）`
-            : matchesWidth(compact)
-              ? `中寬版（> ${mobile}px、≤ ${compact}px）`
-              : `電腦版（> ${compact}px）`;
-      const viewport = window.visualViewport;
-      const round = (value: number) => Math.round(value * 100) / 100;
-      const section = navigationItems.find((item) => item.id === active)?.label;
-      window.alert([
-        "管理員版型 DEBUG（進入頁面 3 秒後取樣）",
-        `頁面：${section} ${window.location.pathname}`,
-        `螢幕：${window.screen.width} × ${window.screen.height} CSS px`,
-        `瀏覽器視窗 inner：${window.innerWidth} × ${window.innerHeight} CSS px`,
-        `文件 client：${document.documentElement.clientWidth} × ${document.documentElement.clientHeight} CSS px`,
-        `文件內容 scroll：${document.documentElement.scrollWidth} × ${document.documentElement.scrollHeight} CSS px`,
-        `可視區域：${viewport ? `${round(viewport.width)} × ${round(viewport.height)} CSS px` : "瀏覽器不支援"}`,
-        `可視區域縮放：${viewport ? round(viewport.scale) : "瀏覽器不支援"}`,
-        `像素倍率 DPR：${window.devicePixelRatio}`,
-        `方向：${window.matchMedia("(orientation: portrait)").matches ? "直立" : "橫向"}`,
-        `側欄 CSS 版型：${matchesWidth(760) ? "手機版（≤ 760px）" : "電腦版（> 760px）"}`,
-        `側欄互動：${isDesktopPointer() ? "桌面滑鼠，可懸停展開" : "點擊開關，無懸停展開"}`,
-        `內容 CSS 版型：${contentLayout}`,
-        `媒體查詢：${[...new Set([compact, mobile, ...(narrow === undefined ? [] : [narrow])])].map((width) => `≤ ${width}px: ${matchesWidth(width) ? "符合" : "不符合"}`).join("；")}`,
-        "版型依 CSS 媒體查詢判定，不以手機型號或實體像素判定。",
-      ].join("\n"));
-    }, 3000);
-    return () => window.clearTimeout(timer);
+    return startLayoutDebug(
+      debugLayoutBreakpoints[active],
+      navigationItems.find((item) => item.id === active)?.label ?? active,
+    );
   }, [active, layoutDebug.enabled, user?.id]);
 
   function cancelScheduledClose() {

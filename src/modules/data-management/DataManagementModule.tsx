@@ -415,15 +415,15 @@ function DataManagementModule() {
                   try {
                     layoutDebug.setEnabled(event.target.checked);
                     setError("");
-                    setNotice(event.target.checked ? "已開啟版型除錯，3 秒後顯示診斷視窗。" : "已關閉版型除錯視窗。");
+                    setNotice(event.target.checked ? "已開啟版型除錯，記錄 0／2／5 秒資訊後顯示診斷視窗。" : "已關閉版型除錯視窗。");
                   } catch (cause) {
                     setError(cause instanceof Error ? cause.message : "儲存版型除錯設定失敗。");
                   }
                 }}
               />
-              <span>進入頁面 3 秒後顯示版型 DEBUG 視窗</span>
+              <span>進入頁面觀察 5 秒後顯示版型 DEBUG 視窗</span>
             </label>
-            <p>顯示螢幕與瀏覽器尺寸、縮放、像素倍率及側欄與內容套用的版型。預設關閉，開啟後切換模組或重新整理頁面也會顯示；關閉會取消尚未彈出的視窗。設定依管理員帳號記住於此瀏覽器，不上傳雲端，所有資料模式皆適用。</p>
+            <p>記錄開始觀察、2 秒、5 秒的螢幕與瀏覽器尺寸、縮放及側欄與內容版型，並記錄期間的尺寸、方向與媒體查詢變動（最多逐筆列出 8 筆），附上實際 viewport 標籤與瀏覽器資訊。取樣完成才彈窗，避免視窗干擾觀察；不強制重畫頁面。預設關閉，開啟後切換模組或重新整理頁面也會顯示；關閉會取消尚未彈出的視窗。設定依管理員帳號記住於此瀏覽器，不上傳雲端，所有資料模式皆適用。</p>
             {layoutDebug.error && <div className="data-management-feedback data-management-error" role="alert">無法讀取版型除錯設定：{layoutDebug.error}</div>}
           </section>
         )}
