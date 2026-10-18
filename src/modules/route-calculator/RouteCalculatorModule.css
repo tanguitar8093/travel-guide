@@ -11,8 +11,9 @@
 .route-calculator-heading > div { padding-left: 44px; }
 .route-calculator-heading h1 { margin: 0; color: #3f4b42; font-size: 28px; font-weight: 600; }
 .route-calculator-heading p { margin: 8px 0 0; color: #849087; font-size: 12px; line-height: 1.7; }
-.route-calculator-workspace { display: grid; grid-template-columns: minmax(300px, 38%) minmax(0, 1fr); align-items: start; gap: 16px; }
+.route-calculator-workspace { display: grid; grid-template-columns: minmax(270px, 38%) minmax(0, 1fr); align-items: start; gap: 16px; }
 .route-calculator-panel, .route-calculator-map { min-width: 0; border: 1px solid #e5ebe5; border-radius: 9px; background: #fff; }
+.route-calculator-panel { grid-column: 1; }
 .route-panel-heading { padding: 17px 18px; border-bottom: 1px solid #edf1ed; }
 .route-panel-heading h2 { margin: 0; font-size: 14px; font-weight: 600; }
 .route-panel-heading p { margin: 7px 0 0; color: #849087; font-size: 11px; line-height: 1.7; }
@@ -49,6 +50,7 @@
 .route-result dd { margin: 7px 0 0; color: #486d53; font-size: 18px; font-weight: 600; }
 .route-result small { color: #8b958e; font-size: 11px; line-height: 1.7; }
 .route-calculator-map { position: sticky; top: 16px; }
+.route-calculator-workspace > .route-calculator-map { grid-column: 2; }
 .route-calculator-map > .route-panel-heading { position: relative; z-index: 2; }
 .route-map-body { position: relative; z-index: 1; height: clamp(400px, 65dvh, 760px); overflow: hidden; background: #eaf2f0; }
 .route-map-canvas, .route-map-host { width: 100%; height: 100%; }
@@ -66,7 +68,7 @@
 .route-trip-row > .route-transport { flex: 0 1 160px; min-width: 0; }
 .route-trip-row > .route-transport > span { white-space: nowrap; }
 .route-trip-controls .searchable-select ul { max-height: 180px; }
-.route-marker-panel { padding: 18px; border-top: 1px solid #edf1ed; }
+.route-marker-panel { padding: 18px; border-bottom: 1px solid #edf1ed; }
 .route-marker-panel h2 { margin: 0 0 12px; font-size: 14px; }
 .route-marker-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-block: 12px; }
 .route-remove-marker { min-height: 38px; padding: 8px 12px; border: 1px solid #efd8d3; border-radius: 6px; color: #a34f45; background: #fff7f5; cursor: pointer; }
@@ -78,10 +80,19 @@
 .route-unavailable { color: #a34f45; font-size: 11px; overflow-wrap: anywhere; }
 .route-unavailable ul { max-height: 160px; overflow-y: auto; padding-left: 20px; }
 
-@media (max-width: 900px) {
+@media (min-width: 681px) and (max-width: 1000px) {
+  .route-calculator-workspace { grid-template-columns: minmax(270px, 40%) minmax(0, 1fr); gap: 12px; }
+  .route-map-body { height: clamp(360px, 62dvh, 680px); }
+  .route-trip-row { align-items: stretch; flex-direction: column; }
+  .route-trip-row > .route-transport { flex-basis: auto; }
+}
+
+@media (max-width: 680px) {
   .route-calculator-content { padding-inline: 16px; }
   .route-calculator-workspace { grid-template-columns: minmax(0, 1fr); }
   .route-calculator-map { position: static; }
+  .route-calculator-workspace > .route-calculator-map { grid-column: 1; grid-row: 1; }
+  .route-calculator-panel { grid-column: 1; grid-row: 2; }
   .route-map-body { height: 380px; }
 }
 

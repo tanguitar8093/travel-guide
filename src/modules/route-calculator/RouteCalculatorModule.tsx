@@ -439,6 +439,19 @@ export default function RouteCalculatorModule() {
         <div className="route-calculator-workspace">
           <section className="route-calculator-panel" aria-label="路程試算設定與結果">
             <header className="route-panel-heading"><h2>兩點通勤</h2><p>使用已存地點或 Google 搜尋；也可點選地圖圖釘，在標記資訊中指定起終點。</p></header>
+            <section className="route-marker-panel" aria-label="標記資訊">
+              <h2>標記資訊</h2>
+              {selected ? <>
+                <p className="route-selected-place">{selected.name}<small>{selected.address}</small></p>
+                <p className="route-field-hint">來源：{isTripMarker(selectedId, tripData) ? '原行程地點' : '後加地點（不在所選行程）'}{selectedId === originId ? ' · 出發點' : ''}{selectedId === destinationId ? ' · 目的地' : ''}</p>
+                {!isTripMarker(selectedId, tripData) && <div className="route-marker-actions">
+                  <button type="button" className="route-remove-marker" disabled={endpointBusy} onClick={() => removeMarker(selected)}>移除標記</button>
+                </div>}
+              </> : <p className="route-field-hint">點選圖釘或下方清單，可指定端點或移除標記，不會修改原始地點與行程。</p>}
+              <details className="route-marker-list"><summary>標記清單（{markers.length}）</summary>
+                {markers.length ? <ul>{markers.map((marker) => <li key={marker.googlePlaceId}><button type="button" disabled={busy} aria-pressed={selectedId === marker.googlePlaceId} onClick={() => selectMarker(marker)}>{marker.name}{marker.googlePlaceId === originId ? '（出發點）' : ''}{marker.googlePlaceId === destinationId ? '（目的地）' : ''}</button></li>)}</ul> : <p className="route-field-hint">尚無標記，請載入行程或選取搜尋結果。</p>}
+              </details>
+            </section>
             {loading ? <p className="route-loading" role="status">正在載入已存地點…</p> : (
               <form className="route-calculator-form" onSubmit={(event) => void calculate(event)}>
                 {placesError && <div className="route-inline-error" role="alert">{placesError} 仍可使用 Google 搜尋。<button type="button" disabled={busy} onClick={() => setPlacesAttempt((value) => value + 1)}>重試載入地點</button></div>}
@@ -467,19 +480,6 @@ export default function RouteCalculatorModule() {
               <dl><div><dt>預估時間</dt><dd>約 {result.durationMinutes} 分鐘</dd></div><div><dt>路線距離</dt><dd>{formatTravelDistance(result.distanceMeters)}</dd></div></dl>
               <small>Google Maps 路線估算，非保證抵達時間；實際時間受路況與班次影響。修改條件後需重新計算。</small>
             </section>}
-            <section className="route-marker-panel" aria-label="標記資訊">
-              <h2>標記資訊</h2>
-              {selected ? <>
-                <p className="route-selected-place">{selected.name}<small>{selected.address}</small></p>
-                <p className="route-field-hint">來源：{isTripMarker(selectedId, tripData) ? '原行程地點' : '後加地點（不在所選行程）'}{selectedId === originId ? ' · 出發點' : ''}{selectedId === destinationId ? ' · 目的地' : ''}</p>
-                {!isTripMarker(selectedId, tripData) && <div className="route-marker-actions">
-                  <button type="button" className="route-remove-marker" disabled={endpointBusy} onClick={() => removeMarker(selected)}>移除標記</button>
-                </div>}
-              </> : <p className="route-field-hint">點選圖釘或下方清單，可指定端點或移除標記，不會修改原始地點與行程。</p>}
-              <details className="route-marker-list"><summary>標記清單（{markers.length}）</summary>
-                {markers.length ? <ul>{markers.map((marker) => <li key={marker.googlePlaceId}><button type="button" disabled={busy} aria-pressed={selectedId === marker.googlePlaceId} onClick={() => selectMarker(marker)}>{marker.name}{marker.googlePlaceId === originId ? '（出發點）' : ''}{marker.googlePlaceId === destinationId ? '（目的地）' : ''}</button></li>)}</ul> : <p className="route-field-hint">尚無標記，請載入行程或選取搜尋結果。</p>}
-              </details>
-            </section>
           </section>
           <RoutePreviewMap markers={markers} tripData={tripData} originId={originId} destinationId={destinationId} selectedId={selectedId} onSelect={selectMarker} disabled={busy} configured={configured} actions={selected && <>
             {selectedId !== originId && <button type="button" className="route-secondary" disabled={endpointBusy} onClick={() => assignMarker('origin', selected)}>設為出發點</button>}
