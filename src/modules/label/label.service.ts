@@ -10,6 +10,7 @@ import type {
   NewLabel,
   Place,
 } from '../../database'
+import { bulkDelete, type BulkDeleteResult } from '../../common/bulk-delete'
 
 export interface LabelTreeNode extends Label {
   children: LabelTreeNode[]
@@ -80,6 +81,29 @@ export class LabelService {
 
   delete(id: string): Promise<void> {
     return labels.delete(id)
+  }
+
+  deleteMany(ids: string[]): Promise<BulkDeleteResult> {
+    return bulkDelete({
+      ids,
+      entity: '標籤',
+      load: () => labels.list(),
+      deleteOne: (id) => this.delete(id),
+      order: (selectedIds, records) => {
+        const byId = new Map(records.map((label) => [label.id, label]))
+        const depth = (id: string) => {
+          const visited = new Set<string>()
+          let current = byId.get(id)
+          while (current?.parentId && !visited.has(current.id)) {
+            visited.add(current.id)
+            current = byId.get(current.parentId)
+          }
+          return visited.size
+        }
+        // Sort only the selection; never implicitly select descendants.
+        return [...selectedIds].sort((left, right) => depth(right) - depth(left))
+      },
+    })
   }
 
   assignToPlace(placeId: string, labelId: string): Promise<void> {

@@ -28,6 +28,10 @@ export class LabelController {
     return this.service.delete(id)
   }
 
+  deleteMany(ids: string[]) {
+    return this.service.deleteMany(ids)
+  }
+
   assignToPlace(placeId: string, labelId: string) {
     return this.service.assignToPlace(placeId, labelId)
   }

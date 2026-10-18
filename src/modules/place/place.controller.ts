@@ -29,6 +29,10 @@ export class PlaceController {
     return this.service.delete(id)
   }
 
+  deleteMany(ids: string[]) {
+    return this.service.deleteMany(ids)
+  }
+
   isGooglePlacesConfigured() {
     return this.service.isGooglePlacesConfigured()
   }

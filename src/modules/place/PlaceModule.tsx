@@ -6,6 +6,8 @@ import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { placeController } from './place.controller'
 import type { GooglePlaceDetails } from './google-places.service'
 import './PlaceModule.css'
+import { useBulkDelete } from '../../common/useBulkDelete'
+import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar'
 
 interface PlaceDraft {
   name: string
@@ -70,6 +72,7 @@ function getPlaceInitial(name: string): string {
 }
 
 function PlaceModule() {
+  const bulk = useBulkDelete()
   const [places, setPlaces] = useState<Place[]>([])
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -86,7 +89,8 @@ function PlaceModule() {
   const [editing, setEditing] = useState(false)
   const [creating, setCreating] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const [singleSaving, setSaving] = useState(false)
+  const saving = singleSaving || bulk.busy
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
 
@@ -246,6 +250,7 @@ function PlaceModule() {
   }, [filterText, selectedFilterLabelIds, includeDescendants, selectedPlaceId, creating, editing])
 
   function selectPlace(place: Place) {
+    if (saving) return
     setSelectedPlaceId(place.id)
     setDraft(toDraft(place))
     setEditing(false)
@@ -258,6 +263,7 @@ function PlaceModule() {
   }
 
   function startCreate() {
+    if (saving) return
     setCreating(true)
     setEditing(true)
     setSelectedPlaceId(undefined)
@@ -272,6 +278,7 @@ function PlaceModule() {
   }
 
   function startEditing() {
+    if (saving) return
     if (!selectedPlace) return
     setDraft(toDraft(selectedPlace))
     setEditing(true)
@@ -325,6 +332,7 @@ function PlaceModule() {
   }
 
   async function handleDelete() {
+    if (saving) return
     if (!selectedPlace) return
     if (!window.confirm(`確定要刪除「${selectedPlace.name}」嗎？`)) return
 
@@ -454,17 +462,31 @@ function PlaceModule() {
                 <span>{filteredPlaces.length}</span>
               </div>
               <div className="place-list">
+                <BulkDeleteToolbar
+                  active={bulk.active} onEnter={bulk.enter} onExit={bulk.exit}
+                  count={bulk.selectedIds.size}
+                  hiddenCount={[...bulk.selectedIds].filter((id) => !filteredPlaces.some((place) => place.id === id)).length}
+                  disabled={saving || loading || editing}
+                  canSelect={filteredPlaces.length > 0}
+                  onSelectAll={() => bulk.setSelectedIds((current) => new Set([...current, ...filteredPlaces.map((place) => place.id)]))}
+                  onClear={() => bulk.setSelectedIds(new Set())}
+                  onDelete={() => { void bulk.remove({ records: places, entity: '地點', deleteMany: (ids) => placeController.deleteMany(ids), reload: () => reloadPlaces() }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : '刪除或重新載入失敗，請重新整理確認結果。')) }}
+                  result={bulk.result}
+                />
                 {loading ? (
                   <div className="empty-state">正在載入地點…</div>
                 ) : filteredPlaces.length ? (
                   filteredPlaces.map((place) => {
                     const placeLabels = labels.filter((label) => place.labelIds.includes(label.id))
                     return (
+                      <div className={bulk.active ? 'place-bulk-row' : undefined} key={place.id}>
+                      {bulk.active && <input className="bulk-select-checkbox" type="checkbox" aria-label={`選取地點「${place.name}」`} checked={bulk.selectedIds.has(place.id)} disabled={saving || editing} onChange={() => bulk.toggle(place.id)} />}
                       <button
                         className={`place-list-item${place.id === selectedPlaceId && !creating ? ' active' : ''}`}
                         type="button"
                         key={place.id}
                         onClick={() => selectPlace(place)}
+                        disabled={saving}
                       >
                         <span className="place-list-avatar">{getPlaceInitial(place.name)}</span>
                         <span className="place-list-copy">
@@ -488,6 +510,7 @@ function PlaceModule() {
                         </span>
                         <span className="list-chevron">›</span>
                       </button>
+                      </div>
                     )
                   })
                 ) : (

@@ -6,6 +6,8 @@ import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
 import "./LabelModule.css";
+import { useBulkDelete } from '../../common/useBulkDelete';
+import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar';
 
 const labelColors = [
   "#e9905a",
@@ -45,6 +47,7 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
 }
 
 function LabelModule() {
+  const bulk = useBulkDelete();
   const [tree, setTree] = useState<LabelTreeNode[]>([]);
   const [allPlaces, setAllPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
@@ -63,7 +66,8 @@ function LabelModule() {
   const [dialogColor, setDialogColor] = useState(labelColors[0]);
   const [menuLabelId, setMenuLabelId] = useState<string>();
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
+  const [singleSaving, setSaving] = useState(false);
+  const saving = singleSaving || bulk.busy;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -168,6 +172,7 @@ function LabelModule() {
   });
 
   function openCreateDialog(parentId?: string) {
+    if (saving) return;
     setDialog({ parentId });
     setDialogName("");
     setDialogColor(labelColors[0]);
@@ -177,6 +182,7 @@ function LabelModule() {
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     if (!dialog) return;
 
     setSaving(true);
@@ -198,6 +204,7 @@ function LabelModule() {
   }
 
   async function handleSave() {
+    if (saving) return;
     if (!selectedLabel) return;
     setSaving(true);
     setError("");
@@ -220,6 +227,7 @@ function LabelModule() {
   }
 
   async function handleDelete(label: Label) {
+    if (saving) return;
     const confirmed = window.confirm(`確定要刪除「${label.name}」嗎？`);
     if (!confirmed) return;
 
@@ -240,6 +248,7 @@ function LabelModule() {
 
   async function handleAssign(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (saving) return;
     if (!selectedId || !selectedPlaceId) return;
     setSaving(true);
     setError("");
@@ -259,6 +268,7 @@ function LabelModule() {
   }
 
   async function handleRemoveFromPlace(place: Place) {
+    if (saving) return;
     if (!selectedId || !place.labelIds.includes(selectedId)) return;
     setSaving(true);
     setError("");
@@ -295,6 +305,7 @@ function LabelModule() {
             className={`tree-row ${depth === 0 ? "parent-row" : "child-row"}${selectedId === node.id ? " selected" : ""}`}
             style={{ paddingLeft: `${8 + depth * 14}px` }}
           >
+            {bulk.active && <input className="bulk-select-checkbox" type="checkbox" aria-label={`選取標籤「${node.name}」`} checked={bulk.selectedIds.has(node.id)} disabled={saving} onChange={() => bulk.toggle(node.id)} />}
             {node.children.length > 0 ? (
               <button
                 className="chevron tree-toggle"
@@ -419,6 +430,17 @@ function LabelModule() {
         </label>
 
         <div className="tree-list">
+          {!previewMode && <BulkDeleteToolbar
+            active={bulk.active} onEnter={bulk.enter} onExit={bulk.exit}
+            count={bulk.selectedIds.size}
+            hiddenCount={[...bulk.selectedIds].filter((id) => !flattenTree(visibleTree).some((label) => label.id === id)).length}
+            disabled={saving || loading}
+            canSelect={flattenTree(visibleTree).length > 0}
+            onSelectAll={() => bulk.setSelectedIds((current) => new Set([...current, ...flattenTree(visibleTree).map((label) => label.id)]))}
+            onClear={() => bulk.setSelectedIds(new Set())}
+            onDelete={() => { void bulk.remove({ records: flatLabels, entity: '標籤', deleteMany: (ids) => labelController.deleteMany(ids), reload: async () => { await refreshTree(); setAllPlaces(await labelController.listPlaces()); } }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : '刪除或重新載入失敗，請重新整理確認結果。')); }}
+            result={bulk.result}
+          />}
           <div className="tree-section-label">
             所有標籤 <span>{flatLabels.length}</span>
           </div>

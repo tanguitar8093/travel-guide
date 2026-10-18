@@ -17,6 +17,7 @@ import {
   mountPlaceAutocomplete,
 } from './google-places.service'
 import type { GooglePlaceDetails } from './google-places.service'
+import { bulkDelete, type BulkDeleteResult } from '../../common/bulk-delete'
 
 export interface PlaceQuery {
   search?: string
@@ -75,6 +76,15 @@ export class PlaceService {
 
   delete(id: string): Promise<void> {
     return places.delete(id)
+  }
+
+  deleteMany(ids: string[]): Promise<BulkDeleteResult> {
+    return bulkDelete({
+      ids,
+      entity: '地點',
+      load: () => places.list(),
+      deleteOne: (id) => this.delete(id),
+    })
   }
 
   async search(query: PlaceQuery = {}): Promise<Place[]> {
