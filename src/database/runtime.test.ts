@@ -27,11 +27,11 @@ describe('database runtime', () => {
     vi.unstubAllGlobals()
   })
 
-  it('defaults to supabase when no mode is stored', async () => {
+  it('defaults to hybrid when no mode is stored', async () => {
     const runtime = await import('./runtime')
 
-    expect(runtime.getDatabaseMode()).toBe('supabase')
-    expect(runtime.getDatabaseModeLabel()).toBe('Supabase (雲端)')
+    expect(runtime.getDatabaseMode()).toBe('hybrid')
+    expect(runtime.getDatabaseModeLabel()).toBe('混合模式（本機優先）')
   })
 
   it('stores and notifies when the mode changes', async () => {
@@ -49,13 +49,17 @@ describe('database runtime', () => {
     unsubscribe()
   })
 
-  it('exposes auto sync as an enabled mode', async () => {
+  it('defaults to auto sync and remembers explicit manual and auto choices', async () => {
     const runtime = await import('./runtime')
 
-    expect(runtime.getSyncMode()).toBe('manual')
+    expect(runtime.getSyncMode()).toBe('auto')
+    expect(runtime.getSyncModeLabel()).toBe('自動同步')
+    expect(runtime.setSyncMode('manual')).toBe('manual')
+    expect(window.localStorage.getItem('travel-planner-sync-mode')).toBe('manual')
     expect(runtime.getSyncModeLabel()).toBe('手動同步')
     expect(runtime.setSyncMode('auto')).toBe('auto')
     expect(runtime.getSyncMode()).toBe('auto')
     expect(runtime.getSyncModeLabel()).toBe('自動同步')
+    expect(window.localStorage.getItem('travel-planner-sync-mode')).toBe('auto')
   })
 })

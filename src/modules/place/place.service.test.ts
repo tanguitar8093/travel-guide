@@ -1,6 +1,7 @@
 import 'fake-indexeddb/auto'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { database } from '../../database/database'
+import { labels } from '../../database/label.repository'
 import { itineraryItems, places, regions, trips } from '../../database/repositories'
 
 vi.mock('../../database', async () => ({
@@ -26,6 +27,47 @@ beforeEach(async () => {
   await database.open()
 })
 afterAll(async () => { await database.delete() })
+
+describe('place operation batch label assignment', () => {
+  it('adds the chosen label once, preserving existing labels and unrelated places', async () => {
+    const existing = await labels.create({ name: '原有', color: '#123456' })
+    const target = await labels.create({ name: '套用', color: '#654321' })
+    const first = await places.create({ name: '餐廳', mapsUrl: 'https://maps.example.com', regionIds: [], labelIds: [existing] })
+    const second = await places.create({ name: '公園', mapsUrl: 'https://maps.example.com', regionIds: [], labelIds: [target] })
+    const untouched = await createPlace('保留')
+    const addLabel = vi.spyOn(places, 'addLabel')
+
+    expect(await controller.assignLabelMany([first, second, first], target)).toEqual({
+      succeededIds: [first, second], failures: [],
+    })
+    expect(addLabel.mock.calls).toEqual([[first, target], [second, target]])
+    expect((await places.getById(first))?.labelIds).toEqual([existing, target])
+    expect((await places.getById(second))?.labelIds).toEqual([target])
+    expect((await places.getById(untouched))?.labelIds).toEqual([])
+  })
+
+  it('reports missing places and continues with the remaining selection', async () => {
+    const target = await labels.create({ name: '套用', color: '#654321' })
+    const valid = await createPlace('有效')
+    const result = await controller.assignLabelMany(['missing', valid], target)
+
+    expect(result.succeededIds).toEqual([valid])
+    expect(result.failures).toEqual([expect.objectContaining({ id: 'missing' })])
+    expect(result.failures[0].message).toContain('套用標籤失敗')
+    expect((await places.getById(valid))?.labelIds).toEqual([target])
+  })
+
+  it('reports a deleted target label without modifying any places', async () => {
+    const first = await createPlace('餐廳')
+    const second = await createPlace('公園')
+    const result = await controller.assignLabelMany([first, second], 'missing')
+
+    expect(result.succeededIds).toEqual([])
+    expect(result.failures.map((failure) => failure.id)).toEqual([first, second])
+    expect((await places.getById(first))?.labelIds).toEqual([])
+    expect((await places.getById(second))?.labelIds).toEqual([])
+  })
+})
 
 describe('place operation batch deletion', () => {
   it('deletes a normal deduplicated selection through the controller and existing API', async () => {

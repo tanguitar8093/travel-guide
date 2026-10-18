@@ -7,8 +7,8 @@
 | 測項 | 目標 | 重點 |
 | --- | --- | --- |
 | `src/database/index.ts` | 資料庫門面匯出 | 驗證公開 API 可正常從 barrel 匯入，避免 export 漏掉 |
-| `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且預設模式是 Supabase |
-| `src/database/database-mode-preference.ts` | 使用者資料庫偏好 | 驗證會讀寫最後使用的資料庫模式 |
+| `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且未儲存偏好時預設為混合模式 |
+| `src/database/database-mode-preference.ts` | 使用者資料庫偏好 | 未設定時預設混合模式，保留既存單機／雲端／混合模式偏好及重新載入後的記憶 |
 | `src/database/backup.repository.ts` | 備份驗證 | 驗證 `validateImport()` 會接受合法備份並拒絕不合法資料 |
 | `src/database/supabase-backup-safety.test.ts` | 雲端覆蓋安全檢查 | 驗證 preview/apply token 守門與 RPC 呼叫路徑 |
 | `src/modules/data-management/data-management.service.test.ts` | Data Management 流程 | 驗證 Supabase replace/clear/transfer 的 preview->apply 流程 |
@@ -27,6 +27,15 @@
 
 ## 執行方式
 
+### 標籤批次更新顏色
+
+- 標籤分類的「批次更新」與「批次刪除」並列；進入後可勾選、全選目前搜尋結果、清除選取及取消。
+- 選擇預設色或自訂色，再按「套用顏色」。僅修改勾選標籤的顏色，不自動更新子標籤、不改名稱、階層或地點關聯。
+- 搜尋隱藏的已選標籤仍會更新，工具列會顯示隱藏筆數；處理中停用選取及批次操作。
+- 沿用資料庫 facade 的單筆更新，逐筆執行而非整批交易；顯示成功與失敗筆數及失敗原因，成功項目取消勾選、失敗項目保留以便重試。
+- 帳號、資料庫模式或混合模式儲存區變更時停止後續操作；已送出的請求無法取消，已成功的更新不回復。
+- focused tests：`npm run test:run -- src/modules/label/label.service.test.ts src/modules/label/BulkColorToolbar.test.tsx src/common/bulk-operation.test.ts src/common/bulk-delete.test.ts`
+
 - 一般執行：`npm test`
 - 單次執行：`npm run test:run`
 - 靜態檢查：`npm run lint`
@@ -37,7 +46,8 @@
 ### 自動同步正向回歸（2026-10-18）
 
 - 混合模式現已解除 DEV-only 限制：正式版也會在 member/admin 驗證後準備帳號隔離的本機資料庫，顯示混合模式選項並恢復既存偏好。
-- 正向整合測試以 `DEV=false` 執行；另驗證正式環境 member 可初始化，basic 仍被拒絕。原本預設 Supabase 與手動同步偏好不變，使用者需自行選擇混合模式及自動同步。
+- 正向整合測試以 `DEV=false` 執行；另驗證正式環境 member 可初始化，basic 仍被拒絕。該次驗證時預設仍為 Supabase，後續預設值調整見下一項；自動同步仍需使用者自行選擇。
+- 後續預設值調整：未儲存資料庫模式偏好時改用混合模式；已儲存的單機、雲端或混合模式選擇優先，不強制覆寫。同步模式的預設與記憶機制不變，亦不自動搬移或初始化雲端資料。
 - 此次不變更正式資料庫 SQL、不自動搬移單機資料，亦不解除混合模式的覆蓋匯入／清空限制。發布後仍需驗證真實登入及跨裝置行為。
 
 - 測試：`src/database/auto-sync.integration.test.ts`。

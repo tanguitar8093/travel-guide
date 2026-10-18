@@ -24,6 +24,10 @@ export class LabelController {
     return this.service.update(id, changes)
   }
 
+  updateColorMany(ids: string[], color: string) {
+    return this.service.updateColorMany(ids, color)
+  }
+
   delete(id: string) {
     return this.service.delete(id)
   }

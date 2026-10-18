@@ -18,6 +18,7 @@ import {
 } from './google-places.service'
 import type { GooglePlaceDetails } from './google-places.service'
 import { bulkDelete, type BulkDeleteResult } from '../../common/bulk-delete'
+import { bulkOperation, type BulkOperationResult } from '../../common/bulk-operation'
 
 export interface PlaceQuery {
   search?: string
@@ -76,6 +77,19 @@ export class PlaceService {
 
   delete(id: string): Promise<void> {
     return places.delete(id)
+  }
+
+  assignLabelMany(ids: string[], labelId: string): Promise<BulkOperationResult> {
+    return bulkOperation({
+      ids,
+      operation: '更新',
+      load: () => places.list(),
+      apply: (id) => places.addLabel(id, labelId),
+      failureMessage: (name, cause) => {
+        const reason = cause instanceof Error ? cause.message.trim() : typeof cause === 'string' ? cause.trim() : ''
+        return `地點「${name}」套用標籤失敗：${reason || '發生未知錯誤，請稍後重試。'}`
+      },
+    })
   }
 
   deleteMany(ids: string[]): Promise<BulkDeleteResult> {

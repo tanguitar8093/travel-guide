@@ -33,6 +33,10 @@ export class PlaceController {
     return this.service.deleteMany(ids)
   }
 
+  assignLabelMany(ids: string[], labelId: string) {
+    return this.service.assignLabelMany(ids, labelId)
+  }
+
   isGooglePlacesConfigured() {
     return this.service.isGooglePlacesConfigured()
   }

@@ -8,6 +8,7 @@ import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requir
 import { setDatabaseMode, setSyncMode } from './runtime'
 import { regions, labels, places, trips, itineraryItems } from './index'
 import { SyncDatabase } from './sync.database'
+import { placeController } from '../modules/place/place.controller'
 
 const sql = new PGlite()
 const uid = '33333333-3333-4333-8333-333333333333'
@@ -112,9 +113,36 @@ it('automatically persists an admin label, place and itinerary item in productio
   expect((await sql.query('select name from public.places where id=$1', [placeId])).rows)
     .toEqual([{ name: 'Updated cafe' }])
 
+  const targetLabelId = await labels.create({ name: 'Batch label', color: '#00ff00' })
+  const secondPlaceId = await places.create({ name: 'Park', googlePlaceId: 'park', regionIds: [regionId], labelIds: [] })
+  await vi.advanceTimersByTimeAsync(2000)
+  await vi.waitFor(async () => { expect(await store.listTasks()).toEqual([]) }, { timeout: 5000, interval: 10 })
+  rpc.mockClear()
+
+  expect(await placeController.assignLabelMany([placeId, secondPlaceId, placeId], targetLabelId)).toEqual({
+    succeededIds: [placeId, secondPlaceId], failures: [],
+  })
+  const batchTasks = await store.listTasks()
+  expect(batchTasks).toHaveLength(2)
+  expect(batchTasks.map((task) => task.operation)).toEqual(['places.addLabel', 'places.addLabel'])
+  expect((await places.getById(placeId))?.labelIds).toEqual([labelId, targetLabelId])
+  await vi.advanceTimersByTimeAsync(1999)
+  expect(rpc).not.toHaveBeenCalled()
+  await vi.advanceTimersByTimeAsync(1)
+  await vi.waitFor(async () => {
+    expect(getHybridStatus().error).toBeUndefined()
+    expect(await store.listTasks()).toEqual([])
+  }, { timeout: 5000, interval: 10 })
+  expect((await sql.query('select place_id from public.place_labels where label_id=$1 order by place_id', [targetLabelId])).rows)
+    .toEqual([placeId, secondPlaceId].sort().map((id) => ({ place_id: id })))
+  expect((await sql.query('select label_id from public.place_labels where place_id=$1 and label_id=$2', [placeId, labelId])).rows)
+    .toEqual([{ label_id: labelId }])
+
   // Reopen the same local account and verify its committed data survives.
   setSyncMode('manual')
   await activateHybridAccount(account, 'admin')
-  expect((await places.list()).find((place) => place.id === placeId)).toMatchObject({ name: 'Updated cafe', labelIds: [labelId] })
+  expect((await places.list()).find((place) => place.id === placeId)).toMatchObject({ name: 'Updated cafe' })
+  expect(new Set((await places.getById(placeId))?.labelIds)).toEqual(new Set([labelId, targetLabelId]))
+  expect((await places.getById(secondPlaceId))?.labelIds).toEqual([targetLabelId])
   expect(await itineraryItems.findByTripId(tripId)).toEqual([expect.objectContaining({ id: itemId, placeId })])
 }, 20000)

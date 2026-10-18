@@ -11,6 +11,7 @@ import type {
   Place,
 } from '../../database'
 import { bulkDelete, type BulkDeleteResult } from '../../common/bulk-delete'
+import { bulkOperation, type BulkOperationResult } from '../../common/bulk-operation'
 
 export interface LabelTreeNode extends Label {
   children: LabelTreeNode[]
@@ -77,6 +78,20 @@ export class LabelService {
 
   update(id: string, changes: LabelChanges): Promise<void> {
     return labels.update(id, changes)
+  }
+
+  updateColorMany(ids: string[], color: string): Promise<BulkOperationResult> {
+    return bulkOperation({
+      ids,
+      operation: '更新',
+      load: () => labels.list(),
+      apply: (id) => this.update(id, { color }),
+      failureMessage: (name, cause) => {
+        if (cause instanceof EntityNotFoundError) return `標籤「${name}」不存在或已被刪除。`
+        const reason = cause instanceof Error ? cause.message.trim() : typeof cause === 'string' ? cause.trim() : ''
+        return `標籤「${name}」更新失敗：${reason || '發生未知錯誤，請稍後重試。'}`
+      },
+    })
   }
 
   delete(id: string): Promise<void> {

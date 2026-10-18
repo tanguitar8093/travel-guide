@@ -4,13 +4,13 @@
 
 ## 整理表格
 
-| 模式 | 適用位置 | 為什麼適合 | 預期收益 | 建議優先度 |
-| --- | --- | --- | --- | --- |
-| Strategy | `src/database/index.ts`、`src/database/runtime.ts` | 已經有 IndexedDB / Supabase 兩套同介面後端，且已用策略登錄表封裝切換 | 降低資料來源切換成本，新增後端較容易 | 最高 |
-| Observer | `src/database/runtime.ts` | `subscribeDatabaseMode` 已具備訂閱模型 | 模式變更可同步到多處，不用手動輪詢 | 高 |
-| Composite | `src/modules/label/label.service.ts` | Label 本身就是樹狀結構 | 樹節點與子樹操作更一致，方便階層功能擴充 | 中 |
-| Command | `src/modules/data-management/data-management.service.ts` | 匯出、匯入、覆蓋、清空都是明確動作 | 方便加確認、記錄、重做/復原或背景執行 | 中 |
-| Adapter | `src/modules/place/google-places.service.ts`、`src/modules/itinerary/itinerary-map.service.ts` | 外部地圖供應商已直接耦合到上層功能 | 未來替換供應商時可減少上層改動 | 中低 |
+| 模式      | 適用位置                                                                                       | 為什麼適合                                                           | 預期收益                                 | 建議優先度 |
+| --------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | ---------- |
+| Strategy  | `src/database/index.ts`、`src/database/runtime.ts`                                             | 已經有 IndexedDB / Supabase 兩套同介面後端，且已用策略登錄表封裝切換 | 降低資料來源切換成本，新增後端較容易     | 最高       |
+| Observer  | `src/database/runtime.ts`                                                                      | `subscribeDatabaseMode` 已具備訂閱模型                               | 模式變更可同步到多處，不用手動輪詢       | 高         |
+| Composite | `src/modules/label/label.service.ts`                                                           | Label 本身就是樹狀結構                                               | 樹節點與子樹操作更一致，方便階層功能擴充 | 中         |
+| Command   | `src/modules/data-management/data-management.service.ts`                                       | 匯出、匯入、覆蓋、清空都是明確動作                                   | 方便加確認、記錄、重做/復原或背景執行    | 中         |
+| Adapter   | `src/modules/place/google-places.service.ts`、`src/modules/itinerary/itinerary-map.service.ts` | 外部地圖供應商已直接耦合到上層功能                                   | 未來替換供應商時可減少上層改動           | 中低       |
 
 ## 優先候選
 
@@ -19,11 +19,13 @@
 適用位置：`src/database/index.ts`、`src/database/runtime.ts`
 
 原因：
+
 - 專案已經有兩套實作，IndexedDB 與 Supabase，對外提供相同的 repository 介面。
 - 上層模組不需要知道資料來源細節，只要呼叫同一組方法即可。
 - 這種「相同介面、不同演算法或後端實作」非常符合 Strategy。
 
 適用效益：
+
 - 未來如果再加離線快取、測試假資料後端，擴充成本會比較低。
 - 切換資料來源時不需要到處改業務模組。
 - 目前的條件分支可以更有結構地收斂到單一選擇點。
@@ -35,11 +37,13 @@
 適用位置：`src/database/runtime.ts`
 
 原因：
+
 - `subscribeDatabaseMode` 已經是觀察者模式的核心行為。
 - 資料庫模式變更屬於全域事件，理論上會影響多個畫面與操作流程。
 - 登入狀態、主題、工作區模式這類全域狀態也適合同樣思路。
 
 適用效益：
+
 - 避免各處自己輪詢或手動同步狀態。
 - 狀態變更時，影響面可以由訂閱者自行處理。
 - 對 UI 反應式更新會更自然。
@@ -51,11 +55,13 @@
 適用位置：`src/modules/label/label.service.ts`
 
 原因：
+
 - Label 本質上就是樹狀結構。
 - `listTree()` 已經在把扁平資料組成樹。
 - `findPlaces()`、未來的階層搬移、批次刪除、批次套用操作，都會受益於同一種樹狀抽象。
 
 適用效益：
+
 - 樹節點與葉節點可以用相同概念處理。
 - 層級相關的查詢與批次操作比較好擴充。
 - 之後如果要做節點拖曳排序或子樹操作，模式會更明顯。
@@ -67,11 +73,13 @@
 適用位置：`src/modules/data-management/data-management.service.ts`
 
 原因：
+
 - 匯出、匯入、覆蓋、清空、搬移資料，都是明確的使用者動作。
 - 這些動作通常有副作用，且常常需要確認、記錄、回復或排程。
 - 現在是 service 直接執行，簡單可行，但職責偏向「動作集合」。
 
 適用效益：
+
 - 之後若要加操作歷史、重做/復原、批次排程或背景任務，Command 會很方便。
 - UI 只需要發出命令，不必知道內部如何執行。
 - 可把「確認執行」與「實際執行」拆開。
@@ -83,11 +91,13 @@
 適用位置：`src/modules/place/google-places.service.ts`、`src/modules/itinerary/itinerary-map.service.ts`
 
 原因：
+
 - 目前上層功能已經直接依賴 Google 服務。
 - 地點搜尋、地圖位置、路線時間這些能力本質上依賴外部供應商。
 - 如果未來改用其他地圖 API，現在的耦合點會很明顯。
 
 適用效益：
+
 - 可以把不同供應商包成同一介面。
 - 上層的 place 與 itinerary 邏輯不需要跟著換 API。
 - 有助於隔離外部服務的差異與失敗模式。
@@ -97,11 +107,13 @@
 ## 暫不建議硬套
 
 以下區域目前不建議為了模式而加模式：
+
 - `LabelController`、`PlaceController`、`RegionController`、`ItineraryController`、`DataManagementController` 這類薄轉呼叫層。
 - 一般 React 表單狀態與 `useState`、`useEffect` 流程。
 - 僅僅為了抽象而抽象的 helper 函式。
 
 原因很簡單：
+
 - 這些地方的職責已經很單純。
 - 若強行引入模式，反而會增加閱讀成本與檔案數量。
 - 目前的問題不是模式不足，而是少數地方已經有足夠清楚的演進方向。

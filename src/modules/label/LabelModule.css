@@ -3,6 +3,19 @@ input {
   font: inherit;
 }
 
+.bulk-color-picker {
+  min-width: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 8px 0;
+  border: 0;
+}
+
+.bulk-color-picker .color-swatches {
+  flex-wrap: wrap;
+}
+
 button {
   color: inherit;
 }

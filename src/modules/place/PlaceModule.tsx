@@ -8,6 +8,8 @@ import type { GooglePlaceDetails } from './google-places.service'
 import './PlaceModule.css'
 import { useBulkDelete } from '../../common/useBulkDelete'
 import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar'
+import type { BulkOperationResult } from '../../common/bulk-operation'
+import { BulkLabelToolbar } from './BulkLabelToolbar'
 
 interface PlaceDraft {
   name: string
@@ -73,6 +75,10 @@ function getPlaceInitial(name: string): string {
 
 function PlaceModule() {
   const bulk = useBulkDelete()
+  const [bulkMode, setBulkMode] = useState<'delete' | 'label'>('delete')
+  const [bulkLabelId, setBulkLabelId] = useState('')
+  const [bulkLabelResult, setBulkLabelResult] = useState<BulkOperationResult>()
+  const bulkLabelRunning = useRef(false)
   const [places, setPlaces] = useState<Place[]>([])
   const [filteredPlaces, setFilteredPlaces] = useState<Place[]>([])
   const [labels, setLabels] = useState<Label[]>([])
@@ -264,6 +270,7 @@ function PlaceModule() {
 
   function startCreate() {
     if (saving) return
+    bulk.exit()
     setCreating(true)
     setEditing(true)
     setSelectedPlaceId(undefined)
@@ -280,6 +287,7 @@ function PlaceModule() {
   function startEditing() {
     if (saving) return
     if (!selectedPlace) return
+    bulk.exit()
     setDraft(toDraft(selectedPlace))
     setEditing(true)
     setCreating(false)
@@ -327,6 +335,26 @@ function PlaceModule() {
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '儲存地點失敗。')
     } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleBulkLabel() {
+    if (saving || editing || bulkLabelRunning.current || !bulk.selectedIds.size || !labels.some((label) => label.id === bulkLabelId)) return
+    bulkLabelRunning.current = true
+    setSaving(true)
+    setError('')
+    setNotice('')
+    setBulkLabelResult(undefined)
+    try {
+      const result = await placeController.assignLabelMany([...bulk.selectedIds], bulkLabelId)
+      setBulkLabelResult(result)
+      bulk.setSelectedIds(new Set(result.failures.map((failure) => failure.id)))
+      await reloadPlaces()
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '套用標籤或重新載入失敗，請重新整理確認結果。')
+    } finally {
+      bulkLabelRunning.current = false
       setSaving(false)
     }
   }
@@ -462,8 +490,21 @@ function PlaceModule() {
                 <span>{filteredPlaces.length}</span>
               </div>
               <div className="place-list">
-                <BulkDeleteToolbar
-                  active={bulk.active} onEnter={bulk.enter} onExit={bulk.exit}
+                {bulk.active && bulkMode === 'label' ? <BulkLabelToolbar
+                  count={bulk.selectedIds.size}
+                  hiddenCount={[...bulk.selectedIds].filter((id) => !filteredPlaces.some((place) => place.id === id)).length}
+                  disabled={saving || loading || editing}
+                  canSelect={filteredPlaces.length > 0}
+                  labels={orderedLabels}
+                  labelId={bulkLabelId}
+                  onLabelChange={setBulkLabelId}
+                  onSelectAll={() => bulk.setSelectedIds((current) => new Set([...current, ...filteredPlaces.map((place) => place.id)]))}
+                  onClear={() => bulk.setSelectedIds(new Set())}
+                  onApply={() => void handleBulkLabel()}
+                  onExit={bulk.exit}
+                  result={bulkLabelResult}
+                /> : <BulkDeleteToolbar
+                  active={bulk.active} onEnter={() => { setBulkMode('delete'); bulk.enter() }} onExit={bulk.exit}
                   count={bulk.selectedIds.size}
                   hiddenCount={[...bulk.selectedIds].filter((id) => !filteredPlaces.some((place) => place.id === id)).length}
                   disabled={saving || loading || editing}
@@ -472,7 +513,19 @@ function PlaceModule() {
                   onClear={() => bulk.setSelectedIds(new Set())}
                   onDelete={() => { void bulk.remove({ records: places, entity: '地點', deleteMany: (ids) => placeController.deleteMany(ids), reload: () => reloadPlaces() }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : '刪除或重新載入失敗，請重新整理確認結果。')) }}
                   result={bulk.result}
-                />
+                  entryActions={<button
+                    type="button"
+                    disabled={saving || loading || editing || !filteredPlaces.length || !labels.length}
+                    onClick={() => {
+                      setBulkMode('label')
+                      setBulkLabelId('')
+                      setBulkLabelResult(undefined)
+                      setError('')
+                      setNotice('')
+                      bulk.enter()
+                    }}
+                  >批次更新</button>}
+                />}
                 {loading ? (
                   <div className="empty-state">正在載入地點…</div>
                 ) : filteredPlaces.length ? (

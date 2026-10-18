@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
 import { getDatabaseModeLabel } from "../../database";
@@ -8,6 +8,8 @@ import type { LabelTreeNode } from "./label.service";
 import "./LabelModule.css";
 import { useBulkDelete } from '../../common/useBulkDelete';
 import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar';
+import type { BulkOperationResult } from '../../common/bulk-operation';
+import { BulkColorToolbar } from './BulkColorToolbar';
 
 const labelColors = [
   "#e9905a",
@@ -48,6 +50,10 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
 
 function LabelModule() {
   const bulk = useBulkDelete();
+  const [bulkMode, setBulkMode] = useState<"delete" | "color">("delete");
+  const [bulkColor, setBulkColor] = useState(labelColors[0]);
+  const [bulkColorResult, setBulkColorResult] = useState<BulkOperationResult>();
+  const bulkColorRunning = useRef(false);
   const [tree, setTree] = useState<LabelTreeNode[]>([]);
   const [allPlaces, setAllPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
@@ -226,6 +232,26 @@ function LabelModule() {
     }
   }
 
+  async function handleBulkColor() {
+    if (saving || bulkColorRunning.current || !bulk.selectedIds.size) return;
+    bulkColorRunning.current = true;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    setBulkColorResult(undefined);
+    try {
+      const result = await labelController.updateColorMany([...bulk.selectedIds], bulkColor);
+      setBulkColorResult(result);
+      bulk.setSelectedIds(new Set(result.failures.map((failure) => failure.id)));
+      await refreshTree();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "更新或重新載入失敗，請重新整理確認結果。");
+    } finally {
+      bulkColorRunning.current = false;
+      setSaving(false);
+    }
+  }
+
   async function handleDelete(label: Label) {
     if (saving) return;
     const confirmed = window.confirm(`確定要刪除「${label.name}」嗎？`);
@@ -321,6 +347,7 @@ function LabelModule() {
             <button
               className="tree-select"
               type="button"
+              disabled={saving}
               onClick={() => {
                 setSelectedId(node.id);
                 setDraftName(node.name);
@@ -430,8 +457,21 @@ function LabelModule() {
         </label>
 
         <div className="tree-list">
-          {!previewMode && <BulkDeleteToolbar
-            active={bulk.active} onEnter={bulk.enter} onExit={bulk.exit}
+          {!previewMode && (bulk.active && bulkMode === "color" ? <BulkColorToolbar
+            count={bulk.selectedIds.size}
+            hiddenCount={[...bulk.selectedIds].filter((id) => !flattenTree(visibleTree).some((label) => label.id === id)).length}
+            disabled={saving || loading}
+            canSelect={flattenTree(visibleTree).length > 0}
+            color={bulkColor}
+            colors={labelColors}
+            onColorChange={setBulkColor}
+            onSelectAll={() => bulk.setSelectedIds((current) => new Set([...current, ...flattenTree(visibleTree).map((label) => label.id)]))}
+            onClear={() => bulk.setSelectedIds(new Set())}
+            onApply={() => void handleBulkColor()}
+            onExit={bulk.exit}
+            result={bulkColorResult}
+          /> : <BulkDeleteToolbar
+            active={bulk.active} onEnter={() => { setBulkMode("delete"); bulk.enter(); }} onExit={bulk.exit}
             count={bulk.selectedIds.size}
             hiddenCount={[...bulk.selectedIds].filter((id) => !flattenTree(visibleTree).some((label) => label.id === id)).length}
             disabled={saving || loading}
@@ -440,7 +480,19 @@ function LabelModule() {
             onClear={() => bulk.setSelectedIds(new Set())}
             onDelete={() => { void bulk.remove({ records: flatLabels, entity: '標籤', deleteMany: (ids) => labelController.deleteMany(ids), reload: async () => { await refreshTree(); setAllPlaces(await labelController.listPlaces()); } }).catch((cause: unknown) => setError(cause instanceof Error ? cause.message : '刪除或重新載入失敗，請重新整理確認結果。')); }}
             result={bulk.result}
-          />}
+            entryActions={<button
+              type="button"
+              disabled={saving || loading || !flatLabels.length}
+              onClick={() => {
+                setBulkMode("color");
+                setBulkColor(labelColors[0]);
+                setBulkColorResult(undefined);
+                setError("");
+                setNotice("");
+                bulk.enter();
+              }}
+            >批次更新</button>}
+          />)}
           <div className="tree-section-label">
             所有標籤 <span>{flatLabels.length}</span>
           </div>
