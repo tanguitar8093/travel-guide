@@ -1173,7 +1173,7 @@ kbd {
   }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 760px), (max-device-width: 760px) {
   .page-content {
     padding: 28px 18px 20px;
   }
@@ -1221,7 +1221,7 @@ kbd {
   }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 480px), (max-device-width: 480px) {
   .page-heading {
     align-items: flex-start;
     flex-direction: column;

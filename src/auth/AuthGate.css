@@ -139,7 +139,7 @@
   opacity: .7;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 640px), (max-device-width: 640px) {
   .auth-panel {
     padding: 24px;
     border-radius: 16px;

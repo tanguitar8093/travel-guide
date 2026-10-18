@@ -113,7 +113,7 @@
   .region-content { padding: 28px 24px; }
   .region-workspace { grid-template-columns: 220px minmax(0,1fr); }
 }
-@media (max-width: 650px) {
+@media (max-width: 650px), (max-device-width: 650px) {
   .region-content { padding: 24px 14px; }
   .region-heading { align-items: start; flex-direction: column; }
   .region-workspace { grid-template-columns: minmax(0,1fr); }
