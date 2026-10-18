@@ -1153,7 +1153,7 @@
   }
 }
 
-@media (max-width: 760px), (max-device-width: 760px) {
+@media (max-width: 760px) {
   .place-app-shell .page-content {
     padding: 27px 17px 20px;
   }
@@ -1175,7 +1175,7 @@
   }
 }
 
-@media (max-width: 480px), (max-device-width: 480px) {
+@media (max-width: 480px) {
   .place-app-shell .page-heading {
     align-items: flex-start;
     flex-direction: column;

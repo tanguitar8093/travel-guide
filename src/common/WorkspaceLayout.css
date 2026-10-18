@@ -237,7 +237,7 @@ div.workspace-layout > main.workspace-main {
   display: none;
 }
 
-@media (max-width: 760px), (max-device-width: 760px) {
+@media (max-width: 760px) {
   .workspace-main .workspace-page-heading-title {
     min-width: 0;
     box-sizing: border-box;

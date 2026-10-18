@@ -108,7 +108,7 @@
   .route-trip-row > .route-transport { flex-basis: auto; }
 }
 
-@media (max-width: 680px), (max-device-width: 680px) {
+@media (max-width: 680px) {
   .route-calculator-content { padding-inline: 16px; }
   .route-calculator-workspace { grid-template-columns: minmax(0, 1fr); }
   .route-calculator-map { position: static; }
@@ -117,7 +117,7 @@
   .route-map-body { height: 380px; }
 }
 
-@media (max-width: 480px), (max-device-width: 480px) {
+@media (max-width: 480px) {
   .route-calculator-content { padding-inline: 12px; }
   .route-calculator-heading h1 { font-size: 25px; }
   .route-calculator-heading > .route-secondary { margin-left: 44px; }
