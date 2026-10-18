@@ -23,6 +23,8 @@ import type { ItineraryMapData } from "./itinerary-map.service";
 import "./ItineraryModule.css";
 import { SearchableSelect } from "../../common/SearchableSelect";
 import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
+import { tripCollaborationEnabled } from "../../database";
+import { TripCollaborationPanel } from "./TripCollaborationPanel";
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
@@ -154,6 +156,7 @@ function ItineraryModule() {
   const [selectedTripId, setSelectedTripId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState("");
   const [focusMode, setFocusMode] = useState(false);
+  const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [tripDraft, setTripDraft] = useState<TripDraft>(emptyTripDraft);
   const [itemDraft, setItemDraft] = useState<ItemDraft>({
     placeId: "",
@@ -930,6 +933,12 @@ function ItineraryModule() {
       shellClassName="itinerary-app-shell"
       mainClassName="itinerary-main"
     >
+      {tripCollaborationEnabled && collaborationOpen && (
+        <TripCollaborationPanel
+          preferredTripId={selectedTripId}
+          onClose={() => setCollaborationOpen(false)}
+        />
+      )}
       <div className="itinerary-content">
         <section className="itinerary-heading">
           <div className="workspace-page-heading-title">
@@ -945,6 +954,16 @@ function ItineraryModule() {
             )}
           </div>
           <div className="itinerary-heading-actions">
+            {tripCollaborationEnabled && (
+              <button
+                type="button"
+                className="itinerary-secondary"
+                disabled={interactionBusy}
+                onClick={() => setCollaborationOpen(true)}
+              >
+                協作預覽
+              </button>
+            )}
             {trips.length > 1 && !editingTrip && (
               <label className="itinerary-trip-select">
                 <span>切換行程</span>

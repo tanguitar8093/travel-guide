@@ -1,0 +1,17 @@
+.trip-collaboration-dialog { width: min(720px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid #e1e8e2; border-radius: 10px; color: #4f5c52; background: #fff; overflow-y: auto; font: 14px Inter, "Noto Sans TC", sans-serif; }
+.trip-collaboration-dialog::backdrop { background: rgba(31,42,34,.42); }
+.trip-collaboration-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trip-collaboration-heading h2 { margin: 0; font-size: 20px; }
+.trip-collaboration-dialog h3 { font-size: 15px; }
+.trip-collaboration-dialog code { overflow-wrap: anywhere; }
+.trip-collaboration-warning { padding: 12px; border: 1px solid #eedebc; border-radius: 6px; color: #806b45; background: #fffaf0; line-height: 1.6; }
+.trip-collaboration-account { font-size: 12px; line-height: 1.6; }
+.trip-collaboration-invite { display: grid; gap: 12px; padding: 12px; margin-block: 16px; border: 1px solid #e1e8e2; border-radius: 6px; }
+.trip-collaboration-invite h3 { margin: 0; }
+.trip-collaboration-list { display: grid; gap: 8px; padding: 0; list-style: none; }
+.trip-collaboration-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #edf0ed; }
+.trip-collaboration-list code { min-width: 0; flex: 1 1 200px; font-size: 12px; }
+.trip-collaboration-items { padding-left: 24px; }
+.trip-collaboration-items li { padding: 10px 0; border-bottom: 1px solid #edf0ed; overflow-wrap: anywhere; }
+.trip-collaboration-items li > span { display: block; margin-top: 6px; }
+.trip-collaboration-items p { white-space: pre-wrap; }

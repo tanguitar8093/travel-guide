@@ -56,6 +56,11 @@ export type {
   TripChanges,
 } from './models'
 export { placeIcons } from './models'
+export { TripCollaborationRepository, tripCollaborationEnabled } from './trip-collaboration.repository'
+export type {
+  CollaborationDetails, CollaborationList, CollaborationTrip, SharedTripItem,
+  SharedTripPlace, TripAccess, TripInvitation, TripMember, TripMemberRole,
+} from './trip-collaboration.types'
 export type { RouteMap, RouteMapPlace, NewRouteMap, NewRouteMapPlace, RouteMapChanges, RouteMapPlaceChanges } from './models'
 export { RouteMapRepository, RouteMapPlaceRepository } from './route-map.repository'
 
