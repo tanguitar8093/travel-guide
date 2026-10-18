@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
@@ -45,6 +45,137 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
     }
     return matches;
   }, []);
+}
+
+interface SearchableOption {
+  id: string;
+  name: string;
+  color?: string;
+  depth?: number;
+}
+
+function SearchableSelect({
+  label,
+  placeholder,
+  options,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  options: SearchableOption[];
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  const id = useId();
+  const [query, setQuery] = useState("");
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+  const selected = options.find((option) => option.id === value);
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const filtered = options.filter((option) =>
+    option.name.toLocaleLowerCase().includes(normalizedQuery),
+  );
+  const expanded = open && !disabled;
+
+  function select(option: SearchableOption) {
+    onChange(option.id);
+    setOpen(false);
+    setQuery("");
+    setActiveIndex(-1);
+  }
+
+  return (
+    <div className="label-searchable-select">
+      <input
+        type="text"
+        role="combobox"
+        aria-label={label}
+        aria-autocomplete="list"
+        aria-expanded={expanded}
+        aria-controls={`${id}-options`}
+        aria-activedescendant={
+          expanded && filtered[activeIndex]
+            ? `${id}-option-${activeIndex}`
+            : undefined
+        }
+        autoComplete="off"
+        placeholder={placeholder}
+        disabled={disabled}
+        value={expanded ? query : (selected?.name ?? "")}
+        onFocus={() => {
+          setQuery("");
+          setOpen(true);
+          setActiveIndex(-1);
+        }}
+        onBlur={() => {
+          setOpen(false);
+          setQuery("");
+          setActiveIndex(-1);
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+          setActiveIndex(-1);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+            event.preventDefault();
+            setOpen(true);
+            setActiveIndex((current) =>
+              Math.min(
+                Math.max(current + (event.key === "ArrowDown" ? 1 : -1), 0),
+                filtered.length - 1,
+              ),
+            );
+          } else if (event.key === "Enter" && expanded) {
+            event.preventDefault();
+            if (filtered[activeIndex]) select(filtered[activeIndex]);
+          } else if (event.key === "Escape" && expanded) {
+            event.preventDefault();
+            setOpen(false);
+            setQuery("");
+            setActiveIndex(-1);
+          }
+        }}
+      />
+      {expanded && (
+        <ul id={`${id}-options`} role="listbox" aria-label={label}>
+          {filtered.length ? (
+            filtered.map((option, index) => (
+              <li
+                id={`${id}-option-${index}`}
+                key={option.id}
+                role="option"
+                aria-selected={option.id === value}
+                className={activeIndex === index ? "active" : ""}
+                style={{ paddingInlineStart: 10 + (option.depth ?? 0) * 12 }}
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActiveIndex(index)}
+                onClick={() => select(option)}
+              >
+                {option.color && (
+                  <i
+                    className="label-searchable-color"
+                    style={{ backgroundColor: option.color }}
+                    aria-hidden="true"
+                  />
+                )}
+                <span>{option.name}</span>
+                {option.id === value && <span aria-hidden="true">✓</span>}
+              </li>
+            ))
+          ) : (
+            <li className="label-searchable-empty" role="presentation">
+              找不到符合的選項
+            </li>
+          )}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function LabelModule() {
@@ -100,6 +231,7 @@ function LabelModule() {
     setDraftName(nextSelectedLabel?.name ?? "");
     setDraftColor(nextSelectedLabel?.color ?? labelColors[0]);
     setDraftParentId(nextSelectedLabel?.parentId ?? "");
+    setSelectedPlaceId("");
     setExpandedIds(new Set(nextLabels.map((label) => label.id)));
   }
 
@@ -284,6 +416,7 @@ function LabelModule() {
         refreshPlaces(selectedId),
         labelController.listPlaces().then(setAllPlaces),
       ]);
+      setSelectedPlaceId("");
       setNotice("標籤已套用至地點。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "套用標籤失敗。");
@@ -352,6 +485,7 @@ function LabelModule() {
                 setDraftName(node.name);
                 setDraftColor(node.color);
                 setDraftParentId(node.parentId ?? "");
+                setSelectedPlaceId("");
                 setError("");
                 setNotice("");
               }}
@@ -678,24 +812,29 @@ function LabelModule() {
                     </div>
                   </div>
 
-                  <label className="form-field parent-select-field">
+                  <div className="form-field parent-select-field">
                     <span>上層分類</span>
-                    <select
+                    <SearchableSelect
+                      key={selectedLabel.id}
+                      label="上層分類"
+                      placeholder="搜尋或選擇上層分類"
                       value={draftParentId}
-                      onChange={(event) => setDraftParentId(event.target.value)}
-                    >
-                      <option value="">無（根分類）</option>
-                      {parentChoices.map((label) => (
-                        <option value={label.id} key={label.id}>
-                          {"　".repeat(labelDepth(label, flatLabels))}
-                          {label.name}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={setDraftParentId}
+                      disabled={saving}
+                      options={[
+                        { id: "", name: "無（根分類）" },
+                        ...parentChoices.map((label) => ({
+                          id: label.id,
+                          name: label.name,
+                          color: label.color,
+                          depth: labelDepth(label, flatLabels),
+                        })),
+                      ]}
+                    />
                     <small>
                       調整上層分類即可移動此標籤；不能移到自己的子標籤下。
                     </small>
-                  </label>
+                  </div>
                 </div>
 
               </section>
@@ -733,22 +872,17 @@ function LabelModule() {
                   className="assign-place-form"
                   onSubmit={(event) => void handleAssign(event)}
                 >
-                  <select
-                    aria-label="選擇要套用標籤的地點"
+                  <SearchableSelect
+                    key={selectedLabel.id}
+                    label="選擇要套用標籤的地點"
+                    placeholder="搜尋或選擇地點"
                     value={selectedPlaceId}
-                    onChange={(event) => setSelectedPlaceId(event.target.value)}
-                  >
-                    <option value="">選擇地點並套用此標籤…</option>
-                    {allPlaces
-                      .filter(
-                        (place) => !place.labelIds.includes(selectedLabel.id),
-                      )
-                      .map((place) => (
-                        <option value={place.id} key={place.id}>
-                          {place.name}
-                        </option>
-                      ))}
-                  </select>
+                    onChange={setSelectedPlaceId}
+                    disabled={saving}
+                    options={allPlaces.filter(
+                      (place) => !place.labelIds.includes(selectedLabel.id),
+                    )}
+                  />
                   <button
                     className="assign-button"
                     type="submit"
@@ -890,21 +1024,17 @@ function LabelModule() {
                   className="assign-place-form preview-assign-form"
                   onSubmit={(event) => void handleAssign(event)}
                 >
-                  <select
-                    aria-label="選擇要套用標籤的地點"
+                  <SearchableSelect
+                    key={selectedLabel.id}
+                    label="選擇要套用標籤的地點"
+                    placeholder={`搜尋或選擇地點並套用「${selectedLabel.name}」`}
                     value={selectedPlaceId}
-                    onChange={(event) => setSelectedPlaceId(event.target.value)}
+                    onChange={setSelectedPlaceId}
                     disabled={saving}
-                  >
-                    <option value="">選擇地點並套用「{selectedLabel.name}」…</option>
-                    {allPlaces
-                      .filter((place) => !place.labelIds.includes(selectedLabel.id))
-                      .map((place) => (
-                        <option value={place.id} key={place.id}>
-                          {place.name}
-                        </option>
-                      ))}
-                  </select>
+                    options={allPlaces.filter(
+                      (place) => !place.labelIds.includes(selectedLabel.id),
+                    )}
+                  />
                   <button
                     className="assign-button"
                     type="submit"
