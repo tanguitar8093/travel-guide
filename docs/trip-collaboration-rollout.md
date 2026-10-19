@@ -8,6 +8,65 @@ now supports item editing and hybrid queued drafts after explicit activation.
 It does not provide shared saved route-map editing, offline cold login or
 instant multi-user push updates.
 
+### Shared-trip deletion correction — 2026-10-20
+
+The incremental `20261020000000_shared_trip_delete_order.sql` was separately
+authorized, rehearsed and applied to live Supabase. The four authorized
+focused test files passed (49 tests). Build, lint, browser checks and deletion
+tests against live business data were not run for this correction.
+
+- Hybrid trip deletion queues child deletions before the trip deletion. The
+  original sync RPC executes that order, so the active shared itinerary guard
+  rejects deletion of retained items and rolls back the cloud transaction.
+- The correction changes only execution order inside `app_sync_push`: trip
+  deletions run first, allowing the existing foreign-key cascades and
+  versioned revocation delivery to handle dependent data. Other changes retain
+  their relative order. Ownership/version checks still run before any writes.
+- Request bodies, operation IDs and stored receipts are unchanged. Already
+  frozen failed deletion tasks can retry without rewriting uncertain requests;
+  a lost successful response can still be acknowledged through its receipt.
+- Standalone local deletion and direct cloud deletion retain their existing
+  paths. Private places, regions and unrelated trips/maps are not deleted.
+  Revoked collaborators cannot upload; pending drafts remain exportable.
+- The migration takes the existing transaction lock and refuses an unexpected
+  sync execution-loop shape rather than blindly replacing that loop.
+  It adds no tables, changes no grants and does not replay old migrations.
+- Live reconciliation confirmed that the sync function and shared-item guard
+  matched the repository. The original function and a fresh application/auth
+  backup were preserved privately for recovery. Do not work around this bug by
+  disabling the shared-item guard or deleting users' outbox tasks.
+
+The regression reproduces the original cloud rollback with the previous
+function, then applies the new migration in PGlite and retries the same frozen
+task. It also loses a successful response deliberately and confirms that retry
+uses the same operation/payload without duplicate execution. Coverage includes
+linked map/item deletion, unaffected private places/regions and unrelated
+trips/maps, revoked editor reads/uploads, retained offline drafts, stale-version
+and cross-owner rejection, direct cloud deletion, local outbox-failure rollback,
+and existing automatic personal synchronization. HTTP/Auth and browser locks
+remain test boundaries.
+
+The private backup was restored into network-isolated PostgreSQL 17, matching
+all 47 table fingerprints across the public, sync, collaboration and auth
+schemas. The exact guarded installation and synthetic deletion, same-request
+retry and collaborator-revocation rehearsal passed there. Synthetic business
+operations were rolled back, and the original table fingerprints still matched.
+The first restore attempt stopped on the empty default public schema already
+existing; the isolated restore setup was corrected before the successful
+rehearsal. No live migration was attempted until that rehearsal passed.
+
+Only this incremental correction was then committed live. Installation checked
+the reconciled function and verified backup fingerprints before replacing the
+function, and verified all 47 table fingerprints remained unchanged within the
+same transaction. Read-only postchecks confirmed the exact corrected body and
+unchanged owner, grants, security settings and shared-item guard. No real trip
+was deleted as a deployment test; browser/cross-device behavior remains outside
+this validation.
+
+The first run exposed two fixtures passing raw SQL snapshots into the hybrid
+draft writer instead of the normalized cache snapshots used by the UI. The
+fixtures now use the cache; production stale-draft protection was not weakened.
+
 ### Current correction: original itinerary UI and cancellation
 
 The UI correction is implemented in source. The cancellation migration has
@@ -77,9 +136,10 @@ anonymous denial, an empty safe function search path, archive RLS and no client
 archive SELECT permission. The archive contained zero cancellation records:
 installation did not cancel any user's trip.
 
-Added automated regressions remain unrun, including owner visibility and shared
-operations through the original controller, frozen form versions, viewer
-denial, map inputs, private hybrid downloads and retained revoked drafts.
+Original-renderer frontend regressions remain unrun, including owner visibility
+and shared operations through the original controller, frozen form versions,
+viewer denial and map inputs. The private hybrid download/revoked-draft SQL
+and storage regressions were subsequently run in the deletion correction above.
 Frontend build and authenticated two-browser acceptance remain unverified;
 isolated PostgreSQL results do not establish frontend or cross-device behavior.
 

@@ -5,6 +5,7 @@ import baseline from '../../supabase/migrations/20261017153621_repository_baseli
 import migration from '../../supabase/migrations/20261017153641_local_first_sync.sql?raw'
 import distanceMigration from '../../supabase/migrations/20261018220000_itinerary_travel_distance.sql?raw'
 import routeMapsMigration from '../../supabase/migrations/20261019010000_route_maps.sql?raw'
+import deletionMigration from '../../supabase/migrations/20261020000000_shared_trip_delete_order.sql?raw'
 import { syncCloudAdapter } from './sync-cloud.adapter'
 import { supabase } from './supabase.client'
 import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore } from './hybrid.runtime'
@@ -34,6 +35,7 @@ beforeAll(async () => {
   await sql.exec(migration)
   await sql.exec(distanceMigration)
   await sql.exec(routeMapsMigration)
+  await sql.exec(deletionMigration)
 }, 120000)
 
 afterEach(async () => {

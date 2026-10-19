@@ -10,6 +10,7 @@ import collaborationMigration from '../../supabase/migrations/20261019060000_tri
 import sharedMigration from '../../supabase/migrations/20261019080000_shared_trip_editing.sql?raw'
 import maintenanceMigration from '../../supabase/migrations/20261019081000_shared_trip_maintenance.sql?raw'
 import cancellationMigration from '../../supabase/migrations/20261019090000_cancel_trip_sharing.sql?raw'
+import deletionMigration from '../../supabase/migrations/20261020000000_shared_trip_delete_order.sql?raw'
 import shutdown from '../../supabase/rollback/20261019080000_shared_trip_editing.sql?raw'
 import { LocalSyncStore } from './local-sync.store'
 import { SharedTripLocal } from './shared-trip.local'
@@ -29,6 +30,7 @@ const viewer = '33333333-3333-4333-8333-333333333333'
 const basic = '44444444-4444-4444-8444-444444444444'
 const databases: SyncDatabase[] = []
 const lock = async (_name: string, work: () => Promise<void>) => work()
+let originalSyncPush: string
 
 async function asUser<T>(uid: string, work: () => Promise<T>): Promise<T> {
   await sql.exec('begin; set local role authenticated')
@@ -60,6 +62,16 @@ async function fixture() {
     await sql.query("insert into public.itinerary_items(id,trip_id,place_id,date,sort_order,note,owner_uid) values($1,$2,$3,'2026-10-20',0,'shared trip note',$4)", [itemId, tripId, placeId, owner])
   })
   return { tripId, regionId, placeId, itemId }
+}
+
+async function tripMap(tripId: string) {
+  const mapId = crypto.randomUUID()
+  const markerId = crypto.randomUUID()
+  await asUser(owner, async () => {
+    await sql.query("insert into public.route_maps(id,trip_id,name,transport) values($1,$2,'Trip map','WALKING')", [mapId, tripId])
+    await sql.query("insert into public.route_map_places(id,route_map_id,google_place_id) values($1,$2,'extra-place')", [markerId, mapId])
+  })
+  return { mapId, markerId }
 }
 
 async function invite(tripId: string, uid: string, role: 'viewer' | 'editor') {
@@ -151,6 +163,10 @@ beforeAll(async () => {
   await sql.exec(sharedMigration)
   await sql.exec(maintenanceMigration)
   await sql.exec(cancellationMigration)
+  originalSyncPush = (await sql.query<{ definition: string }>(
+    "select pg_get_functiondef('public.app_sync_push(jsonb)'::regprocedure) as definition",
+  )).rows[0].definition
+  await sql.exec(deletionMigration)
 }, 120000)
 
 afterEach(async () => {
@@ -435,7 +451,7 @@ it('downloads cancelled contents through personal hybrid sync and preserves revo
   await syncHybridManually(ownerDevice.store, cloud(owner), lock)
   await syncHybridManually(editorDevice.store, cloud(editor), lock)
   const initial = await snapshot(owner, tripId)
-  const editorInitial = await snapshot(editor, tripId)
+  const editorInitial = (await editorDevice.local.list()).find((row) => row.id === tripId)!
   await editorDevice.local.queue(editorInitial, addItem(doc(editorInitial)))
   await save(owner, initial, addItem(doc(initial)))
   await cancel(owner, await snapshot(owner, tripId))
@@ -447,4 +463,115 @@ it('downloads cancelled contents through personal hybrid sync and preserves revo
   const pending = (await editorDevice.store.listTasks())[0]
   expect(pending.status).toBe('conflict')
   expect(pending.sharedTrip?.after.items).toHaveLength(2)
+})
+
+it('repairs a frozen child-first trip deletion, survives a lost response and revokes editor access', async () => {
+  const ids = await fixture()
+  const linked = await tripMap(ids.tripId)
+  const unrelated = await fixture()
+  const unrelatedMap = await tripMap(unrelated.tripId)
+  await invite(ids.tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', ids.tripId))
+  const ownerDevice = await local(owner)
+  const editorDevice = await local(editor)
+  const adapter = cloud(owner)
+  await syncHybridManually(ownerDevice.store, adapter, lock)
+  await syncHybridManually(editorDevice.store, cloud(editor), lock)
+  const editorInitial = (await editorDevice.local.list()).find((row) => row.id === ids.tripId)!
+  await editorDevice.local.queue(editorInitial, addItem(doc(editorInitial)))
+  await ownerDevice.store.mutate('trip.delete', (repositories) => repositories.trips.delete(ids.tripId))
+  expect(await ownerDevice.database.trips.get(ids.tripId)).toBeUndefined()
+  expect(await ownerDevice.database.itineraryItems.get(ids.itemId)).toBeUndefined()
+  expect(await ownerDevice.database.routeMaps.get(linked.mapId)).toBeUndefined()
+  expect(await ownerDevice.database.routeMapPlaces.get(linked.markerId)).toBeUndefined()
+  const queued = (await ownerDevice.store.listTasks())[0]
+  expect(queued.changes.map((change) => change.entity)).toEqual([
+    'routeMapPlaces', 'routeMaps', 'itineraryItems', 'trips',
+  ])
+  await sql.exec(originalSyncPush)
+  try {
+    await expect(syncHybridManually(ownerDevice.store, adapter, lock)).rejects.toThrow('共同編輯')
+    expect(doc(await snapshot(owner, ids.tripId)).items).toHaveLength(1)
+    expect((await sql.query('select id from public.itinerary_items where id=$1', [ids.itemId])).rows).toHaveLength(1)
+    expect((await sql.query('select id from public.route_maps where id=$1', [linked.mapId])).rows).toHaveLength(1)
+    expect((await sql.query('select id from public.route_map_places where id=$1', [linked.markerId])).rows).toHaveLength(1)
+  } finally {
+    await sql.exec(deletionMigration)
+  }
+  const frozen = (await ownerDevice.store.listTasks())[0]
+  expect(frozen.status).toBe('failed')
+  expect(frozen.uploadChanges).toEqual(queued.changes)
+  const push = vi.spyOn(adapter, 'push')
+  push.mockImplementationOnce(async (task) => {
+    await cloud(owner).push(task)
+    throw new Error('Response lost after commit')
+  })
+  await expect(syncHybridManually(ownerDevice.store, adapter, lock)).rejects.toThrow('Response lost')
+  expect((await ownerDevice.store.listTasks())[0].uploadChanges).toEqual(frozen.uploadChanges)
+  const receipt = await sql.query<{ payload: { changes: SyncTask['changes'] }; result: CloudSyncPush }>(
+    'select payload,result from sync_private.receipts where owner_uid=$1 and operation_id=$2',
+    [owner, frozen.operationId],
+  )
+  expect(receipt.rows[0].payload.changes).toEqual(JSON.parse(JSON.stringify(frozen.uploadChanges)))
+  expect(receipt.rows[0].result.status).toBe('applied')
+  if (receipt.rows[0].result.status !== 'applied') throw new Error('Deletion did not commit')
+  expect(receipt.rows[0].result.changes.filter((change) => change.record === null).map((change) => change.id).sort())
+    .toEqual([ids.tripId, ids.itemId, linked.mapId, linked.markerId].sort())
+  await syncHybridManually(ownerDevice.store, adapter, lock)
+  expect(push).toHaveBeenCalledTimes(2)
+  expect(push.mock.calls[1][0].operationId).toBe(frozen.operationId)
+  expect(push.mock.calls[1][0].changes).toEqual(frozen.uploadChanges)
+  expect(await ownerDevice.store.listTasks()).toEqual([])
+  expect((await ownerDevice.local.list()).find((row) => row.id === ids.tripId)?.document).toBeNull()
+  expect(await ownerDevice.database.trips.get(unrelated.tripId)).toBeDefined()
+  expect(await ownerDevice.database.itineraryItems.get(unrelated.itemId)).toBeDefined()
+  expect(await ownerDevice.database.routeMaps.get(unrelatedMap.mapId)).toBeDefined()
+  expect(await ownerDevice.database.routeMapPlaces.get(unrelatedMap.markerId)).toBeDefined()
+  expect(await ownerDevice.database.places.get(ids.placeId)).toMatchObject({ notes: 'private-note' })
+  expect(await ownerDevice.database.regions.get(ids.regionId)).toBeDefined()
+  for (const table of ['trips', 'itinerary_items', 'route_maps', 'route_map_places',
+    'trip_shared_workspaces', 'trip_members', 'trip_invitations']) {
+    const column = table === 'trips' ? 'id' : 'trip_id'
+    const source = table === 'route_map_places'
+      ? 'select id from public.route_map_places where route_map_id=$1'
+      : `select ${column} from public.${table} where ${column}=$1`
+    expect((await sql.query(source, [table === 'route_map_places' ? linked.mapId : ids.tripId])).rows).toEqual([])
+  }
+  expect((await snapshot(editor, ids.tripId)).document).toBeNull()
+  await expect(save(editor, editorInitial, doc(editorInitial))).rejects.toThrow('unavailable')
+  await expect(syncHybridManually(editorDevice.store, cloud(editor), lock)).rejects.toThrow()
+  expect((await editorDevice.local.list()).find((row) => row.id === ids.tripId)?.document).toBeNull()
+  const draft = (await editorDevice.store.listTasks())[0]
+  expect(draft.status).toBe('conflict')
+  expect(draft.sharedTrip?.after.items).toHaveLength(2)
+})
+
+it('preserves direct cloud deletion of an active shared trip without deleting private places', async () => {
+  const ids = await fixture()
+  const linked = await tripMap(ids.tripId)
+  await invite(ids.tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', ids.tripId))
+  await asUser(owner, () => sql.query('delete from public.trips where id=$1', [ids.tripId]))
+  expect((await snapshot(editor, ids.tripId)).document).toBeNull()
+  expect((await sql.query('select id from public.itinerary_items where id=$1', [ids.itemId])).rows).toEqual([])
+  expect((await sql.query('select id from public.route_maps where id=$1', [linked.mapId])).rows).toEqual([])
+  expect((await sql.query('select id from public.route_map_places where id=$1', [linked.markerId])).rows).toEqual([])
+  expect((await sql.query('select id from public.places where id=$1', [ids.placeId])).rows).toHaveLength(1)
+})
+
+it('keeps version and ownership checks ahead of trip cascade deletion', async () => {
+  const ids = await fixture()
+  await invite(ids.tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', ids.tripId))
+  const device = await local(owner)
+  await syncHybridManually(device.store, cloud(owner), lock)
+  await device.store.mutate('trip.delete', (repositories) => repositories.trips.delete(ids.tripId))
+  const task = await device.store.prepareUpload()
+  if (!task) throw new Error('Missing deletion task')
+  await expect(cloud(editor).push({ ...task, account: { ...task.account, userId: editor } })).rejects.toThrow('another account')
+  await asUser(owner, () => sql.query("update public.trips set name='Changed before upload' where id=$1", [ids.tripId]))
+  expect((await cloud(owner).push(task)).status).toBe('conflict')
+  expect(doc(await snapshot(owner, ids.tripId)).trip.name).toBe('Changed before upload')
+  expect((await sql.query('select id from public.itinerary_items where id=$1', [ids.itemId])).rows).toHaveLength(1)
+  expect((await device.store.listTasks())[0].operationId).toBe(task.operationId)
 })

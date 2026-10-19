@@ -68,6 +68,33 @@ it('deleting a map never deletes the associated trip', async () => {
   expect(await db.trips.get(tripId)).toBeDefined()
 })
 
+it('rolls back all hybrid trip cascade deletions if the outbox cannot be saved', async () => {
+  const sync = new SyncDatabase({ projectId: crypto.randomUUID(), userId: 'owner' })
+  const context = new SyncAccountContext()
+  context.activate(sync.account)
+  const store = new LocalSyncStore(sync, context)
+  try {
+    await store.prepareLocal()
+    const ids = await store.mutate('trip.setup', async (repo) => {
+      const regionId = await repo.regions.create({ name: 'City', googlePlaceId: 'city', zoom: 12 })
+      const placeId = await repo.places.create({ name: 'Cafe', regionIds: [regionId], labelIds: [], googlePlaceId: 'cafe' })
+      const tripId = await repo.trips.create({ regionId, name: 'Trip', startDate: '2026-10-19', endDate: '2026-10-20' })
+      const itemId = await repo.itineraryItems.create({ tripId, placeId, date: '2026-10-19', order: 0 })
+      const mapId = await repo.routeMaps.create({ name: 'Map', tripId, transport: 'WALKING' })
+      const markerId = await repo.routeMapPlaces.create({ routeMapId: mapId, googlePlaceId: 'extra' })
+      return { tripId, itemId, mapId, markerId }
+    })
+    const queued = await store.listTasks()
+    vi.spyOn(sync.outbox, 'add').mockRejectedValueOnce(new Error('outbox failed'))
+    await expect(store.mutate('trip.delete', (repo) => repo.trips.delete(ids.tripId))).rejects.toThrow('outbox failed')
+    expect(await sync.trips.get(ids.tripId)).toBeDefined()
+    expect(await sync.itineraryItems.get(ids.itemId)).toBeDefined()
+    expect(await sync.routeMaps.get(ids.mapId)).toBeDefined()
+    expect(await sync.routeMapPlaces.get(ids.markerId)).toBeDefined()
+    expect(await store.listTasks()).toEqual(queued)
+  } finally { await sync.delete() }
+})
+
 it('atomically queues route writes and all trip cascade deletions in hybrid mode', async () => {
   const sync = new SyncDatabase({ projectId: crypto.randomUUID(), userId: 'owner' })
   const context = new SyncAccountContext()
