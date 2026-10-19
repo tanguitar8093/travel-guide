@@ -2,7 +2,7 @@ import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter } from './sync-cloud.adapter'
 import { previewHybridSync } from './sync-preview'
-import { SharedTripLocal } from './shared-trip.local'
+import { SharedTripConflictError, SharedTripLocal } from './shared-trip.local'
 import { SharedTripPermissionError } from './shared-trip.cloud'
 import type { sharedTripCloud } from './shared-trip.cloud'
 
@@ -80,8 +80,8 @@ export async function syncHybridManually(
       }
       metadata = await store.getSyncMetadata()
     }
-    const upload = async () => {
-      const task = await store.prepareUpload()
+    const upload = async (options: { retryOnly?: boolean } = {}) => {
+      const task = await store.prepareUpload(options)
       if (!task) return false
       assertCurrent()
       try {
@@ -106,16 +106,23 @@ export async function syncHybridManually(
           await new SharedTripLocal(store).download(await cloud.shared.list())
           assertCurrent()
         }
-        if ((await store.listTasks()).find((current) => current.operationId === task.operationId)?.status !== 'conflict') {
+        const current = (await store.listTasks()).find((current) => current.operationId === task.operationId)
+        if (task.sharedTrip && current?.status === 'conflict'
+          && (error instanceof SharedTripConflictError || error instanceof SharedTripPermissionError)) return true
+        if (current?.status !== 'conflict') {
           await store.markUpload(task, 'failed', error instanceof Error ? error.message : String(error))
         }
         throw error
       }
       return true
     }
-    const first = (await store.listTasks())[0]
-    if (first?.uploadChanges && first.status !== 'conflict') await upload()
+    await upload({ retryOnly: true })
     const download = async () => {
+      if (cloud.shared) {
+        const snapshots = await cloud.shared.list()
+        assertCurrent()
+        await new SharedTripLocal(store).download(snapshots)
+      }
       let cursor = (await store.getSyncMetadata()).cursor ?? metadata.cursor ?? '0'
       for (let page = 0; page < 1000; page += 1) {
         assertCurrent()
@@ -128,11 +135,6 @@ export async function syncHybridManually(
         }
         cursor = response.cursor
         if (!response.hasMore) {
-          if (cloud.shared) {
-            const snapshots = await cloud.shared.list()
-            assertCurrent()
-            await new SharedTripLocal(store).download(snapshots)
-          }
           return
         }
       }

@@ -7,15 +7,30 @@ import { parseSharedTripSnapshot } from './shared-trip.validation'
 
 export class SharedTripPermissionError extends ValidationError {}
 
-async function call(action: string, tripId?: string, payload: Record<string, unknown> = {}, rpc = 'app_shared_trip'): Promise<unknown> {
+class SharedTripRequestUncertainError extends ValidationError {
+  readonly userId: string
+
+  constructor(userId: string, message: string) {
+    super(message)
+    this.userId = userId
+  }
+}
+
+async function call(
+  action: string, tripId?: string, payload: Record<string, unknown> = {},
+  rpc = 'app_shared_trip', expectedUserId?: string,
+): Promise<unknown> {
   if (!sharedTripEditingEnabled) throw new ValidationError('共同編輯尚未啟用。')
   const session = await supabase.auth.getSession()
   if (session.error) throw new ValidationError(session.error.message)
   const uid = session.data.session?.user.id
   if (!uid) throw new ValidationError('請先登入後使用共同編輯。')
+  if (expectedUserId && uid !== expectedUserId) throw new ValidationError('帳號已變更，未重試原帳號的共同編輯請求。')
   const result = await withSupabaseTimeout(Promise.resolve(supabase.rpc(rpc, {
     p_action: action, p_trip_id: tripId ?? null, p_payload: payload,
-  })), 'shared trip')
+  })), 'shared trip').catch((cause: unknown) => {
+    throw new SharedTripRequestUncertainError(uid, cause instanceof Error ? cause.message : String(cause))
+  })
   const current = await supabase.auth.getSession()
   if (current.error) throw new ValidationError(current.error.message)
   if (current.data.session?.user.id !== uid) throw new ValidationError('帳號已變更，未套用共同編輯回應。')
@@ -26,13 +41,25 @@ async function call(action: string, tripId?: string, payload: Record<string, unk
     }
 
     if (result.error.code === '42501') throw new SharedTripPermissionError(result.error.message)
+    if (!result.error.code) throw new SharedTripRequestUncertainError(uid, result.error.message)
     throw new ValidationError(result.error.message)
   }
   return result.data
 }
 
 export async function cancelSharedTripCloud(tripId: string, operationId: string, baseVersion: string): Promise<void> {
-  const value = await call('cancel', tripId, { operationId, baseVersion }, 'app_cancel_shared_trip')
+  const payload = { operationId, baseVersion }
+  let value: unknown
+  try {
+    value = await call('cancel', tripId, payload, 'app_cancel_shared_trip')
+  } catch (cause) {
+    if (!(cause instanceof SharedTripRequestUncertainError)) throw cause
+    try {
+      value = await call('cancel', tripId, payload, 'app_cancel_shared_trip', cause.userId)
+    } catch (retryCause) {
+      throw new ValidationError(`取消共享的結果尚未確認，可能已完成；請重新載入並同步確認，不要重新啟用：${retryCause instanceof Error ? retryCause.message : String(retryCause)}`)
+    }
+  }
   if (!value || typeof value !== 'object' || !('cancelled' in value) || value.cancelled !== true) {
     throw new ValidationError('取消共享的結果尚未確認，請重新載入確認；不要重複啟用。')
   }

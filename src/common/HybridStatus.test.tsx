@@ -6,7 +6,10 @@ const state = vi.hoisted(() => ({
   mode: 'hybrid',
   status: {
     ready: true,
-    summary: { pendingCount: 2, failedCount: 0, conflictCount: 0, lastSyncedAt: '2026-10-18T10:00:00Z' },
+    summary: {
+      pendingCount: 2, failedCount: 0, conflictCount: 0, personalConflictCount: 0,
+      sharedConflictCount: 0, lastSyncedAt: '2026-10-18T10:00:00Z',
+    },
     lastOperationMs: 12,
     error: undefined as string | undefined,
   },
@@ -23,6 +26,8 @@ beforeEach(() => {
   state.mode = 'hybrid'
   state.status.error = undefined
   state.status.summary.conflictCount = 0
+  state.status.summary.personalConflictCount = 0
+  state.status.summary.sharedConflictCount = 0
 })
 
 it('hides diagnostic information when visibility is denied', () => {
@@ -49,7 +54,41 @@ it('preserves actionable errors without exposing diagnostic details', () => {
 
 it('preserves conflict notifications even when diagnostics are hidden', () => {
   state.status.summary.conflictCount = 1
+  state.status.summary.personalConflictCount = 1
   expect(renderToStaticMarkup(<HybridStatus />)).toContain('資料同步發生衝突')
+})
+
+it('routes shared-only conflicts to the itinerary without claiming private sync is blocked', () => {
+  state.status.summary.conflictCount = 2
+  state.status.summary.sharedConflictCount = 2
+  const html = renderToStaticMarkup(<HybridStatus />)
+  expect(html).toContain('共享行程有待處理衝突')
+  expect(html).toContain('其餘私人資料仍可同步')
+  expect(html).toContain('href="/itinerary"')
+  expect(html).not.toContain('href="/data"')
+  expect(html).not.toContain('資料同步發生衝突')
+})
+
+it('shows both recovery destinations without promising private progress when personal sync is blocked', () => {
+  state.status.summary.conflictCount = 2
+  state.status.summary.sharedConflictCount = 1
+  state.status.summary.personalConflictCount = 1
+  const html = renderToStaticMarkup(<HybridStatus />)
+  expect(html).toContain('href="/data"')
+  expect(html).toContain('href="/itinerary"')
+  expect(html).not.toContain('其餘私人資料仍可同步')
+})
+
+it('shows separate conflict counts in diagnostics and retains network-error warnings', () => {
+  state.visible = true
+  state.status.summary.conflictCount = 2
+  state.status.summary.sharedConflictCount = 2
+  state.status.error = 'offline'
+  const html = renderToStaticMarkup(<HybridStatus />)
+  expect(html).toContain('個人 0 筆、共享 2 筆')
+  expect(html).toContain('offline')
+  expect(html).toContain('前往資料管理重試同步')
+  expect(html).not.toContain('其餘私人資料仍可同步')
 })
 
 it('never shows hybrid information in other database modes', () => {

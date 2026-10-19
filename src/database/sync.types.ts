@@ -90,5 +90,7 @@ export interface LocalSyncSummary {
   pendingCount: number
   failedCount: number
   conflictCount: number
+  personalConflictCount: number
+  sharedConflictCount: number
   lastSyncedAt?: string
 }

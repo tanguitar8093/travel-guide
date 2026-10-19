@@ -38,9 +38,16 @@ export class SharedTripRepository {
     }
     const snapshot = (await sharedTripCloud.list()).find((row) => row.id === tripId)
     assertCurrent?.()
-    if (!snapshot?.document || snapshot.document.trip.access !== 'owner') {
+    if (!snapshot?.document) {
+      throw new ValidationError('雲端沒有可取消的共同編輯內容，請重新載入並同步確認行程狀態。')
+    }
+    if (snapshot.document.trip.access !== 'owner') {
       throw new ValidationError('只有擁有者可以取消已啟用的共享行程，請重新載入。')
     }
+    if (store && (await store.listTasks()).length) {
+      throw new ValidationError('確認共享內容期間新增了待同步操作，請先同步後再取消；尚未送出取消請求。')
+    }
+    assertCurrent?.()
     await cancelSharedTripCloud(tripId, crypto.randomUUID(), snapshot.version)
     assertCurrent?.()
     if (store) {
@@ -74,9 +81,15 @@ export class SharedTripRepository {
   }
 
   async resolve(tripId: string, expected: SharedTripSnapshot, choice: 'local' | 'cloud'): Promise<void> {
+    if (getDatabaseMode() !== 'hybrid') throw new ValidationError('只有混合模式有本機共享草稿可處理。')
+    const assertCurrent = requireHybridStore().captureAccount()
     const latest = (await sharedTripCloud.list()).find((row) => row.id === tripId)
+    assertCurrent()
     if (!latest) throw new ValidationError('雲端沒有此行程的授權紀錄，不能安全解決衝突。')
-    await runHybridTask((store) => new SharedTripLocal(store).resolve(tripId, expected, latest, choice))
+    await runHybridTask((store) => {
+      assertCurrent()
+      return new SharedTripLocal(store).resolve(tripId, expected, latest, choice)
+    })
   }
 
   subscribe(onChange: () => void, onError: (error: unknown) => void): () => void {

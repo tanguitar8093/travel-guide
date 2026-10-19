@@ -156,12 +156,17 @@ export class LocalSyncStore {
     return metadata
   }
 
-  async prepareUpload(): Promise<SyncTask | undefined> {
+  async prepareUpload(options: { retryOnly?: boolean } = {}): Promise<SyncTask | undefined> {
     const assertCurrent = this.captureAccount()
     return this.database.transaction('rw', this.database.outbox, async () => {
       assertCurrent()
-      const task = await this.database.outbox.orderBy('sequence').first()
+      const tasks = await this.database.outbox.orderBy('sequence').toArray()
+      const blockedTrips = new Set(tasks.flatMap((task) =>
+        task.status === 'conflict' && task.sharedTrip ? [task.sharedTrip.tripId] : [],
+      ))
+      const task = tasks.find((task) => !task.sharedTrip || !blockedTrips.has(task.sharedTrip.tripId))
       if (!task) return undefined
+      if (options.retryOnly && (!task.uploadChanges || task.status === 'conflict')) return undefined
       if (task.status === 'conflict') throw new ValidationError('有待處理的衝突；已停止同步，本機資料仍保留。')
       if (task.sharedTrip?.predecessorOperationId) throw new ValidationError('共享行程的前序操作尚未完成，不能上傳。')
       const changes = task.uploadChanges ?? task.changes
@@ -379,12 +384,15 @@ export class LocalSyncStore {
       const pendingCount = tasks.filter((task) => task.status === 'pending').length
       const failedCount = tasks.filter((task) => task.status === 'failed').length
       const conflictCount = tasks.filter((task) => task.status === 'conflict').length
+      const sharedConflictCount = tasks.filter((task) => task.status === 'conflict' && task.sharedTrip).length
       assertCurrent()
       return {
         initialized: metadata?.initialized ?? false,
         status: conflictCount ? 'conflict' : failedCount ? 'failed' : pendingCount ? 'pending'
           : metadata?.initialized ? 'local-only' : 'not-initialized',
-        pendingCount, failedCount, conflictCount, lastSyncedAt: metadata?.lastSyncedAt,
+        pendingCount, failedCount, conflictCount,
+        personalConflictCount: conflictCount - sharedConflictCount, sharedConflictCount,
+        lastSyncedAt: metadata?.lastSyncedAt,
       }
     })
   }

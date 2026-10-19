@@ -105,7 +105,7 @@ function addItem(document: SharedTripDocument): SharedTripDocument {
   }
 }
 
-function save(uid: string, row: SharedTripSnapshot, document: SharedTripDocument, operationId = crypto.randomUUID()) {
+function save(uid: string, row: SharedTripSnapshot, document: SharedTripDocument, operationId: string = crypto.randomUUID()) {
   return asUser(uid, () => rpc<SharedTripSaveResult>('save', row.id, {
     operationId, baseVersion: row.version, places: document.places, items: document.items,
   }))
@@ -315,7 +315,7 @@ it('purges revoked cache, keeps pending drafts and forbids replay after revocati
   const initial = (await device.local.list()).find((row) => row.id === tripId)!
   await device.local.queue(initial, addItem(doc(initial)))
   await asUser(owner, () => sql.query('select public.app_trip_collaboration($1,$2,$3)', ['remove_member', tripId, { userId: editor }]))
-  await expect(syncHybridManually(device.store, cloud(editor), lock)).rejects.toThrow()
+  await syncHybridManually(device.store, cloud(editor), lock)
   expect((await device.local.list()).find((row) => row.id === tripId)?.document).toBeNull()
   const task = (await device.store.listTasks())[0]
   expect(task.status).toBe('conflict')
@@ -458,7 +458,7 @@ it('downloads cancelled contents through personal hybrid sync and preserves revo
   await syncHybridManually(ownerDevice.store, cloud(owner), lock)
   expect(await ownerDevice.database.itineraryItems.where('tripId').equals(tripId).count()).toBe(2)
   expect((await ownerDevice.local.list()).find((row) => row.id === tripId)?.document).toBeNull()
-  await expect(syncHybridManually(editorDevice.store, cloud(editor), lock)).rejects.toThrow()
+  await syncHybridManually(editorDevice.store, cloud(editor), lock)
   expect((await editorDevice.local.list()).find((row) => row.id === tripId)?.document).toBeNull()
   const pending = (await editorDevice.store.listTasks())[0]
   expect(pending.status).toBe('conflict')
@@ -539,7 +539,7 @@ it('repairs a frozen child-first trip deletion, survives a lost response and rev
   }
   expect((await snapshot(editor, ids.tripId)).document).toBeNull()
   await expect(save(editor, editorInitial, doc(editorInitial))).rejects.toThrow('unavailable')
-  await expect(syncHybridManually(editorDevice.store, cloud(editor), lock)).rejects.toThrow()
+  await syncHybridManually(editorDevice.store, cloud(editor), lock)
   expect((await editorDevice.local.list()).find((row) => row.id === ids.tripId)?.document).toBeNull()
   const draft = (await editorDevice.store.listTasks())[0]
   expect(draft.status).toBe('conflict')
@@ -574,4 +574,326 @@ it('keeps version and ownership checks ahead of trip cascade deletion', async ()
   expect(doc(await snapshot(owner, ids.tripId)).trip.name).toBe('Changed before upload')
   expect((await sql.query('select id from public.itinerary_items where id=$1', [ids.itemId])).rows).toHaveLength(1)
   expect((await device.store.listTasks())[0].operationId).toBe(task.operationId)
+})
+
+it('skips pending successors of a conflicted shared trip but still stops at a private conflict', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  await syncHybridManually(device.store, cloud(editor), lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const next = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(next, {
+    ...doc(next), items: doc(next).items.map((item) => ({ ...item, note: 'dependent draft' })),
+  })
+  const [first, successor] = await device.store.listTasks()
+  await device.store.markUpload(first, 'conflict', 'Confirmed shared conflict')
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Eligible private task', googlePlaceId: 'private', zoom: 12 }))
+  const prepared = await device.store.prepareUpload()
+  if (!prepared) throw new Error('Missing private task')
+  expect(prepared.changes[0].id).toBe(id)
+  expect((await device.store.listTasks()).find((task) => task.operationId === successor.operationId)).toEqual(successor)
+  await device.store.markUpload(prepared, 'conflict', 'Private conflict')
+  await expect(device.store.prepareUpload()).rejects.toThrow('有待處理的衝突')
+})
+
+it('isolates a downloaded shared conflict and its successors while syncing private edits and another shared trip', async () => {
+  const blocked = await fixture()
+  const healthy = await fixture()
+  for (const { tripId } of [blocked, healthy]) {
+    await invite(tripId, editor, 'editor')
+    await asUser(owner, () => rpc('enable', tripId))
+  }
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const lastCompleteSync = (await device.store.getSummary()).lastSyncedAt
+  const initial = (await device.local.list()).find((row) => row.id === blocked.tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Private first', googlePlaceId: 'private-first', zoom: 12 }))
+  const second = (await device.local.list()).find((row) => row.id === blocked.tripId)!
+  await device.local.queue(second, {
+    ...doc(second), items: doc(second).items.map((item) => ({ ...item, note: 'kept offline draft' })),
+  })
+  await device.store.mutate('region.update', (repositories) => repositories.regions.update(id, { name: 'Private latest' }))
+  const other = (await device.local.list()).find((row) => row.id === healthy.tripId)!
+  await device.local.queue(other, addItem(doc(other)))
+  const before = (await device.local.tasks()).filter((task) => task.sharedTrip?.tripId === blocked.tripId)
+  const remote = await snapshot(owner, blocked.tripId)
+  await save(owner, remote, {
+    ...doc(remote), items: doc(remote).items.map((item) => ({ ...item, note: 'owner change' })),
+  })
+  const sharedSave = vi.spyOn(adapter.shared, 'save')
+  await syncHybridManually(device.store, adapter, lock)
+  const retained = await device.store.listTasks()
+  expect(retained.map((task) => task.operationId)).toEqual(before.map((task) => task.operationId))
+  for (const [index, task] of retained.entries()) {
+    expect(task.status).toBe('conflict')
+    expect(task.sharedTrip?.after).toEqual(before[index].sharedTrip?.after)
+    expect(task.sharedTrip?.baseVersion).toBe(before[index].sharedTrip?.baseVersion)
+    expect(task.sharedTrip?.predecessorOperationId).toBe(before[index].sharedTrip?.predecessorOperationId)
+    expect(task.attempts).toBe(0)
+  }
+  expect(sharedSave.mock.calls.map(([tripId]) => tripId)).toEqual([healthy.tripId])
+  expect(doc(await snapshot(owner, healthy.tripId)).items).toHaveLength(2)
+  expect(doc(await snapshot(owner, blocked.tripId)).items[0].note).toBe('owner change')
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows).toEqual([{ name: 'Private latest' }])
+  expect(await device.store.getSummary()).toMatchObject({
+    conflictCount: 2, sharedConflictCount: 2, personalConflictCount: 0, failedCount: 0,
+    lastSyncedAt: lastCompleteSync,
+  })
+  await device.store.mutate('region.update', (repositories) => repositories.regions.update(id, { name: 'Still syncing' }))
+  await syncHybridManually(device.store, adapter, lock)
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows).toEqual([{ name: 'Still syncing' }])
+  expect(sharedSave).toHaveBeenCalledTimes(1)
+  expect((await device.store.listTasks()).map((task) => task.operationId)).toEqual(before.map((task) => task.operationId))
+})
+
+it('continues private sync when a shared version conflict is first discovered by the upload response', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const draft = (await device.store.listTasks())[0]
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Private survives conflict', googlePlaceId: 'private', zoom: 12 }))
+  const original = adapter.shared.save
+  const sharedSave = vi.spyOn(adapter.shared, 'save').mockImplementationOnce(async (...args) => {
+    const remote = await snapshot(owner, tripId)
+    await save(owner, remote, addItem(doc(remote)))
+    return original(...args)
+  })
+  await syncHybridManually(device.store, adapter, lock)
+  const retained = await device.store.listTasks()
+  expect(retained).toHaveLength(1)
+  expect(retained[0]).toMatchObject({ operationId: draft.operationId, status: 'conflict', attempts: 1 })
+  expect(retained[0].sharedTrip?.after).toEqual(draft.sharedTrip?.after)
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows)
+    .toEqual([{ name: 'Private survives conflict' }])
+  expect(await device.store.getSummary()).toMatchObject({
+    personalConflictCount: 0, sharedConflictCount: 1, failedCount: 0,
+  })
+  await syncHybridManually(device.store, adapter, lock)
+  expect(sharedSave).toHaveBeenCalledTimes(1)
+})
+
+it('isolates revocation during upload, preserves the draft and still commits a private edit', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Private after revocation', googlePlaceId: 'private', zoom: 12 }))
+  const original = adapter.shared.save
+  vi.spyOn(adapter.shared, 'save').mockImplementationOnce(async (...args) => {
+    await asUser(owner, () => sql.query('select public.app_trip_collaboration($1,$2,$3)',
+      ['remove_member', tripId, { userId: editor }]))
+    return original(...args)
+  })
+  await syncHybridManually(device.store, adapter, lock)
+  expect((await device.local.list()).find((row) => row.id === tripId)?.document).toBeNull()
+  const retained = await device.store.listTasks()
+  expect(retained).toHaveLength(1)
+  expect(retained[0].status).toBe('conflict')
+  expect(retained[0].sharedTrip?.after.items).toHaveLength(2)
+  expect(retained[0].sharedTrip?.conflict?.document).toBeNull()
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows)
+    .toEqual([{ name: 'Private after revocation' }])
+  const latest = await snapshot(editor, tripId)
+  await expect(device.local.resolve(tripId, latest, latest, 'local')).rejects.toThrow('撤銷')
+})
+
+it('retries an uncertain private request behind a shared conflict before downloading its committed event', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const remote = await snapshot(owner, tripId)
+  await save(owner, remote, addItem(doc(remote)))
+  await device.local.download([await snapshot(editor, tripId)])
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Private receipt', googlePlaceId: 'receipt', zoom: 12 }))
+  const original = adapter.push
+  const push = vi.spyOn(adapter, 'push').mockImplementationOnce(async (task) => {
+    await original(task)
+    throw new Error('Private response lost')
+  })
+  await expect(syncHybridManually(device.store, adapter, lock)).rejects.toThrow('Private response lost')
+  const frozen = (await device.store.listTasks()).find((task) => !task.sharedTrip)!
+  expect(frozen.status).toBe('failed')
+  await syncHybridManually(device.store, adapter, lock)
+  expect(push).toHaveBeenCalledTimes(2)
+  expect(push.mock.calls[1][0].operationId).toBe(frozen.operationId)
+  expect(push.mock.calls[1][0].changes).toEqual(frozen.uploadChanges)
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows).toEqual([{ name: 'Private receipt' }])
+  expect(await device.store.getSummary()).toMatchObject({
+    personalConflictCount: 0, sharedConflictCount: 1, failedCount: 0,
+  })
+  expect(await device.store.listTasks()).toHaveLength(1)
+})
+
+it('does not skip an uncertain shared request or rewrite its frozen receipt payload', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const id = await device.store.mutate('region.create', (repositories) =>
+    repositories.regions.create({ name: 'Private after shared retry', googlePlaceId: 'private', zoom: 12 }))
+  const original = adapter.shared.save
+  const sharedSave = vi.spyOn(adapter.shared, 'save').mockImplementationOnce(async (...args) => {
+    await original(...args)
+    throw new Error('Shared response lost')
+  })
+  await expect(syncHybridManually(device.store, adapter, lock)).rejects.toThrow('Shared response lost')
+  const frozen = (await device.store.listTasks())[0]
+  expect(frozen.status).toBe('failed')
+  expect(frozen.uploadChanges).toEqual([])
+  expect((await sql.query('select id from public.regions where id=$1', [id])).rows).toEqual([])
+  await syncHybridManually(device.store, adapter, lock)
+  expect(sharedSave).toHaveBeenCalledTimes(2)
+  expect(sharedSave.mock.calls[1]).toEqual(sharedSave.mock.calls[0])
+  expect(doc(await snapshot(owner, tripId)).items).toHaveLength(2)
+  expect(await device.store.listTasks()).toEqual([])
+  expect((await sql.query('select name from public.regions where id=$1', [id])).rows)
+    .toEqual([{ name: 'Private after shared retry' }])
+})
+
+it.each(['leave', 'remove_member', 'cancel'] as const)(
+  'downloads %s revocation despite a private conflict, retains drafts and rejects the old invitation',
+  async (action) => {
+    const { tripId } = await fixture()
+    await invite(tripId, editor, 'editor')
+    const invitationId = (await sql.query<{ id: string }>(
+      'select id from public.trip_invitations where trip_id=$1 and invitee_user_id=$2', [tripId, editor],
+    )).rows[0].id
+    await asUser(owner, () => rpc('enable', tripId))
+    const device = await local()
+    const adapter = cloud(editor)
+    await syncHybridManually(device.store, adapter, lock)
+    const id = await device.store.mutate('region.create', (repositories) =>
+      repositories.regions.create({ name: 'Private base', googlePlaceId: 'private', zoom: 12 }))
+    await syncHybridManually(device.store, adapter, lock)
+    await device.store.mutate('region.update', (repositories) => repositories.regions.update(id, { name: 'Private draft' }))
+    const initial = (await device.local.list()).find((row) => row.id === tripId)!
+    await device.local.queue(initial, addItem(doc(initial)))
+    await asUser(editor, () => sql.query("update public.regions set name='Private cloud' where id=$1", [id]))
+    if (action === 'cancel') {
+      const latest = await snapshot(owner, tripId)
+      const operationId = crypto.randomUUID()
+      await cancel(owner, latest, operationId)
+      await cancel(owner, latest, operationId)
+    } else {
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        await asUser(action === 'leave' ? editor : owner, () => sql.query(
+          'select public.app_trip_collaboration($1,$2,$3)',
+          [action, tripId, action === 'leave' ? {} : { userId: editor }],
+        ))
+      }
+    }
+    const sharedSave = vi.spyOn(adapter.shared, 'save')
+    await expect(syncHybridManually(device.store, adapter, lock)).rejects.toThrow('衝突')
+    expect(sharedSave).not.toHaveBeenCalled()
+    expect((await device.local.list()).find((row) => row.id === tripId)?.document).toBeNull()
+    expect(await device.store.getSummary()).toMatchObject({
+      personalConflictCount: 1, sharedConflictCount: 1,
+    })
+    const task = (await device.local.tasks())[0]
+    expect(task.sharedTrip?.after.items).toHaveLength(2)
+    const revoked = task.sharedTrip!.conflict!
+    await expect(device.local.resolve(tripId, revoked, revoked, 'local')).rejects.toThrow('撤銷')
+    await expect(asUser(editor, () => sql.query(
+      'select public.app_trip_collaboration($1,$2,$3)', ['accept', tripId, { invitationId }],
+    ))).rejects.toThrow()
+    await expect(save(editor, initial, doc(initial))).rejects.toThrow('editor access')
+    await device.local.resolve(tripId, revoked, revoked, 'cloud')
+    const retained = await device.store.listTasks()
+    expect(retained).toHaveLength(1)
+    expect(retained[0].sharedTrip).toBeUndefined()
+    expect(retained[0].status).toBe('conflict')
+    expect((await device.database.regions.get(id))?.name).toBe('Private draft')
+  },
+)
+
+it('checks downgraded rights before replaying a committed receipt and requires explicit resolution after regrant', async () => {
+  const { tripId } = await fixture()
+  await invite(tripId, editor, 'editor')
+  const invitationId = (await sql.query<{ id: string }>(
+    'select id from public.trip_invitations where trip_id=$1 and invitee_user_id=$2', [tripId, editor],
+  )).rows[0].id
+  await asUser(owner, () => rpc('enable', tripId))
+  const device = await local()
+  const adapter = cloud(editor)
+  await syncHybridManually(device.store, adapter, lock)
+  const initial = (await device.local.list()).find((row) => row.id === tripId)!
+  await device.local.queue(initial, addItem(doc(initial)))
+  const original = adapter.shared.save
+  const sharedSave = vi.spyOn(adapter.shared, 'save').mockImplementationOnce(async (...args) => {
+    await original(...args)
+    throw new Error('Committed response lost')
+  })
+  await expect(syncHybridManually(device.store, adapter, lock)).rejects.toThrow('Committed response lost')
+  const frozen = (await device.store.listTasks())[0]
+  await asUser(owner, () => sql.query('select public.app_trip_collaboration($1,$2,$3)',
+    ['set_member', tripId, { userId: editor, role: 'viewer' }]))
+  await syncHybridManually(device.store, adapter, lock)
+  expect(sharedSave).toHaveBeenCalledTimes(2)
+  expect(sharedSave.mock.calls[1]).toEqual(sharedSave.mock.calls[0])
+  const retained = (await device.local.tasks())[0]
+  expect(retained).toMatchObject({ operationId: frozen.operationId, status: 'conflict' })
+  expect(retained.sharedTrip?.after).toEqual(frozen.sharedTrip?.after)
+  expect(doc((await device.local.list()).find((row) => row.id === tripId)!).trip.access).toBe('viewer')
+  const readOnly = retained.sharedTrip!.conflict!
+  await expect(device.local.resolve(tripId, readOnly, readOnly, 'local')).rejects.toThrow('唯讀')
+  await asUser(editor, () => sql.query('select public.app_trip_collaboration($1,$2,$3)',
+    ['accept', tripId, { invitationId }]))
+  expect(doc(await snapshot(editor, tripId)).trip.access).toBe('viewer')
+  await expect(save(editor, initial, frozen.sharedTrip!.after, frozen.operationId)).rejects.toThrow('editor access')
+  await asUser(owner, () => sql.query('select public.app_trip_collaboration($1,$2,$3)',
+    ['set_member', tripId, { userId: editor, role: 'editor' }]))
+  await syncHybridManually(device.store, adapter, lock)
+  expect(sharedSave).toHaveBeenCalledTimes(2)
+  const review = (await device.local.tasks())[0].sharedTrip!.conflict!
+  expect(doc(review).trip.access).toBe('editor')
+  await device.local.resolve(tripId, review, review, 'local')
+  const replacement = (await device.local.tasks())[0]
+  expect(replacement.operationId).not.toBe(frozen.operationId)
+  expect(replacement.sharedTrip?.baseVersion).toBe(review.version)
+  await syncHybridManually(device.store, adapter, lock)
+  expect(await device.store.listTasks()).toEqual([])
+  expect(doc(await snapshot(owner, tripId)).items).toHaveLength(2)
+})
+
+it('acknowledges an old cancellation receipt without cancelling a newly activated shared generation', async () => {
+  const { tripId } = await fixture()
+  await asUser(owner, () => rpc('enable', tripId))
+  const before = await snapshot(owner, tripId)
+  const operationId = crypto.randomUUID()
+  await cancel(owner, before, operationId)
+  await asUser(owner, () => rpc('enable', tripId))
+  const reactivated = await snapshot(owner, tripId)
+  expect(BigInt(reactivated.version)).toBeGreaterThan(BigInt(before.version))
+  expect(await cancel(owner, before, operationId)).toEqual({ cancelled: true })
+  expect(await snapshot(owner, tripId)).toEqual(reactivated)
+  await expect(cancel(owner, reactivated, operationId)).rejects.toThrow('another payload')
+  expect(await snapshot(owner, tripId)).toEqual(reactivated)
 })

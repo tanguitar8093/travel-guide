@@ -4,6 +4,13 @@ import type { SharedTripDocument, SharedTripSaveResult, SharedTripSnapshot } fro
 import { parseSharedTripDocument, parseSharedTripSnapshot } from './shared-trip.validation'
 import type { SyncTask } from './sync.types'
 
+export class SharedTripConflictError extends ValidationError {
+  constructor() {
+    super('共同編輯遇到版本衝突，草稿與待同步操作仍保留。')
+    this.name = 'SharedTripConflictError'
+  }
+}
+
 export class SharedTripLocal {
   private readonly store: LocalSyncStore
 
@@ -86,7 +93,7 @@ export class SharedTripLocal {
     if (result.snapshot.id !== task.sharedTrip.tripId) throw new ValidationError('共同編輯回應的行程不符。')
     if (result.status === 'conflict') {
       await this.download([result.snapshot])
-      throw new ValidationError('共同編輯遇到版本衝突，草稿與待同步操作仍保留。')
+      throw new SharedTripConflictError()
     }
     if (result.operationId !== task.operationId || !result.snapshot.document) throw new ValidationError('共同編輯回應不完整。')
     await this.store.syncTransaction(async (database) => {

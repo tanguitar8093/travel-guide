@@ -36,8 +36,8 @@ let onVisibilityChangeListener: (() => void) | null = null
 
 function publish(next: HybridStatus): void {
   const becameReady = !status.ready && next.ready
-  const resolvedConflict = (status.summary?.conflictCount ?? 0) > 0 && (next.summary?.conflictCount ?? 0) === 0
-  const hasConflict = Boolean(next.summary && next.summary.conflictCount > 0)
+  const resolvedConflict = (status.summary?.personalConflictCount ?? 0) > 0 && (next.summary?.personalConflictCount ?? 0) === 0
+  const hasConflict = Boolean(next.summary && next.summary.personalConflictCount > 0)
   status = hasConflict
     ? { ...next, error: next.error ?? '同步發現衝突，已暫停自動同步。' }
     : next
@@ -71,7 +71,7 @@ function computeRetryDelayMs(): number {
 
 export function scheduleForegroundPoll(): void {
   if (!activeStore || readSyncModePreference() !== 'auto') return
-  if ((status.summary?.conflictCount ?? 0) > 0) return
+  if ((status.summary?.personalConflictCount ?? 0) > 0) return
   if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
   // Polling must not cancel a queued mutation or failure retry.
   if (foregroundPollTimer !== null) clearTimeout(foregroundPollTimer)
@@ -86,7 +86,7 @@ export function scheduleForegroundPoll(): void {
 async function triggerAutoSync(): Promise<void> {
   const store = activeStore
   if (!store || readSyncModePreference() !== 'auto') return
-  if ((status.summary?.conflictCount ?? 0) > 0) return
+  if ((status.summary?.personalConflictCount ?? 0) > 0) return
   if (syncingStore === store) {
     scheduleHybridAutoSync()
     return
@@ -108,7 +108,7 @@ async function triggerAutoSync(): Promise<void> {
         summary: await store.getSummary(),
         error: message,
       })
-      if ((status.summary?.conflictCount ?? 0) > 0) return
+      if ((status.summary?.personalConflictCount ?? 0) > 0) return
       autoSyncRetryCount += 1
       const retryDelay = computeRetryDelayMs()
       autoSyncTimer = setTimeout(() => {
@@ -128,7 +128,7 @@ async function triggerAutoSync(): Promise<void> {
 
 export function scheduleHybridAutoSync(): void {
   if (!activeStore || readSyncModePreference() !== 'auto') return
-  if ((status.summary?.conflictCount ?? 0) > 0) return
+  if ((status.summary?.personalConflictCount ?? 0) > 0) return
   const generation = ++autoSyncGeneration
   clearAutoSyncTimers()
 

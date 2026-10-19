@@ -1,5 +1,8 @@
-VITE_GOOGLE_MAPS_API_KEY=AIzaSyB8T9ZUn5IsNpxpwgRBpVduCCy-IRVogdw
-VITE_SUPABASE_URL=https://dblpjzimucrlmmgwntiq.supabase.co
-VITE_SUPABASE_ANON_KEY=sb_publishable_CM8GHB-nza0ld4uAVwaWGQ_FNmKotFA
-VITE_SUPABASE_EMAIL_REDIRECT_TO=http://localhost:5173/
-SUPABASE_DB_URL="postgresql://postgres:你的資料庫密碼@db.dblpjzimucrlmmgwntiq.supabase.co:5432/postgres"
+我要你參考 /home/tanguitar/workspaces/Travel/.agent/skills/poc.md skill
+我的需求
+要你實作公開行程的功能
+
+1. 行程模組會多公開行程的按鈕
+2. 公開行程會有一個獨立模組, 用 router 註冊好 讓它顯示在側面選單, 內容會顯示
+   - 列表: 行程名稱, 區域名稱, 預覽行程, 使用行程
+   - 按下預覽行程會跳出一個 同網址的彈出頁面(不能跳網址) 頁面可以覆蓋整頁, 內容是 /行程 分享模組的唯獨模式一模一樣的樣子

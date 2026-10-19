@@ -8,6 +8,92 @@ now supports item editing and hybrid queued drafts after explicit activation.
 It does not provide shared saved route-map editing, offline cold login or
 instant multi-user push updates.
 
+### Cancellation, revocation and retry convergence
+
+Source and this document were compared for cancellation copy-back, access
+revocation, retained drafts, old invitations, account isolation and receipt
+replay. The existing SQL already implements atomic latest-content copy-back
+and checks current write rights before replaying a shared-save receipt. No
+SQL or live database change is part of this correction.
+
+Implemented client corrections. The seven separately authorized focused test
+files passed (90 tests), and TypeScript project checking (`tsc -b`) passed.
+The initial type check found an overly narrow inferred UUID parameter in a
+test helper; its explicit string type was corrected and all 29 shared SQL
+integration tests passed again. Build, lint, E2E and live database validation
+were not run for this correction.
+
+- Cancellation now makes at most one automatic receipt retry after a transport
+  failure or code-less network error. It uses the same operation ID, trip and
+  base version, and must still be the original signed-in user. Definite SQL,
+  permission and missing-migration errors are not retried automatically.
+  If confirmation still fails, the UI explicitly says cancellation may already
+  have completed and requires reload/sync rather than implying failure or
+  automatically enabling sharing again. This is bounded in-call confirmation,
+  not a persistent offline cancellation queue.
+- Hybrid cancellation checks for pending operations both before and after
+  fetching the shared version. A write queued during that read prevents the
+  cancellation request. A confirmed cloud cancellation followed by a failed
+  local download retains the existing distinct completed-cloud/unfinished-local
+  error.
+- After retrying an eligible frozen request, sync downloads shared snapshots
+  before personal events. A personal download conflict therefore cannot hide
+  a revocation or downgrade during that manual sync. Revoked readable cache is
+  cleared, viewer cache becomes read-only, and pending drafts remain separate.
+  Personal conflicts still pause automatic sync; the user can explicitly
+  reload/sync shared trips to obtain current access while resolving them.
+- Shared conflict resolution captures the original hybrid account before
+  fetching the latest snapshot and rechecks it before applying a choice. It
+  cannot apply an old account's response to a newly selected workspace, and
+  standalone/cloud mode cannot invoke local-draft resolution.
+
+Added isolated regressions cover identical cancellation retry payloads,
+bounded retries and account changes, pending writes during cancellation,
+completed-cloud/failed-local reporting, exit/removal/cancellation with private
+conflicts, retained drafts, viewer downgrades after a lost successful response,
+explicit recovery after regrant, and old invitation/receipt replay. An old
+cancellation receipt acknowledges only that past operation; it cannot cancel
+a freshly activated shared generation.
+
+The earlier local/cloud/hybrid section describes the original preview slice.
+Its no-cache/future-coediting statements do not describe the subsequently
+implemented shared-editing slice below. The original-renderer/cancellation
+section remains the copy-back contract; this section records its new client
+retry and access-refresh corrections. None of these checks establish live
+deployment/version consistency, browser behavior or cross-device timing.
+
+### Shared-conflict isolation correction
+
+Implemented in source. The seven separately authorized focused test files
+passed (96 tests). TypeScript checking, build, lint, E2E and live database
+validation were not run for this correction. This is a client-side hybrid
+synchronization correction: no migration, live database write or authorization
+change is needed.
+
+- A confirmed shared-trip version/access conflict pauses that trip's entire
+  queued chain, including dependent drafts. Unrelated personal operations and
+  other healthy shared trips remain eligible in their original relative order.
+  Both automatic mutation scheduling and foreground polling remain active.
+- Shared drafts and their operation IDs/base versions are preserved. Revoked
+  access still clears readable shared cache and forbids replaying those drafts.
+  Shared conflicts are shown separately and link to the itinerary recovery UI.
+- Personal conflicts retain the existing global pause and data-management
+  recovery. Unknown failures, network errors and invalid responses are not
+  treated as safely isolated shared conflicts.
+- An eligible frozen request is retried before downloading events, even when
+  it is behind a blocked shared trip. Receipts, frozen payloads and account
+  guards remain unchanged; a lost successful response must not become a false
+  personal conflict or duplicate write.
+- Remaining shared conflicts still count as unfinished synchronization. The
+  last complete-sync timestamp is not advanced while drafts remain queued.
+  Standalone local mode and direct cloud mode keep their existing data paths.
+
+Passing regression cases cover downloaded and upload-time shared conflicts,
+ordered private updates, an independent shared trip, upload-time revocation,
+lost private/shared responses, automatic scheduling and conflict-status links.
+These cases use isolated PGlite/IndexedDB and UI mocks; they do not validate
+live Auth, browser concurrency or cross-device delivery.
+
 ### Shared-trip deletion correction — 2026-10-20
 
 The incremental `20261020000000_shared_trip_delete_order.sql` was separately

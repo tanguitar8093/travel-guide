@@ -61,7 +61,8 @@ describe('local sync foundation', () => {
     expect(first.deviceId).toBe(second.deviceId)
     expect(await store.getSummary()).toEqual({
       initialized: false, status: 'not-initialized', pendingCount: 0,
-      failedCount: 0, conflictCount: 0, lastSyncedAt: undefined,
+      failedCount: 0, conflictCount: 0, personalConflictCount: 0, sharedConflictCount: 0,
+      lastSyncedAt: undefined,
     })
   })
 
@@ -77,7 +78,18 @@ describe('local sync foundation', () => {
       before: { name: 'Kyoto' }, after: { name: 'Osaka' },
       predecessorOperationId: tasks[0].operationId,
     })
+
     expect((await store.getSummary()).pendingCount).toBe(2)
+  })
+
+  it('does not freeze a fresh task during the uncertain-request retry phase', async () => {
+    await createRegion()
+    const before = await store.listTasks()
+    expect(await store.prepareUpload({ retryOnly: true })).toBeUndefined()
+    expect(await store.listTasks()).toEqual(before)
+    const prepared = await store.prepareUpload()
+    expect(prepared?.attempts).toBe(1)
+    expect(prepared?.uploadChanges).toEqual(before[0].changes)
   })
 
   it('rolls back domain changes when writing the outbox fails', async () => {
@@ -295,6 +307,7 @@ describe('local sync foundation', () => {
     await database.outbox.update(tasks[1].sequence!, { status: 'conflict' })
     expect(await store.getSummary()).toMatchObject({
       initialized: false, status: 'conflict', pendingCount: 0, failedCount: 1, conflictCount: 1,
+      personalConflictCount: 1, sharedConflictCount: 0,
     })
   })
 })
