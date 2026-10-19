@@ -1,13 +1,20 @@
+# 2026-10-18 工作準則紀錄（2026-10-20 補充現行邊界）
+
+此紀錄的「不自動驗證、文件先授權、資料異動考慮 hybrid」仍適用。
+新對話接手具體工作請見 [database-version-convergence.md](database-version-convergence.md)。
+需要的線上存取／修改／備份／演練／部署均另取精確批准；
+唯讀連線批准不等於可以寫 DB，不沿用舊對話測試批准。
+
 prompt 開發準則
 不可以自動跑
 1. playwright
 2. npm run build
-3. npm run liint
+3. npm run lint
 4. git diff
 5. git check
 
 功能都開發好後, 再詢問是否要測試
-允許測試才能開放以上動作(自己判斷情況)
+只執行使用者明確批准的檢查範圍，不自行擴大到完整測試或 Git 檢查。
 
 有關資料更動的所有功能
 一律要考慮以 local/雲端混合 能自動同步優先, 避免功能開發完了 只有雲端模式同能用, 混和模式無法更新到雲端的情況發生

@@ -1,36 +1,70 @@
-# 第一階段：雲端私人資料隔離
+# 私人資料隔離與協作權限邊界
 
-member 只可讀寫自己的資料；admin 可讀寫全部資料。basic 的既有登入／開通流程維持不變，本階段不開放分享或協作。
+更新日期：2026-10-20。第一階段「不開放分享」已是歷史範圍，
+目前已另外實作並安裝 trip-scoped 協作；私人資料表沒有因此改成全體可讀。
 
-## 套用順序
+## 現行契約
 
-先備份雲端資料。在 Supabase SQL Editor 以資料庫管理者身分執行：
+- member 的私人業務資料限自己的 owner；admin 保留跨 owner 管理能力。
+  basic／未登入不取得業務存取權，AuthGate 只讓 member/admin 進工作區。
+- region／place／label／trip 的 owner、派生子資料 owner、同 owner 複合外鍵仍有效。
+  admin 也不能任意建立跨 owner 關聯，更新不可轉移 owner。
+- 跨帳號協作由受控 RPC、trip membership 與獨立 shared workspace 提供，
+  不是單靠 `editor_uids` 或放寬私人表 RLS。
+- viewer 唯讀；editor 可編輯已啟用共享的安排；成員不能管理作者私人收藏。
+  作者私人筆記／標籤不在共享投影中，行程項目 note 是共享內容。
+- 協作啟用時複製排入內容到一份共用 workspace，之後大家修改同一份共享資料。
+  原私人項目保留但不是另一份可自由編輯的協作來源。
+- 取消共享將**最新共享內容**轉回作者私人行程；撤銷所有成員／邀請。
+  不還原啟用前內容，不移除其他私人收藏。
+- 撤權在 server 阻擋新請求／收據重播；客戶端取得 revocation 後清除可讀快取，
+  尚未同步草稿留在 outbox 供匯出或丟棄，不能強制抹除別人已看過的資料。
 
-1. 尚未建立資料表時，執行 `supabase-schema-from-indexeddb.sql`。
-2. 執行 `supabase-basic-role-rls.sql`，建立角色與 owner 範圍政策。
-3. 執行 `supabase-owner-isolation.sql`，在單一交易內完成歸屬、關聯約束與 RLS。
+完整契約與安裝紀錄見[協作紀錄](trip-collaboration-rollout.md)。
 
-現有資料庫不需要重跑第一步。新版本角色脚本在沒有 owner 的表上預設拒絕存取，因此第二、三步之間可能暫時無法使用部分模組。
+## local／cloud／hybrid
 
-依使用者確認，既有沒有 owner 的區域、地點和標籤全數歸 `tanguitar8093@gmail.com`。既有行程 owner、使用者角色與 editor 清單不覆寫。若帳號不存在、owner 無效或既有關聯跨帳號，遷移整批回滾，需先處理資料再重試。腳本可重跑，舊版的廣泛存取政策全部移除。
+- standalone local 是不分使用者的獨立 IndexedDB，不是 RLS 或加密隔離，不隱式上傳。
+- cloud 由 Supabase grants/RLS/RPC 強制權限。
+- hybrid 使用 project/user 分庫、帳號 guard、持久 outbox 與自動同步；
+  這是應用程式快取隔離，不取代 server 授權。
+- 非管理員使用 hybrid/auto；管理員可切資料來源／同步模式。
+  Auth／角色確認與冷啟動離線登入限制仍存在。
+- 個人衝突使用整批 review；已確認共享衝突隔離該行程，保留其他個人與健康共享同步。
 
-## 權限與資料結構
+## 備份與覆蓋現況
 
-- 區域、地點、標籤、行程使用 `owner_uid`，預設由資料庫的 `auth.uid()` 指派；不接受 member 替其他帳號建立資料。
-- 行程項目、地點區域、地點標籤的 owner 由父資料推導。這些欄位是資料庫內部約束欄位，前端不需要傳入。
-- 複合外鍵強制同一 owner 的資料才能互相引用，包括標籤父節點。admin 也不能建立跨帳號引用；未來協作使用獨立遷移。
-- 一般更新不得更換 owner。admin 可以編輯其他使用者內容和 ACL，但本階段不提供轉移所有權。
-- 權限在 RLS 強制執行；已儲存的協作者清單本階段不提供他人存取。
-- 共用 TypeScript 模型與 local v1 備份維持原格式，owner 不作為可攜備份的授權資訊。
+第一階段曾暫停 cloud replace/clear/local-to-cloud；第二階段已恢復
+目前帳號範圍的 preview → token → apply 交易路徑。
+有共享／協作資料的帳號仍受覆蓋／清空守門，不可把 trip 改 private 來繞過。
+hybrid 的整批覆蓋／清空限制未解除，不能當作一般增量同步。
+私人 JSON 備份不包含完整共享 workspace／邀請／授權／收據，
+也不是完整 Supabase 還原備份。
 
-## 暫停與恢復
+## 2026-10-20 已知落差
 
-雲端覆蓋匯入、整批清空、本機→雲端搬移在 UI 與資料層停用；雲端匯出、雲端→本機搬移及 local 匯入／清空保留。admin 匯出會包含其可存取的全部資料。
+13 項 RLS policies 與工作區一致，但部分 live grants/default privileges 較寬，
+包含 `user_roles` 及備份等函式；不能將「RLS 一致」描述為所有權限已完全收斂。
+目前只完成唯讀 catalog 比對，沒有新授權修正或完整權限行為稽核。
+見[收斂計畫 A](database-version-convergence.md#a-優先權限收斂)。
 
-第二階段恢復本機→雲端匯入／覆蓋：限定目前帳號範圍，新增匯入處理 ID 映射，整批寫入使用伺服器交易，失敗回滾；分享推出後將共享資料排除在一般覆蓋範圍。自動雙向同步另需變更追蹤與衝突處理。
+## 歷史 SQL 的使用限制
 
-## 驗證
+`supabase-schema-from-indexeddb.sql`、`supabase-basic-role-rls.sql`、
+`supabase-owner-isolation.sql` 是歷史 bootstrap／第一階段來源，
+不是目前 live DB 的安裝順序。
+既有 schema、sync、distance、maps、collaboration 與取消修改不能被舊檔覆寫。
+新環境／既有環境均應先對照 [migrations](../supabase/migrations/)及 live catalog，
+只在核准、備份與隔離演練後執行所需增量。
 
-`npm run test:run` 使用 PGlite 執行實際 PostgreSQL schema、角色腳本與遷移，以兩個 member、一個 admin、一個 basic 模擬 API 的 authenticated 身分。
+舊資料歸屬修復需要明確的目標帳號與 `app.legacy_owner_email` 設定，
+不能在文件硬編個人帳號或不經審查批次改 owner。
+相關流程見[資料庫操作規範](database-psql-operations.md)。
 
-涵蓋舊資料歸屬、私人資料讀寫、無條件刪除隔離、owner 偽造、角色升級攻擊、跨帳號引用、admin 操作、ACL 不繞過隔離及腳本重跑。另驗證停用的資料層入口不發出任何雲端 API 請求。PGlite 測試無需雲端密鑰，不會觸碰實際資料；仍需在部署後驗證 Supabase 環境。
+## 驗證證據邊界
+
+[owner-isolation 測試](../src/database/owner-isolation.test.ts)使用 PGlite
+驗證角色、私人 owner、跨帳號拒絕與關聯；
+[共享整合測試](../src/database/shared-trip.integration.test.ts)補 shared scope、
+revocation、cancel 與同步。測試存在／通過不取代 live 部署和真實帳號驗收。
+目前具體結果與 E2E 未完成項見[測試紀錄](testing.md)。

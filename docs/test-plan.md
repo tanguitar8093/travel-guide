@@ -1,41 +1,60 @@
-# 測項清單
+# 測試計畫與未驗收項
 
-這份清單只列目前最值得先測的關鍵路徑，目標是先守住架構切換、資料安全與最容易出錯的核心邏輯。
+更新日期：2026-10-20。既有程式已涵蓋三種後端、同步及協作，
+這不是「從零開始補兩種後端測試」的清單。
+已執行結果見[測試紀錄](testing.md)，資料庫差異與交接見
+[收斂計畫](database-version-convergence.md)。
 
-## 目前狀態
+## 執行規則
 
-- 已有 Vitest 測試，且已覆蓋資料層、模式切換、backup 驗證與 phase-2 雲端流程安全。
-- 此文件定位為「優先順序與補測方向」，不是代表尚未有測試。
+先完成實作，再列出針對性檔案／指令請使用者批准。
+不自動跑 Vitest、型別檢查、build、lint、Git 檢查或 Playwright。
+只跑獲准範圍；文件變更本身不需要 production build。
 
-## 優先級 A：先做
+## 優先 A：資料庫權限與版本收斂（尚未實作）
 
-| 模組 | 測項 | 要驗證的行為 | 為什麼先測 |
-| --- | --- | --- | --- |
-| `src/database/index.ts` | 資料庫策略切換 | `indexeddb` 與 `supabase` 兩種模式下，`regions / places / labels / trips / itineraryItems / backupRepository` 都會走到對應實作 | 這是 Strategy 的核心，壞掉會直接影響整個資料層 |
-| `src/database/index.ts` | 資料庫門面匯出 | 公開 API 可正常從 barrel 匯入，避免 `runtime` 或 repository export 漏掉 | 可以提早抓到像這次 `useDatabaseMode` / 型別匯出缺失這類回歸 |
-| `src/database/runtime.ts` | 模式觀察與通知 | `setDatabaseMode()` 會更新目前模式、寫入 `localStorage`，且 `subscribeDatabaseMode()` 會收到通知 | 這是 Observer 的核心，會影響資料管理頁與所有依賴模式狀態的畫面 |
-| `src/modules/data-management/data-management.service.ts` | 備份解析與資料搬移 | `parseBackup()` 會拒絕非法 JSON；`replaceAllData()`、`transferLocalToSupabase()`、`transferSupabaseToLocal()` 會回傳正確 counts | 這是資料救援與同步功能，資料損壞成本最高 |
+- 隔離重現 live catalog 的額外 grants/default privileges，確認增量修正只影響批准物件。
+- anon/basic 拒絕、member 自有 CRUD、admin 既有管理、跨 owner 引用拒絕。
+- 備份 preview/token/apply、共享守門、個人同步、共享編輯與撤權持續可用。
+- 原子排序 API：完整／重複／缺少／跨日／跨 trip ID、跨帳號、
+  路程時間與距離失效、中途出錯回滾。
+- standalone local、cloud、hybrid 使用各自既有路徑，不繞過 outbox 或共享 guard。
+- 先測結構與行為，再於核准的隔離還原環境演練；線上安裝與測試另行批准。
 
-## 優先級 B：再補
+## 優先 B：釐清最新單視窗 E2E 失敗
 
-| 模組 | 測項 | 要驗證的行為 | 為什麼排後面 |
-| --- | --- | --- | --- |
-| `src/modules/label/label.service.ts` | 樹狀標籤與查詢 | `listTree()` 會正確組樹；`findPlaces()` 會依是否包含子標籤回傳正確地點 | 這是標籤階層的核心，但通常不會像資料切換那麼全面地影響系統 |
-| `src/modules/itinerary/itinerary.service.ts` | 行程排序與路線計算 | `addItem()` 會排到正確順序；`calculateTravelDuration()` 會先檢查前置條件，再更新 `travelDurationMinutes` | 這是使用者最常碰到的功能，且容易因順序或資料不一致而出錯 |
+最新附件顯示 B 找不到本輪共享行程，收尾時 browser/page 已關閉。
+目前根因未知，也不能確認該輪已清理。先看該輪日誌與附件，
+不要把失敗改成 skip，也不要把資料加入其他行程來讓測試通過。
 
-## 建議的最小測試順序
+- 等待條件應對準實際行程／授權／UI 就緒，不只看無關按鈕或延長固定等待。
+- 只能操作該輪獨特 trip；確認帳號、模式與 exact trip ID。
+- 不掩蓋原始錯誤；cleanup 失敗與 business assertion 分別記錄。
+- 瀏覽器被關閉或網路失敗不保證清理，保留未完成結果供人工處理。
+- 修正後由使用者決定執行 `npm run e2e:headed`；
+  未另行授權不自動登入或操作真實資料。
 
-1. 先測資料庫策略切換。
-2. 再測模式觀察通知。
-3. 接著測資料匯入匯出與搬移。
-4. 最後補標籤樹與行程邏輯。
+## 既有回歸基線
 
-## 備註
+| 範圍 | 參考測試 |
+| --- | --- |
+| facade／模式與帳號 | `index.test.ts`、`runtime.test.ts`、`database-mode-preference.test.ts`、`hybrid.backend.test.ts` |
+| 個人同步／凍結重試／衝突 | `local-sync.store.test.ts`、`sync-engine.test.ts`、`sync-conflicts.test.ts`、`auto-sync.integration.test.ts` |
+| SQL/RLS／備份 | `owner-isolation.test.ts`、`sync-cloud.test.ts`、`supabase-backup-safety.test.ts` |
+| route-map／刪除 | `route-map.repository.test.ts`、`route-maps-cloud.test.ts` |
+| 共享／撤權／取消 | `shared-trip.integration.test.ts`、`shared-trip.cloud.test.ts`、`shared-trip.repository.test.ts` |
+| 協作 UI 操作層 | `collaborative-itinerary.service.test.ts`、`shared-trip.service.test.ts`、`trip-collaboration.service.test.ts` |
+| 全站狀態 | `HybridStatus.test.tsx` |
 
-目前專案已使用 Vitest。後續建議是擴充 focused tests，維持「小步快跑 + 關鍵路徑優先」策略，而不是每次都跑完整大套件。
+資料庫測試位於 [src/database](../src/database/)，UI 操作層位於
+[src/modules/itinerary](../src/modules/itinerary/)，
+全站提示位於 [src/common](../src/common/)。
+存在測試檔不表示最新版本已跑過；依實際修改選最小集合，避免每次全跑。
 
-## 下一步 (立即)
+## 仍不能由隔離測試取代
 
-1. 跑 `git diff --check`。
-2. 跑 `npm run lint`。
-3. 針對 phase-2 操作跑一次手動驗證並紀錄在 [docs/testing.md](testing.md)。
+- 真實 Supabase Auth／PostgREST、部署環境變數與 build-time feature flags。
+- 真實 Google Maps/Routes、瀏覽器 Web Lock 與多裝置併發。
+- 手動驗收 cloud replace/clear 的 token、共享守門、admin 帳號範圍。
+- 登出／切帳號、離線草稿、取消成功但本機下載失敗、撤權後 export/discard。
+- 本機 Git revision、前端 deployment revision 與 live DB catalog 的分開確認。

@@ -1,3 +1,12 @@
+# 原始需求紀錄（歷史）
+
+以下保留最初的單機產品構想，不是現行部署／架構規格。
+2026-10-20 現況已是 React/TypeScript/Vite、Supabase Auth/Postgres、
+standalone IndexedDB 與 hybrid 自動同步，另有 trip-scoped 共同編輯。
+現況與下一步見 [progress.md](progress.md)、
+[architecture-notes.md](architecture-notes.md)與
+[database-version-convergence.md](database-version-convergence.md)。
+
 我想建立一個行程規畫表系統
 
 模糊需求:
@@ -18,16 +27,17 @@
 - 建立的過程後結果都會直接和資料庫同步, 不用事後才存檔
 
 概念:
-所有實作都在前端完全, 暫時沒有後端和 API,
+最初構想：所有實作都在前端完成，暫時沒有後端和 API。
+目前已接 Supabase Auth／Postgres/RPC，不能再以此句描述現行專案。
 概念上的大架構,會有: 資料庫, 邏輯層, UI
 實作順序匯市 資料庫 > 邏輯層 > UI
 理念是分別設計模組, 模組會支援開放封閉原則的擴充性, 以及最小改動類別的維護性,
 個別小功能開發完最終才會整合
 
 框架:
-預計會使用 typscript + react, 要先幫我安裝好初始環境
+當時預計使用 TypeScript + React；初始環境已建立，不是現在的待辦。
 
 起頭:
-已大致分幾類模組, 如 /home/tanguitar/workspaces/Travel/docs/modules.png
+當時先粗分模組；舊 modules.png 不在目前文件中，現行結構請見 architecture-current.mmd。
 會先從 database 模組開始設計, 設計完後會給所有模組使用, 一律要先定義好資料 schema, 其他模組 follow 此格式使用
 第二步預計設計 label 模組, 但如果有其他建議也可以改變順序

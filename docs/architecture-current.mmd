@@ -1,25 +1,42 @@
+%% Current working-tree architecture, 2026-10-20; not deployment evidence.
 flowchart TD
-  UI[UI Modules]
-  C[Controller]
-  S[DataManagementService]
-  CA[Cloud Adapter]
-  DBF[Database Facade]
-  RT[runtime state]
-  HOOK[useDatabaseMode hook]
-  IDB[IndexedDB repos]
-  SBR[Supabase repos]
-  SBC[supabase.client]
-  DB[(Supabase DB RLS)]
-  AP[AuthProvider]
-  AG[auth.gateway]
+  APP["App / routes / WorkspaceLayout"]
+  AUTH["AuthProvider / AuthGate / auth.gateway"]
+  UI["Feature UI / ItineraryEntry"]
+  CTRL["Controllers"]
+  SVC["Module services"]
+  FACADE["database/index.ts facade"]
+  MODE["runtime / admin mode access"]
+  LOCAL["Standalone IndexedDB repositories"]
+  IDB[("travel-planner / TravelDatabase v7")]
+  CLOUD["Supabase personal repositories"]
+  HYBRID["hybridBackend / LocalSyncStore"]
+  SYNCDB[("project/user SyncDatabase v9<br/>personal data / outbox / baselines / conflicts / shared cache")]
+  ENGINE["sync-engine / Web Lock / account guards"]
+  SCHED["hybrid.runtime automatic scheduler"]
+  ADAPTER["syncCloudAdapter / sharedTripCloud"]
+  CLIENT["supabase.client"]
+  DB[("Supabase Postgres / grants / RLS / RPC<br/>personal / sync / collaboration scopes")]
+  SHARED["SharedTripService / SharedTripRepository"]
+  ACL["TripCollaboration service/repository<br/>online invitation / membership"]
+  OBS["liveQuery / HybridStatus / shared snapshot subscriptions"]
+  BACKUP["Data management preview/token/apply<br/>explicit overwrite, not incremental sync"]
 
-  UI --> C --> S
-  S --> DBF
-  S --> CA
-  DBF --> RT
-  UI --> HOOK --> RT
-  DBF --> IDB
-  DBF --> SBR --> SBC --> DB
-  CA --> IDB
-  CA --> SBR
-  AP --> AG --> SBC
+  APP --> AUTH --> CLIENT
+  APP --> UI --> CTRL --> SVC
+  AUTH --> HYBRID
+  SVC --> FACADE
+  FACADE --> MODE
+  FACADE --> LOCAL --> IDB
+  FACADE --> CLOUD --> CLIENT
+  FACADE --> HYBRID --> SYNCDB
+  HYBRID --> SCHED --> ENGINE
+  ENGINE --> SYNCDB
+  ENGINE --> ADAPTER --> CLIENT --> DB
+  SVC --> SHARED
+  SHARED --> HYBRID
+  SHARED --> ADAPTER
+  SVC --> ACL --> CLIENT
+  SVC --> BACKUP --> CLOUD
+  BACKUP --> LOCAL
+  SYNCDB --> OBS --> UI

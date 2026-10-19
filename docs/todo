@@ -1,126 +1,78 @@
 # Travel Guide TODO
 
-## 0) 工作準則 (固定)
+更新日期：2026-10-20。這份清單是當前待辦；歷史安裝與測試證據分別保留在
+[協作紀錄](trip-collaboration-rollout.md)及[測試紀錄](testing.md)。
 
-- [ ] 功能改完預設不跑 Playwright；只在流程驗證需要時才跑。
-- [ ] 不用跑 npm run build。
-- [ ] 最少驗證：git diff --check、npm run lint。
-- [ ] 避免會卡住或高成本但低價值的多餘指令。
-- [ ] 整理文件
-      docs 中有設計過渡期的文件和過時的文件:
-      過時的: 評估是否有必要更新或直接刪掉
-      過渡期的: 直接刪掉
+## 0. 工作準則
 
-只留可以整合進專案憲法的文件
+- 實作完成後，先提出檢查範圍並取得批准，再跑測試、型別檢查、
+  Playwright、build、lint 或 Git 檢查。不預設必跑 lint／diff。
+- 查閱專案 Markdown 前先取得具體文件授權；歷史文件不等於當前規格。
+- 資料異動需考慮 standalone local、cloud、hybrid。
+  Hybrid 沿用 facade／outbox／自動同步，不新增默默漏同步的 cloud-only 寫入。
+- 線上 DB 修改與部署另行批准。備份需隔離還原演練，不重播 baseline。
+- 不因文件過時就刪除有用的安裝、回復與驗證紀錄；標明歷史與現況。
 
-## 1) 本輪已完成 (可追蹤)
+## 1. 已實作主線（不等於全部人工驗收）
 
-- [x] Auth 註冊 + 角色 gate (basic 不進工作區、member/admin 可用)。
-- [x] Supabase owner isolation 主線落地。
-- [x] region/label/place/trip/itinerary item 建立流程統一補齊 UUID，修掉 id=null 連環錯誤。
-- [x] 雲端覆蓋/清空/本機轉雲端第二階段流程恢復：preview -> token -> apply。
-- [x] SQL RPC 已部署腳本化：見 [docs/supabase-phase2-safe-import.sql](docs/supabase-phase2-safe-import.sql)。
-- [x] 高價值測試補強與調整，phase-2 focused tests 已通過。
+- [x] Email/password 註冊登入與角色 gate：basic 不進工作區，member/admin 可用。
+- [x] 雲端 owner isolation、同 owner 關聯與建立流程 UUID。
+- [x] Cloud preview/token/apply 的目前帳號覆蓋／清空流程。
+- [x] 單機／雲端／混合三條資料路徑；非管理員使用 hybrid/auto，
+  管理員可切換來源與同步模式，預設 hybrid/auto。
+- [x] 持久 outbox、自動排程、前景補拉、網路退避、Web Lock、帳號隔離與個人衝突處理。
+- [x] 路程試算、儲存地圖與額外標記、行程連動地圖刪除。
+- [x] Email 站內邀請、接受、角色變更、移除成員、退出及共同編輯開關。
+- [x] 原行程 UI 共用 shared workspace；只共享排入地點的公開欄位，不共享私人筆記／標籤收藏。
+- [x] 取消共享保留最新內容，撤權傳遞與草稿保留。
 
-## 2) 目前進行中 (收尾驗證)
+## 2. 本輪共享收斂
 
-- [ ] Member: 驗證 preview/apply replace 成功，筆數與預覽一致。
-- [ ] Member: 驗證 preview/apply clear 成功，清空後為 0。
-- [ ] Member: 驗證 token 過期防護 (預覽後資料變更再 apply 應被擋)。
-- [ ] Member: 驗證共享/協作 trip 存在時，replace/clear 都被拒絕。
-- [ ] Admin: 重跑同一組驗證，確認仍只影響自己的資料範圍。
+- [x] 共享行程混合刪除順序修正：SQL 已安裝，當次 49 tests。
+- [x] 共享衝突隔離：當次 96 tests，其他私人／健康共享操作仍可同步。
+- [x] 取消、撤權與重試補強：當次 90 tests、TypeScript 檢查通過。
+- [x] 線上 catalog 唯讀盤點：核心共享函式一致，基礎結構仍有差異。
+- [ ] 依[資料庫版本收斂計畫](database-version-convergence.md)處理：
+  - [ ] 優先收斂表／函式與 default privileges 的權限差異。
+  - [ ] 補雲端原子排序 API，不再只依賴逐筆 fallback。
+  - [ ] 逐項決定欄位、驗證限制、歷史函式／觸發器的處置。
+  - [ ] 建立可信版本追蹤；另查 Git 與實際前端部署版本。
+  - [ ] 新備份／隔離演練／精確安裝批准／安裝後驗證。
+- [ ] 釐清最新 E2E「B 找不到本輪共享行程」與瀏覽器已關閉的收尾錯誤。
+- [ ] 確認失敗那輪的結果／殘留資料，不能因有 cleanup code 就標記清理完成。
 
-## 3) 下一步 (你明天先做這些)
+## 3. 人工驗收仍待追蹤
 
-- [ ] 在 UI 走一輪 data-management 三個路徑：
-  1. 匯入覆蓋雲端 (replace)
-  2. 清空雲端 (clear)
-  3. 本機轉雲端 (transfer)
-- [ ] 記錄每一步預期與實際結果，特別是錯誤訊息是否可理解。
-- [ ] 若有任一失敗，先保留 payload + 畫面訊息，再回頭補 service/repository 測試。
-- [ ] 把本輪手動驗證結論寫進 [docs/testing.md](docs/testing.md)。
+- [ ] Member/admin 的 cloud replace／clear：預覽、筆數、stale token、共享守門及帳號範圍。
+- [ ] 真實登入、離線修改／恢復、兩裝置衝突、viewer／editor／撤權、帳號切換。
+- [ ] 驗證待同步草稿不被刷新覆蓋，權限降級後不能重送，重新授權不自動丟失衝突草稿。
+- [ ] 檢查最新前端在 local／cloud／hybrid 的原行程 UI、地圖、排序與取消流程。
+- [ ] 修正後由使用者決定何時執行可見的單視窗 E2E；未授權不跑真實帳號。
 
-## 4) OAuth / 角色管理待辦
+自動同步已實作，不再沿用「6A～6D 尚未開放」的舊階段清單。
+目前退避延遲有上限與 jitter，但重試總次數沒有硬上限；
+不得把此描述成有限次重試。私人衝突暫停自動排程，共享確認衝突只隔離該行程。
 
-- [ ] 串接 Google OAuth 登入。
-- [ ] 確認 user_roles 與註冊預設角色流程一致。
-- [ ] 驗證 basic -> member 升級流程與降級回 basic 的即時失權。
-- [ ] 定義 admin 升降級介面與操作紀錄需求。
+## 4. 產品與後續功能
 
-## 5) 權限與分享功能規劃待辦
+- [ ] Google OAuth（目前是 Email/password）。
+- [ ] basic/member/admin 升降級的即時失權驗收、管理介面與稽核需求。
+- [ ] 共享資料跨模組重用／獨立匯入的產品決策，見[議題](issue.md)。
+- [ ] 公開行程瀏覽／預覽／使用的獨立產品設計，見[原始提案](record)。
+  目前的受邀協作不等於公開行程。
 
-- [ ] 分享行程 (readonly) 功能設計與資料模型定稿。
-- [ ] 協作行程功能設計：editor 權限、可見範圍、衝突策略。
-- [ ] 評估「分享行程是否要連帶暴露相關 places/labels/regions」。
-- [ ] itinerary 模組加上「分享/瀏覽入口」與權限導向 UI。
+## 5. 權限與持久化邊界
 
-## 6) 風險清單 (實作前必檢)
+- basic：Auth 狀態不等於業務存取權；工作區拒絕。
+- member：私人資料限自有，經邀請接受後取得指定 trip 的 viewer/editor 權限，
+  不是對作者整個 region/place/label 收藏的權限。
+- admin：保留既有跨 owner 管理能力，但同 owner 關聯約束與 server 驗證仍適用；
+  hybrid 個人同步不是跨 owner 管理替代品。
+- standalone local 不隱式上傳，不支援跨帳號協作；共享權限管理是明確的在線操作。
+- 不提供冷啟動離線登入、即時跨裝置推送或 shared saved route-map 編輯保證。
 
-- [ ] 資料層：新增權限欄位不破壞既有 local/supabase schema 對映。
-- [ ] 同步層：local <-> cloud 覆蓋邊界明確，不影響他人資料。
-- [ ] 邏輯層：每個 operation 需通過 role + ownership 雙重檢查。
-- [ ] UI 層：local mode 隱藏所有跨帳號分享/協作入口。
+## 6. 交接入口
 
-## 7) MVP 權限矩陣 (目前共識)
-
-- [ ] basic：可登入與讀 auth 狀態；不可讀寫業務資料。
-- [ ] member：可讀寫自己資料；可瀏覽他人分享行程(唯讀)；可發起分享/協作。
-- [ ] admin：可讀寫全域資料；可管理分享/協作與角色升降級。
-
-## 8) 自動同步任務規劃（依據 [docs/local-first-sync-design.md](docs/local-first-sync-design.md) 與 [docs/local-first-sync-phase5-review.md](docs/local-first-sync-phase5-review.md)）
-
-> 目標：在現有 React → repository → Dexie 本機資料＋待同步佇列 → 同步引擎 → Supabase RPC 架構上，追加自動同步功能，沿用手動同步已有的版本檢查、安全重送、跨分頁鎖與帳號隔離；第六階段採 6A → 6B → 6C → 6D 逐段交付，並在每段完成後等待使用者 review 後再往下做。
-
-### 8.1) 6A：模式與全站警告
-
-- [ ] 新增自動／手動切換，保存使用者偏好，預設仍為手動。
-- [ ] 在全站展示同步衝突警告與處理入口，讓使用者可從其他頁面直接進入處理。
-- [ ] 刷新頁面時保留模式設定；確保自動選項先標示尚未開放，避免使用者誤以為已啟用。
-- [ ] 驗收重點：模式切換正確、設定保留、全站警告入口可用。
-
-### 8.2) 6B：基本自動同步
-
-- [ ] 開放自動模式，並在本機交易成功後啟用 2 秒 debounce。
-- [ ] 連續修改最多 10 秒內觸發一次同步，不讓快速連續修改造成大量請求。
-- [ ] 與手動同步共用同步引擎與鎖，避免雙重排程或重入問題。
-- [ ] 手動模式完全不啟用背景同步。
-- [ ] 驗收重點：修改後自行上傳、快速連續修改不密集發請求、手動模式不背景傳輸。
-
-### 8.3) 6C：生命週期與重試
-
-- [ ] 監聽開啟自動模式、恢復連線、回到前景時同步，並在前景每 4 分鐘補拉雲端變更。
-- [ ] 實作網路錯誤的有限指數退避與 jitter，避免重試無限循環。
-- [ ] 離線時保留本地修改，重連後可恢復自動同步。
-- [ ] 實作登出、切帳號、切手動時停止排程。
-- [ ] 權限錯誤不無限重試，需明確顯示錯誤原因。
-- [ ] 驗收重點：離線修改保留、連線後恢復、排程正確停止、權限錯誤不重試放大。
-
-### 8.4) 6D：畫面與衝突整合
-
-- [ ] 下載後刷新資料畫面時，保護未儲存的表單草稿，避免被清空。
-- [ ] 發現衝突時立即警告並暫停自動同步，沿用既有整批衝突處理流程。
-- [ ] 確保兩個瀏覽器修改同一筆資料時，不互相覆蓋；處理完衝突後可恢復自動同步。
-- [ ] 驗收重點：草稿不被刷新抹掉、衝突即時阻止覆蓋、處理完成後重新可用。
-
-### 8.5) 共用驗收要求
-
-- [ ] 依照設計採用事件驅動同步 + 定期補拉 + 退避重試，將時間參數維持為初始值並可依量測調整。
-- [ ] 各階段需同時驗證：同步成功、離線保留、重試恢復、衝突警告、跨分頁鎖、帳號隔離。
-- [ ] Browser 關閉／休眠期間不保證同步；重新開啟後由持久佇列恢復。
-- [ ] 不增加 service worker 或 PWA 冷啟動承諾；本階段僅擴充前端同步排程與生命週期管理。
-
-### 8.6) 交付節奏
-
-- [ ] 先完成 6A，停止等待使用者 review。
-- [ ] 6A 通過後再執行 6B，依此類推。
-- [ ] 每個小階段都要附上：修改檔案、檢查結果、未跑項目、使用者 review 結果、限制與回退方式。
-- [ ] 最終不以 mock 或單一 PGlite 結果代替實際跨裝置／瀏覽器驗證；未執行時要明確標示。
-
-### 8.7) 相關文件
-
-- [docs/local-first-sync-design.md](docs/local-first-sync-design.md)
-- [docs/local-first-sync-phase5-review.md](docs/local-first-sync-phase5-review.md)
-- [docs/local-first-sync-phase3-review.md](docs/local-first-sync-phase3-review.md)
-- [docs/local-first-sync-phase4-review.md](docs/local-first-sync-phase4-review.md)
-
-這份規劃是專門為自動同步第六階段準備的實作與驗收藍圖，後續每次執行都應以 6A→6B→6C→6D 的順序逐段完成，不直接跳過。
+下一個對話從[線上資料庫與版本一致：收斂計畫](database-version-convergence.md)
+的「新對話接手入口」開始。文件已列出下一步 prompt、差異物件、
+實作入口、估時與批准／驗收門檻，不需依賴原會話私有檔案。

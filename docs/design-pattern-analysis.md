@@ -2,14 +2,18 @@
 
 這份紀錄只整理目前這個專案中，真的有機會帶來結構收益的地方。重點不是把每個地方都硬套模式，而是找出「現在的架構已經有模式雛形」或「未來演進時，模式會明顯降低耦合」的區域。
 
+更新日期：2026-10-20。這是模式分析，不是新的重構批准。
+現行架構見 [architecture-notes.md](architecture-notes.md)，
+優先工作是[資料庫版本收斂](database-version-convergence.md)，不是再加一套 framework。
+
 ## 整理表格
 
 | 模式      | 適用位置                                                                                       | 為什麼適合                                                           | 預期收益                                 | 建議優先度 |
 | --------- | ---------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- | ---------------------------------------- | ---------- |
-| Strategy  | `src/database/index.ts`、`src/database/runtime.ts`                                             | 已經有 IndexedDB / Supabase 兩套同介面後端，且已用策略登錄表封裝切換 | 降低資料來源切換成本，新增後端較容易     | 最高       |
+| Strategy  | `src/database/index.ts`、`src/database/runtime.ts`                                             | 已有 IndexedDB / Supabase / hybrid 三條路徑與策略登錄表 | 保持來源切換與資料邊界一致 | 已落地，優先維護 |
 | Observer  | `src/database/runtime.ts`                                                                      | `subscribeDatabaseMode` 已具備訂閱模型                               | 模式變更可同步到多處，不用手動輪詢       | 高         |
 | Composite | `src/modules/label/label.service.ts`                                                           | Label 本身就是樹狀結構                                               | 樹節點與子樹操作更一致，方便階層功能擴充 | 中         |
-| Command   | `src/modules/data-management/data-management.service.ts`                                       | 匯出、匯入、覆蓋、清空都是明確動作                                   | 方便加確認、記錄、重做/復原或背景執行    | 中         |
+| Command   | `src/database/local-sync.store.ts`、資料管理 service | hybrid 已持久化 operation/outbox；匯入覆蓋另有 token 交易 | 保留請求 identity、順序與重試安全，不代表通用 undo/redo | 維護既有，不增框架 |
 | Adapter   | `src/modules/place/google-places.service.ts`、`src/modules/itinerary/itinerary-map.service.ts` | 外部地圖供應商已直接耦合到上層功能                                   | 未來替換供應商時可減少上層改動           | 中低       |
 
 ## 優先候選
@@ -20,17 +24,17 @@
 
 原因：
 
-- 專案已經有兩套實作，IndexedDB 與 Supabase，對外提供相同的 repository 介面。
+- 專案已有 standalone IndexedDB、direct Supabase 與帳號隔離 hybrid 路徑，對外沿用 facade。
 - 上層模組不需要知道資料來源細節，只要呼叫同一組方法即可。
 - 這種「相同介面、不同演算法或後端實作」非常符合 Strategy。
 
 適用效益：
 
-- 未來如果再加離線快取、測試假資料後端，擴充成本會比較低。
+- hybrid 本機快取與 outbox 已實作；今後擴充須沿用同一安全邊界。
 - 切換資料來源時不需要到處改業務模組。
 - 目前的條件分支可以更有結構地收斂到單一選擇點。
 
-結論：這是最值得正式化的模式，而且目前已經落地成策略登錄表，不再只是概念。
+結論：策略登錄表已落地；重點是維持三種模式與共享 adapter 的一致性，不再把 hybrid 當未來後端。
 
 ### 2. Observer：資料庫模式與全域狀態變化
 
@@ -38,7 +42,7 @@
 
 原因：
 
-- `subscribeDatabaseMode` 已經是觀察者模式的核心行為。
+- `subscribeDatabaseMode`、hybrid status 與 Dexie liveQuery 已是實際觀察者路徑。
 - 資料庫模式變更屬於全域事件，理論上會影響多個畫面與操作流程。
 - 登入狀態、主題、工作區模式這類全域狀態也適合同樣思路。
 
@@ -48,7 +52,7 @@
 - 狀態變更時，影響面可以由訂閱者自行處理。
 - 對 UI 反應式更新會更自然。
 
-結論：目前已有雛形，不一定要大改，但很適合沿著這個方向整理。
+結論：已有實作；應維護帳號切換取消訂閱、狀態與未儲存草稿的邊界，不必增加全域事件框架。
 
 ### 3. Composite：標籤樹
 
@@ -76,7 +80,8 @@
 
 - 匯出、匯入、覆蓋、清空、搬移資料，都是明確的使用者動作。
 - 這些動作通常有副作用，且常常需要確認、記錄、回復或排程。
-- 現在是 service 直接執行，簡單可行，但職責偏向「動作集合」。
+- 資料管理是 service 編排 preview/token/apply；hybrid 個人與共享修改另有持久 operation/outbox。
+  兩者不是同一種資料搬移，也不能把整批 import 當成 incremental sync。
 
 適用效益：
 
@@ -84,7 +89,8 @@
 - UI 只需要發出命令，不必知道內部如何執行。
 - 可把「確認執行」與「實際執行」拆開。
 
-結論：如果資料管理功能會持續擴張，這是很值得考慮的模式。
+結論：已有命令式 operation 與凍結重試基礎，不支援通用復原／重做；
+不要為套模式而破壞收據、依賴順序或新增平行佇列。
 
 ### 5. Adapter：Google Places 與地圖供應商
 
@@ -120,8 +126,8 @@
 
 ## 建議優先順序
 
-1. 先把資料庫後端切換視為 Strategy 正式整理。
-2. 再觀察資料庫模式切換與其他全域狀態要不要收斂成 Observer。
+1. 維護已存在的三路 Strategy，先處理已確認的線上版本與權限差異。
+2. 維護既有 Observer/liveQuery 的帳號與 UI 草稿邊界。
 3. 如果之後要強化樹狀操作，再把 Label 領域往 Composite 的方向整理。
 4. 若資料搬移與同步功能繼續長大，再導入 Command。
 5. 若外部地圖供應商可能更換，再抽 Adapter。

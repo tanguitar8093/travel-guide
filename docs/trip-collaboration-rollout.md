@@ -8,6 +8,44 @@ now supports item editing and hybrid queued drafts after explicit activation.
 It does not provide shared saved route-map editing, offline cold login or
 instant multi-user push updates.
 
+### Current handoff and live catalog reconciliation — 2026-10-20
+
+The next conversation should start from
+[database version convergence](database-version-convergence.md), which records
+the exact remaining tasks, source entry points, approval gates and handoff prompt.
+No further database migration was implemented or installed during this
+documentation refresh.
+
+The separately approved read-only catalog comparison found all 20 expected
+application tables, 13 matching RLS policies, 50 matching indexes and all 55
+expected matching triggers. The sync, invitation/v2, shared editing,
+cancellation and shared-guard functions match working-tree migration definitions
+and checked execute/security settings, including the trip-delete-order fix.
+It did not read business/account rows or inspect Git/frontend deployment.
+
+This is not full version equivalence: grants/default privileges are wider for
+some baseline objects, the reorder RPC is absent (the direct-cloud client has
+a non-atomic row-update fallback), some baseline columns/checks differ,
+4 old functions/8 extra triggers remain, and no `supabase_migrations` schema
+is present. PostgreSQL/PGlite NOT NULL catalog representation differences are
+not missing constraints. These differences must be reconciled individually,
+not by replaying the baseline or fabricating migration history.
+
+### Browser/E2E evidence — current limitation
+
+The user previously reported manual success for the single-window invitation,
+B-edit/leave, cloud observation and hybrid-delete/restore flow. The latest
+provided failure attachment instead reports that B cannot find this run's shared
+trip, followed by a closed page/context/browser error during cleanup.
+The latest run therefore cannot be marked passed or fully cleaned up.
+The cause and leftover trip/mode state have not been verified.
+
+The maintained scenario and commands are described in [testing](testing.md).
+No new browser execution, real-account login or business-data cleanup occurred
+in the conflict-isolation, lifecycle or documentation phases.
+Earlier installation counts/empty-table statements below describe the original
+installation instant, not current production inventory or later user testing.
+
 ### Cancellation, revocation and retry convergence
 
 Source and this document were compared for cancellation copy-back, access
@@ -55,12 +93,11 @@ explicit recovery after regrant, and old invitation/receipt replay. An old
 cancellation receipt acknowledges only that past operation; it cannot cancel
 a freshly activated shared generation.
 
-The earlier local/cloud/hybrid section describes the original preview slice.
-Its no-cache/future-coediting statements do not describe the subsequently
-implemented shared-editing slice below. The original-renderer/cancellation
-section remains the copy-back contract; this section records its new client
-retry and access-refresh corrections. None of these checks establish live
-deployment/version consistency, browser behavior or cross-device timing.
+The local/cloud/hybrid section below describes current preview and editing
+boundaries. The original-renderer/cancellation section remains the copy-back
+contract; this section records its new client retry and access-refresh corrections.
+None of these checks establish frontend deployment, browser behavior or
+cross-device timing; the later live catalog comparison is structural only.
 
 ### Shared-conflict isolation correction
 
@@ -226,7 +263,9 @@ Original-renderer frontend regressions remain unrun, including owner visibility
 and shared operations through the original controller, frozen form versions,
 viewer denial and map inputs. The private hybrid download/revoked-draft SQL
 and storage regressions were subsequently run in the deletion correction above.
-Frontend build and authenticated two-browser acceptance remain unverified;
+The later lifecycle TypeScript check passed for the then-current source, but
+these original-renderer regressions were not included in that focused suite.
+Frontend build and authenticated multi-device acceptance remain unverified;
 isolated PostgreSQL results do not establish frontend or cross-device behavior.
 
 The initial implementation did not connect to or change live Supabase.
@@ -259,28 +298,35 @@ Do not revert those as part of collaboration recovery.
 
 - Standalone IndexedDB data is never implicitly uploaded. The collaboration
   service rejects pure local mode with a visible explanation.
-- Cloud mode uses the authenticated collaboration RPC.
-- Hybrid mode previews the cloud's latest authorized trip and manages online
-  ACL operations; an unsynced local trip is not silently uploaded or copied.
-  Personal content writes still use the existing facade/outbox/automatic-sync
-  mechanism.
-- This preview does not cache shared trip contents or invitations in
-  IndexedDB. Closing the preview drops the React state. There is no promise
-  of offline access, instant push updates, or deletion of information another
-  person has already viewed.
-- Opening the preview or reloading it checks access again. Membership removal
-  blocks subsequent RPC access. Already displayed information is not
-  retroactively erased from another device while it remains offline.
-- The future co-editing release must extend the sync protocol with shared
-  scope, ACL-version checking, grant/revoke delivery, conflicts and
-  account-isolated local caches. Enabling ordinary private outbox uploads
-  against another owner's records is not an acceptable substitute.
+- Direct cloud mode uses authenticated RPCs for ACL and activated shared
+  editing; private content retains the personal repositories.
+- Hybrid manages ACL online and caches activated shared snapshots in the
+  project/user-isolated `sharedItineraries` store. Shared drafts and personal
+  operations use the existing outbox, engine and automatic scheduler.
+  Enabling/cancelling shared editing refuses existing pending operations;
+  cancellation also rechecks after fetching the latest version.
+- The management preview/invitations remain online React state, distinct from
+  the persisted activated shared cache. An unsynced local trip is not silently
+  uploaded merely by opening collaboration management.
+- Member uses hybrid/auto; admin can select local/cloud/hybrid and manual/auto.
+  Defaults are hybrid/auto, not DEV-only or manual-only. Standalone local data
+  is not implicitly migrated.
+- Server membership removal blocks subsequent access and receipt replay.
+  The next successful shared snapshot download removes readable revoked cache,
+  retains outbox drafts and updates viewer permissions. Private conflicts pause
+  automatic scheduling, but explicit reload/sync obtains shared snapshots before
+  applying personal events.
+- There is no cold-offline-login, instantaneous cross-device push or retroactive
+  erasure promise. Shared protocol, revision checks, revocation and isolated
+  cache are implemented, not future work; shared saved-map editing/global
+  shared place/region/label libraries remain outside the accepted slice.
 
 ## Feature flag
 
 `VITE_TRIP_COLLABORATION_ENABLED` must equal the literal string `true` to render
-the itinerary's collaboration preview entry and allow client RPC calls.
-Unset or `false` leaves current application behavior unchanged.
+the itinerary's collaboration-management entry and allow client RPC calls.
+Unset or `false` hides this entry and does not undo activated server workspaces
+or grant access to retained private scheduling rows.
 
 It is a Vite build-time setting. Update the deployment configuration and
 rebuild/redeploy to change it. A feature flag is not authorization; the RPC
@@ -311,8 +357,9 @@ The user approved explicit per-trip activation with a separate shared source:
 - The normal itinerary selector opens the same authorized shared document for
   both users using the original itinerary UI. Editors can add a selected personal place (only public map/name
   fields), edit items, move dates, remove items, reorder and estimate travel.
-  Viewers cannot mutate. Shared trip metadata/deletion and shared saved route
-  maps are not provided by this slice. Owner route-calculator markers read
+  Viewers cannot mutate. Editors cannot change/delete trip metadata; owners
+  retain original trip metadata/delete controls and the shared-delete fix.
+  Shared saved route-map editing is not provided. Owner route-calculator markers read
   the current shared itinerary rather than the retained original rows.
 - Cloud writes check the whole document revision and authorization inside the
   same advisory-locked transaction. Concurrent edits produce an explicit
@@ -367,10 +414,12 @@ anonymous requests with HTTP 401 / SQLSTATE 42501. The local itinerary URL
 responded HTTP 200 and served the enabled feature flag. No application
 deployment to a hosting provider was performed.
 
-No production trip was activated or shared test content written by this work;
-the live shared workspace count was zero at verification. The owner must use
+At the original shared-editing installation no production trip was activated
+or shared test content written as its deployment test; the workspace count was
+zero then. Later E2E/user operations are not covered by that historical count.
+The owner must use
 **Collaboration management -> Enable shared editing**. After acceptance, users
-choose the shared trip in the itinerary scope selector and can edit if their
+choose the shared trip in the normal itinerary selector and can edit if their
 role allows it. Initial hybrid recipients may need **Reload/sync shared trips**.
 
 Disabling the switch alone does not undo
@@ -438,13 +487,18 @@ previously rehearsed recovery procedure. Restoring an earlier backup can lose
 legitimate writes made after that backup; that requires an explicit recovery
 decision, not an automatic script.
 
-## Manual acceptance in an isolated environment
+## Historical preview-only acceptance in an isolated environment
+
+This list applies with collaboration enabled and shared editing disabled.
+For the current activated original-renderer flow and latest failed run, see
+[Playwright/manual evidence](testing.md). Do not use this preview-only checklist
+as full collaborative editing acceptance.
 
 1. With the flag unset, confirm the original itinerary/route calculator and
    local/hybrid sync behave as before.
 2. Apply the incremental migration only to the isolated database.
 3. Enable the preview flag and use two existing member accounts.
-4. Open **Itinerary -> Collaboration preview**. Use the recipient's existing
+4. Open **Itinerary -> Collaboration management**. Use the recipient's existing
    registered email; no directory of private emails is exposed.
 5. Invite that email as a viewer. Confirm access is denied before acceptance.
 6. Accept as the recipient. Confirm only that trip's scheduled places and
@@ -459,8 +513,9 @@ decision, not an automatic script.
 10. Disable the flag and apply the approved feature-shutdown script in staging.
     Verify original records and original owner CRUD still work.
 
-The UI explicitly labels this as a read-only preview even for editor members.
-Do not present this acceptance list as full collaborative editing acceptance.
+With shared editing disabled this is a read-only preview even for editor members.
+With it enabled, accepted editors can mutate only after owner activation using
+the original itinerary renderer; viewers remain read-only.
 
 ## Authorized backup and restore rehearsal — 2026-10-19
 

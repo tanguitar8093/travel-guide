@@ -1,129 +1,161 @@
-# 測試與推送門檻
+# 測試方式、證據與限制
 
-這份文件說明目前專案的測試方向、執行方式，以及 `git push` 前的自動檢查。
+更新日期：2026-10-20。測試計畫見 [test-plan.md](test-plan.md)，
+新對話交接與線上差異見 [database-version-convergence.md](database-version-convergence.md)。
 
-## 目前已實作的測試項
+## 授權與工具
 
-| 測項 | 目標 | 重點 |
+- 實作完成後先列出針對性範圍，取得批准再執行。
+  不預設每次必跑 lint、Git diff/check、build 或 Playwright。
+- Vitest 負責單元／整合，PGlite 跑隔離 PostgreSQL/RLS，
+  fake-indexeddb/Dexie 跑持久佇列與本機交易；Playwright 跑使用者可見流程。
+- `npm run build` 包含 TypeScript 與 Vite 打包；`npx --no-install tsc -b`
+  只做型別／project 檢查，不等於 production build。
+- 套件與命令以 [package.json](../package.json) 為準。存在命令不表示獲准執行。
+- 沒有在本次文件整理執行任何新測試、build、lint、Git 或 live DB 檢查。
+
+獲准後可使用：
+
+```bash
+# 指定當次批准的測試檔；省略選擇器會變成整套，不能擅自擴大範圍
+npm run test:run -- <approved-test-files>
+
+# 僅在型別檢查也獲批准時
+npx --no-install tsc -b
+```
+
+同步相關歷次針對性測試使用：
+
+```bash
+VITE_TRIP_COLLABORATION_ENABLED=false \
+VITE_TRIP_SHARED_EDITING_ENABLED=false \
+NODE_OPTIONS=--experimental-websocket \
+npm run test:run -- <approved-test-files>
+```
+
+共享 SQL 整合會自行注入隔離 adapter；停用 flags 是避免私人回歸測試
+意外呼叫真實 Supabase，不表示沒有測共享 SQL。
+Node.js 20 曾用上述 websocket 選項；實際 runtime／工具相容性需按環境確認，
+不能直接把缺工具視為測試通過。
+
+## 已有測試範圍
+
+| 範圍 | 代表檔案 |
+| --- | --- |
+| facade／模式偏好 | [index](../src/database/index.test.ts)、[runtime](../src/database/runtime.test.ts)、[preference](../src/database/database-mode-preference.test.ts) |
+| 本機交易／帳號／排程 | [store](../src/database/local-sync.store.test.ts)、[hybrid backend](../src/database/hybrid.backend.test.ts) |
+| 個人同步／重試／衝突 | [engine](../src/database/sync-engine.test.ts)、[conflicts](../src/database/sync-conflicts.test.ts)、[automatic SQL integration](../src/database/auto-sync.integration.test.ts) |
+| 資料隔離／備份 | [owner isolation](../src/database/owner-isolation.test.ts)、[backup safety](../src/database/supabase-backup-safety.test.ts)、[data service](../src/modules/data-management/data-management.service.test.ts) |
+| 地圖／cascade | [route-map repository](../src/database/route-map.repository.test.ts)、[route-map SQL](../src/database/route-maps-cloud.test.ts) |
+| 共享生命週期 | [shared SQL integration](../src/database/shared-trip.integration.test.ts)、[shared cloud](../src/database/shared-trip.cloud.test.ts)、[shared repository](../src/database/shared-trip.repository.test.ts) |
+| 邀請與協作操作 | [collaboration SQL](../src/database/trip-collaboration-cloud.test.ts)、[collaborative service](../src/modules/itinerary/collaborative-itinerary.service.test.ts) |
+| 全站提示 | [HybridStatus](../src/common/HybridStatus.test.tsx) |
+
+標籤批次改色已使用逐筆 facade 更新、顯示成功／失敗並保留失敗選擇；
+不是整批原子更新。對應程式是
+[BulkColorToolbar](../src/modules/label/BulkColorToolbar.tsx)、
+[label service](../src/modules/label/label.service.ts)及
+[bulk-operation](../src/common/bulk-operation.ts)。
+目前不引用不存在的 BulkColorToolbar/bulk-operation 測試檔，也不聲稱其已驗證。
+
+## 已跑結果（每批範圍分開）
+
+| 階段 | 結果 | 不代表 |
 | --- | --- | --- |
-| `src/database/index.ts` | 資料庫門面匯出 | 驗證公開 API 可正常從 barrel 匯入，避免 export 漏掉 |
-| `src/database/runtime.ts` | 資料庫模式觀察 | 驗證 `setDatabaseMode()` 會更新模式並通知訂閱者，且未儲存偏好時預設為混合模式 |
-| `src/database/database-mode-preference.ts` | 使用者資料庫偏好 | 未設定時預設混合模式，保留既存單機／雲端／混合模式偏好及重新載入後的記憶 |
-| `src/database/backup.repository.ts` | 備份驗證 | 驗證 `validateImport()` 會接受合法備份並拒絕不合法資料 |
-| `src/database/supabase-backup-safety.test.ts` | 雲端覆蓋安全檢查 | 驗證 preview/apply token 守門與 RPC 呼叫路徑 |
-| `src/modules/data-management/data-management.service.test.ts` | Data Management 流程 | 驗證 Supabase replace/clear/transfer 的 preview->apply 流程 |
-| `src/database/owner-isolation.test.ts` | owner isolation 與角色條件 | 驗證 owner 隔離與角色邊界 |
-| `src/database/supabase-create-id.test.ts` | 建立資料時 UUID 行為 | 驗證建立路徑會補齊 id 避免 null insert |
+| 共享刪除修正 | 4 檔 49 tests 通過；精確 SQL 另經備份、隔離 PostgreSQL 17 演練並安裝 | 當次沒有 live 業務刪除／瀏覽器驗收 |
+| 共享衝突隔離 | 7 檔 96 tests 通過 | 當次未跑型別／build／lint／E2E／live DB |
+| 取消、撤權與重試補強 | 7 檔 90 tests，`tsc -b` 通過；測試 helper 型別修正後 29 項共享整合再通過 | 未跑 build／lint／E2E，沒有本階段線上業務操作 |
+| 線上版本盤點 | 唯讀 catalog：共享核心相符，另有基礎權限／結構差異 | 不是測試套件、不是前端部署比對、不是差異已修正 |
 
-實際測試檔：
-- [src/database/database-mode-preference.test.ts](../src/database/database-mode-preference.test.ts)
-- [src/database/index.test.ts](../src/database/index.test.ts)
-- [src/database/runtime.test.ts](../src/database/runtime.test.ts)
-- [src/database/backup.repository.test.ts](../src/database/backup.repository.test.ts)
-- [src/database/supabase-backup-safety.test.ts](../src/database/supabase-backup-safety.test.ts)
-- [src/modules/data-management/data-management.service.test.ts](../src/modules/data-management/data-management.service.test.ts)
-- [src/database/owner-isolation.test.ts](../src/database/owner-isolation.test.ts)
-- [src/database/supabase-create-id.test.ts](../src/database/supabase-create-id.test.ts)
+上述批次有重疊，不可加總成互不重複總測試數。
+早期 distance、route-map、共享與 Email 更新的 build／测试紀錄，保留於
+[資料庫操作](database-psql-operations.md)與[協作紀錄](trip-collaboration-rollout.md)，
+只對當時版本與批准範圍有效。
 
-## 執行方式
+## 現行自動同步契約
 
-### 標籤批次更新顏色
+- 非管理員使用 hybrid/auto；管理員可切來源／同步模式，無偏好時預設 hybrid/auto。
+  hybrid 不再限 DEV，登入會做帳號隔離準備；auto sync 可初始化／拉推資料。
+  不自動搬移 standalone local 資料。
+- 設定有 2 秒 debounce、10 秒 safety timer、前景 4 分鐘補拉、
+  online/focus/visibility 恢復與退避 jitter；timer 存在不等於所有連續輸入情況都有硬性 10 秒上限。
+- 網路重試延遲有上限，但總次數沒有硬上限；不能寫成有限次網路重試。
+- 私人衝突暫停自動同步；確認的共享衝突只隔離該 trip 的整條依賴链。
+  不確定成功／失敗的凍結請求仍須原請求重試，不可跳過或改 payload。
+- 撤權快照在 retry preflight 之後、私人事件之前下載；
+  私人衝突暫停 auto 時，使用者可明確重新載入／同步共享資料。
+- 剩下任何 outbox 任務時不提前更新「最近完整同步」。
+  瀏覽器關閉／休眠或冷啟動離線登入不保證背景同步。
 
-- 標籤分類的「批次更新」與「批次刪除」並列；進入後可勾選、全選目前搜尋結果、清除選取及取消。
-- 選擇預設色或自訂色，再按「套用顏色」。僅修改勾選標籤的顏色，不自動更新子標籤、不改名稱、階層或地點關聯。
-- 搜尋隱藏的已選標籤仍會更新，工具列會顯示隱藏筆數；處理中停用選取及批次操作。
-- 沿用資料庫 facade 的單筆更新，逐筆執行而非整批交易；顯示成功與失敗筆數及失敗原因，成功項目取消勾選、失敗項目保留以便重試。
-- 帳號、資料庫模式或混合模式儲存區變更時停止後續操作；已送出的請求無法取消，已成功的更新不回復。
-- focused tests：`npm run test:run -- src/modules/label/label.service.test.ts src/modules/label/BulkColorToolbar.test.tsx src/common/bulk-operation.test.ts src/common/bulk-delete.test.ts`
+## Playwright：可版控、單視窗、由使用者執行
 
-- 一般執行：`npm test`
-- 單次執行：`npm run test:run`
-- 靜態檢查：`npm run lint`
-- 變更後最小檢查：`git diff --check` + `npm run lint`
+目前設定見 [playwright.config.ts](../playwright.config.ts)。
+Chromium 一個 worker、不自動 retry、5 分鐘案例 timeout，
+單視窗依序登入 A/B。截圖、影片、HTML、步驟 heartbeat 與結果 JSON 留存。
 
-## 推送前檢查
+### 安裝與命令
 
-### 自動同步正向回歸（2026-10-18）
+使用 repository 現有 lockfile 安裝依賴；Linux 系統依賴需要使用者的安裝權限。
+新電腦可由使用者執行：
 
-- 混合模式現已解除 DEV-only 限制：正式版也會在 member/admin 驗證後準備帳號隔離的本機資料庫，顯示混合模式選項並恢復既存偏好。
-- 正向整合測試以 `DEV=false` 執行；另驗證正式環境 member 可初始化，basic 仍被拒絕。該次驗證時預設仍為 Supabase，後續預設值調整見下一項；自動同步仍需使用者自行選擇。
-- 後續預設值調整：未儲存資料庫模式偏好時改用混合模式；已儲存的單機、雲端或混合模式選擇優先，不強制覆寫。同步模式的預設與記憶機制不變，亦不自動搬移或初始化雲端資料。
-- 此次不變更正式資料庫 SQL、不自動搬移單機資料，亦不解除混合模式的覆蓋匯入／清空限制。發布後仍需驗證真實登入及跨裝置行為。
+```bash
+npm ci
+npm run e2e:install
+# Linux 若缺系統函式庫，再由有權限的使用者執行：
+npm run e2e:install:linux
+```
 
-- 測試：`src/database/auto-sync.integration.test.ts`。
-- 以 admin、可見頁面與 auto 模式，從應用程式資料庫 facade 新增區域、標籤、地點、行程與行程項目。
-- 實際推進計時器：1999 ms 不呼叫 RPC，2000 ms 開始同步；驗證真實 Dexie outbox、同步引擎、cloud adapter 與 PGlite 中的正式 SQL RPC。
-- 驗證 SQL 資料、owner、地點標籤關聯、行程項目，以及 outbox 清空、完整同步時間；再次修改地點後也會自動寫入，重新啟用本機帳號後資料仍保留。
-- 僅替換 HTTP 傳輸與瀏覽器 Web Lock 邊界；未連線正式 Supabase，不能視為真實登入或跨裝置驗證。
-- 舊 debounce 測試曾直接呼叫已取消的 timer callback，無法抓到排程被取消；已改用實際時鐘推進。前景輪詢只能清除自己的 timer，不能清除 debounce/retry。
+將 [.env.e2e.example](../.env.e2e.example) 複製為 ignored `.env.e2e.local`，
+私下填寫兩個不同帳號；A 需 admin 以切換 `/data` 來源，B 要有可選的另一個私人地點。
+連線仍使用 `.env.local`，不能使用 service-role/privileged browser key。
+設定 `E2E_ALLOW_LIVE_WRITES=true` 代表案例將新增／分享／修改／刪除真實行程，
+不是唯讀測試；不得把密碼寫入程式、文件或公開結果。
 
-專案建議採用「輕量 pre-push」策略，避免高成本阻塞：
+```bash
+npm run e2e          # headless，不會跳出可見瀏覽器
+npm run e2e:headed   # 在可用圖形環境顯示實際操作
+npm run e2e:report   # 查看 HTML 報告與錄影
+```
 
-- 預設先跑：`git diff --check`、`npm run lint`
-- 當有資料層或同步流程改動，再補跑對應 focused tests
-- 不把 `npm run build` 當成每次 push 的必要項
+遠端環境的 headed 需要可用 display；不能僅憑 terminal 顯示啟動就說瀏覽器已可見。
+AI 不自動跑此真實帳號案例。
 
-> 若你本機仍有舊的 pre-push hook 會強制跑 build，請同步更新 hook 設定，避免和目前流程不一致。
+### 現行 24 步情境摘要
 
-## Phase-2 雲端覆蓋/清空 驗證清單
+[shared-trip-invitation.e2e.ts](../e2e/shared-trip-invitation.e2e.ts)：
+A 登入 → 建立行程／第一個地點 → 邀請 B／可用時啟用共同編輯 → A 登出 →
+B 登入接受 → 等 5 秒並觀察第一個地點 → B 加第二個地點、等 upload、退出、登出 →
+A 登入切 cloud 觀察第二個地點（先記錄，不立即斷言） →
+**切回 hybrid 才刪除本輪行程**、等待 matching cloud acknowledgement、重新整理確認 →
+回 `/data` 保持 hybrid，完成清理／復歸後才斷言。
 
-SQL 腳本： [docs/supabase-phase2-safe-import.sql](supabase-phase2-safe-import.sql)
+每步由[progress reporter](../e2e/progress-reporter.ts)顯示開始／完成／失敗／等待，
+結果在 `test-results/`、`playwright-report/`、`e2e-logs/`；
+都不是應提交的 source。沒有新增另一份雙視窗或路程試算驗證流程。
 
-- [ ] Member：preview/apply replace 成功，結果筆數符合預覽 incoming。
-- [ ] Member：preview/apply clear 成功，清空後各表筆數為 0。
-- [ ] Member：token 過期防護生效（預覽後資料改變，apply 被拒絕）。
-- [ ] Member：存在 shared/collab trip 時，replace/clear 都被拒絕。
-- [ ] Admin：重跑上述 4 項，確認只影響自己的 owner 範圍。
+### 最新結果：未通過，根因待查
 
-### 手動驗證紀錄模板
+使用者先前回報手動成功，但最新分享的失敗附件為：
 
-日期：
-環境：
-帳號角色：
+1. `B 找不到本輪共享行程；拒絕將測試地點加入其他行程。`
+2. cleanup 的 `page.goto('/data')` 出現 `Target page, context or browser has been closed`。
 
-1. Replace
-- 預期：
-- 實際：
-- 結果：PASS / FAIL
+目前沒有根因驗證，不能確認此輪已刪除測試行程／恢復模式。
+cleanup 的獨立 timeout 不能保證已關閉 browser 還能操作。
+下一次要保留該輪 trip 名稱／ID、step log、scenario-result、錯誤與錄影，
+不自動刪除未知資料，不以延長等待／skip 代替原因調查。
 
-2. Clear
-- 預期：
-- 實際：
-- 結果：PASS / FAIL
+## Cloud replace／clear 人工紀錄模板
 
-3. Token stale guard
-- 預期：
-- 實際：
-- 結果：PASS / FAIL
+仍需使用者核准並在指定環境驗證，PGlite 不代表 live 已過。
 
-4. Shared/Collab block
-- 預期：
-- 實際：
-- 結果：PASS / FAIL
+| 檢查 | 預期 | 實際／PASS/FAIL/未跑 |
+| --- | --- | --- |
+| Member replace | preview/apply 成功，counts 與 incoming 一致 | 未記錄 |
+| Member clear | 成功且目前帳號受影響表為 0 | 未記錄 |
+| stale token | preview 後資料變動，apply 被拒絕 | 未記錄 |
+| shared/collaboration guard | replace/clear 被拒絕，其他資料不變 | 未記錄 |
+| Admin account scope | 只影響目前帳號，不動其他 owner | 未記錄 |
 
-## 後續擴充順序
-
-1. 先補 `database/index.ts` 的策略切換測試。
-2. 再補 `data-management` 的匯入與搬移流程。
-3. 接著補 `label` 樹狀結構與 `itinerary` 排序邏輯。
-
-## 備註
-
-目前測試只挑最關鍵的核心路徑，避免一開始就鋪太多測項。之後可以再慢慢擴充，但先保住資料層與備份安全是最重要的。
-
-## 雲端資料隔離
-
-`src/database/owner-isolation.test.ts` 以 PGlite 執行 PostgreSQL RLS、遷移與外鍵驗證，不需要雲端連線。`supabase-backup-safety.test.ts` 和 `data-management.service.test.ts` 驗證雲端整批寫入停用、本機操作保留。部署步驟見 [owner-isolation.md](owner-isolation.md)。
-
-### SQL 執行順序（避免資料表被鎖死）
-
-1. 先執行 `docs/supabase-schema-from-indexeddb.sql`。
-2. 再執行 `docs/supabase-basic-role-rls.sql`（建立 user_roles 與角色函式）。
-3. 接著執行 `docs/supabase-owner-isolation.sql`。
-4. 最後再執行一次 `docs/supabase-basic-role-rls.sql`（重建 owner policy）。
-
-執行 `docs/supabase-owner-isolation.sql` 前，先在同一個 SQL session 設定：
-
-`set local app.legacy_owner_email = 'owner@example.com';`
-
-如果缺少 `owner_uid` 欄位，`docs/supabase-basic-role-rls.sql` 會跳過業務表 policy 重建並提示先跑 owner-isolation；不會中斷 user_roles 與角色函式建立。
+另填日期、環境、批准範圍與資料復歸結果。舊 bootstrap／phase-2 SQL 不應直接重播；
+現行操作要求見[資料庫規範](database-psql-operations.md)。

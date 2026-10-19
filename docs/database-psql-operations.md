@@ -4,6 +4,37 @@ Use this method only when live database access is required and authorized.
 Credentials remain in the untracked `.env.local` under `SUPABASE_DB_URL`.
 Do not copy the connection string into source, chat, logs, or this document.
 
+## Current handoff — 2026-10-20
+
+The next work is [database version convergence](database-version-convergence.md),
+not reinstalling collaboration. Its independent handoff prompt, exact drift
+objects, approval gates, estimates and acceptance criteria are recorded there.
+
+Read-only comparison confirmed the current shared/sync/cancellation/delete
+functions match working-tree migrations, but baseline grants, some columns and
+constraints, legacy objects and the missing reorder RPC still differ.
+There is no live `supabase_migrations` schema. Do not fabricate an applied
+history or replay the baseline to make versions appear equal.
+
+This documentation update performs no live access or installation.
+The earlier catalog inspection read no business/account rows and checked no
+Git or frontend deployment revision. Old installation row counts/empty-table
+observations below are historical, not current business inventory.
+
+## SQL file classification
+
+| Files | Use and limits |
+| --- | --- |
+| `supabase/migrations/*.sql` | Reviewed incremental source; reconcile actual live definitions before exact authorized apply |
+| `docs/supabase-schema-from-indexeddb.sql`, `supabase-basic-role-rls.sql`, `supabase-owner-isolation.sql`, `supabase-phase2-safe-import.sql` | Historical bootstrap/phase sources, not a replay sequence for current sync/shared/maps DB; newer migrations supersede definitions |
+| `docs/supabase-role-ops.sql` | Manual role operations; may inspect personal accounts or change roles, so requires explicit scope/approval |
+| `docs/supabase-isolation-diagnose.sql` | Account-specific diagnostic that reads emails, owners and counts; not a catalog-only query or general-purpose structural audit |
+| `docs/supabase-rls-smoke-test.sql` | Legacy editor-UID collaboration test incompatible with current private isolation/shared-workspace contract; writes fixed fixtures, do not run on live |
+
+These historical SQL files were deliberately not edited during documentation
+refresh. Use existing owner/shared/sync isolated tests as current behavior
+evidence; passing a test does not authorize its live equivalent.
+
 ## Install the client (Ubuntu)
 
 Run these commands in the remote workspace terminal:
@@ -131,6 +162,12 @@ node --env-file=.env.local scripts/db-psql.mjs \
   business-data write smoke test beyond the migration transaction itself.
   Cross-device/manual browser validation was not run here.
 
+This describes the database-installation phase only. The current route-calculator
+service/UI subsequently wires saved maps and extra markers through the facade,
+and trip deletion includes the linked-map warning/cascade. Those features are
+not still missing; their current browser/cross-device behavior is not established
+by this old installation record.
+
 ## Cancel-sharing installation record — 2026-10-19
 
 - The user declined frontend tests/build/browser validation but explicitly
@@ -156,3 +193,31 @@ node --env-file=.env.local scripts/db-psql.mjs \
 - The shutdown rollback revokes only the cancellation RPC and preserves
   completed copy-backs and private recovery records; it does not restore
   sharing permissions or an old itinerary.
+
+## Shared-trip deletion correction — 2026-10-20
+
+- Only `20261020000000_shared_trip_delete_order.sql` was separately authorized,
+  reconciled, backed up, rehearsed and installed; prior migrations were not replayed.
+- The private backup restored in network-isolated PostgreSQL 17 and all 47
+  scoped table fingerprints matched. Installation preserved those fingerprints.
+- The correction changes trip-delete execution order inside `app_sync_push`,
+  retaining original permission/version checks, operation IDs and receipts.
+  Shared legacy guards were not disabled.
+- Four approved focused files / 49 tests passed. Live postchecks were read-only;
+  no real trip was deleted as a deployment smoke test.
+- Full record and recovery limits are in
+  [trip collaboration rollout](trip-collaboration-rollout.md).
+
+## Subsequent client corrections and catalog comparison
+
+Shared-conflict isolation and cancellation/revocation/retry convergence are
+client changes, not additional SQL installations. Their focused test results
+(96 tests; then 90 tests plus type checking) are recorded in [testing](testing.md).
+An earlier user-reported manual success is followed by a newer failed E2E
+attachment, so no blanket current E2E/cleanup success is claimed.
+
+The 2026-10-20 catalog comparison confirms the installed shared core matches
+source, but is not proof that the latest frontend was committed or deployed.
+Any next live access, fresh backup, rehearsal, migration, tests or deployment
+requires its own explicit authorization; old credentials/approval are not a
+standing permission to continue in a new conversation.
