@@ -57,6 +57,8 @@ export type {
 } from './models'
 export { placeIcons } from './models'
 export { TripCollaborationRepository, tripCollaborationEnabled } from './trip-collaboration.repository'
+export { SharedTripRepository, sharedTrips } from './shared-trip.repository'
+export type { SharedTripDocument, SharedTripSnapshot } from './shared-trip.types'
 export type {
   CollaborationDetails, CollaborationList, CollaborationTrip, SharedTripItem,
   SharedTripPlace, TripAccess, TripInvitation, TripMember, TripMemberRole,

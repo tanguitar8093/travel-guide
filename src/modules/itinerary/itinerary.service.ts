@@ -32,13 +32,15 @@ export interface ItineraryWorkspace {
 export type NewScheduledItem = Omit<NewItineraryItem, 'order'>
 
 export class ItineraryService {
+  getAccess(_tripId: string): 'owner' | 'editor' | 'viewer' { return 'owner' }
+  beginEdit(_tripId: string): void {}
   private readonly mapService: ItineraryMapService
 
   constructor(mapService = new ItineraryMapService()) {
     this.mapService = mapService
   }
 
-  async loadWorkspace(): Promise<ItineraryWorkspace> {
+  async loadWorkspace(_tripId?: string): Promise<ItineraryWorkspace> {
     const [tripRecords, regionRecords, placeRecords] = await Promise.all([
       trips.list(),
       regions.list(),
@@ -70,7 +72,7 @@ export class ItineraryService {
     return itineraryItems.findByTripId(tripId)
   }
 
-  loadMapData(regionId: string) {
+  loadMapData(regionId: string, _tripId?: string) {
     return this.mapService.loadMapData(regionId)
   }
 

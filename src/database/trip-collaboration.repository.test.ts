@@ -58,11 +58,11 @@ it('calls only the scoped collaboration RPC with validated inputs', async () => 
   const { TripCollaborationRepository } = await import('./trip-collaboration.repository')
   const repository = new TripCollaborationRepository()
   expect((await repository.list()).trips).toHaveLength(1)
-  expect(rpc).toHaveBeenCalledWith('app_trip_collaboration', {
+  expect(rpc).toHaveBeenCalledWith('app_trip_collaboration_v2', {
     p_action: 'list', p_trip_id: null, p_payload: {},
   })
   rpc.mockClear()
-  await expect(repository.invite(tripId, 'not-a-user-id', 'viewer')).rejects.toThrow('UUID')
+  await expect(repository.invite(tripId, 'not-an-email', 'viewer')).rejects.toThrow('Email')
   expect(rpc).not.toHaveBeenCalled()
 })
 
@@ -77,8 +77,25 @@ it('rejects stale results after account switching', async () => {
 it('reports absent server migration rather than treating it as empty success', async () => {
   rpc.mockResolvedValue({ data: null, error: { code: 'PGRST202', message: 'Missing function' } })
   const { TripCollaborationRepository } = await import('./trip-collaboration.repository')
-  await expect(new TripCollaborationRepository().list()).rejects.toThrow('尚未安裝')
+  await expect(new TripCollaborationRepository().list()).rejects.toThrow('尚未安裝 Email')
 })
+
+it('normalizes invitation email without sending a UUID supplied by the caller', async () => {
+  rpc.mockResolvedValue({ data: { ok: true }, error: null })
+  const { TripCollaborationRepository } = await import('./trip-collaboration.repository')
+  await new TripCollaborationRepository().invite(tripId, '  Friend@Example.com ', 'viewer')
+  expect(rpc).toHaveBeenCalledWith('app_trip_collaboration_v2', {
+    p_action: 'invite', p_trip_id: tripId, p_payload: { email: 'friend@example.com', role: 'viewer' },
+  })
+})
+
+it.each(['', 'friend', 'friend@', 'friend @example.com', 'a@@example.com', `${'a'.repeat(250)}@example.com`])(
+  'rejects invalid invitation email %s before making requests', async (email) => {
+    const { TripCollaborationRepository } = await import('./trip-collaboration.repository')
+    await expect(new TripCollaborationRepository().invite(tripId, email, 'viewer')).rejects.toThrow('Email')
+    expect(rpc).not.toHaveBeenCalled()
+  },
+)
 
 it('denies unauthenticated calls without reaching the RPC', async () => {
   getSession.mockResolvedValue({ data: { session: null }, error: null })

@@ -1,4 +1,5 @@
 import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
+import type { SharedTripTask } from './shared-trip.types'
 
 export interface SyncAccount {
   projectId: string
@@ -36,6 +37,7 @@ export interface SyncChange {
 }
 
 export interface SyncTask {
+  sharedTrip?: SharedTripTask
   sequence?: number
   operationId: string
   account: SyncAccount

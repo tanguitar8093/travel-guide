@@ -2,7 +2,7 @@ import { BackupRepository, type NormalizedTravelBackup } from './backup.reposito
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter, type CloudSyncSnapshot } from './sync-cloud.adapter'
-import { browserSyncLock, type SyncLock } from './sync-engine'
+import { browserSyncLock, type SyncCloud, type SyncLock } from './sync-engine'
 import type { SyncChange, SyncConflictReview, SyncEntityName, SyncRecord } from './sync.types'
 import { emptySyncData, syncEntityNames } from './sync.types'
 
@@ -61,15 +61,16 @@ export async function getSavedConflictReview(store: LocalSyncStore): Promise<Syn
 
 export async function prepareConflictReview(
   store: LocalSyncStore,
-  cloud: typeof syncCloudAdapter = syncCloudAdapter,
+  cloud: SyncCloud = syncCloudAdapter,
   lock: SyncLock = browserSyncLock,
 ): Promise<SyncConflictReview> {
   const assertCurrent = store.captureAccount()
   let review: SyncConflictReview | undefined
   await lock(store.getSyncLockName(), async () => {
     const state = await store.inspectSyncState()
-    if (!state.tasks.some((task) => task.status === 'conflict')) throw new ValidationError('目前沒有需要處理的衝突。')
-    if (state.tasks.some((task) => task.uploadChanges && task.status !== 'conflict')) {
+    const personalTasks = state.tasks.filter((task) => !task.sharedTrip)
+    if (!personalTasks.some((task) => task.status === 'conflict')) throw new ValidationError('目前沒有需要處理的個人資料衝突；共同編輯衝突請到行程模組處理。')
+    if (personalTasks.some((task) => task.uploadChanges && task.status !== 'conflict')) {
       throw new ValidationError('有上傳結果未確認的操作，請先重試同步，不可放棄或改寫該操作。')
     }
     assertCurrent()
@@ -81,7 +82,7 @@ export async function prepareConflictReview(
     }
     validateRecords(snapshot.records)
     const remote = new Map(snapshot.records.map((row) => [keyFor(row.entity, row.id), row]))
-    const touched = new Map(state.tasks.flatMap((task) => task.changes.map((change) => [keyFor(change.entity, change.id), change] as const)))
+    const touched = new Map(personalTasks.flatMap((task) => task.changes.map((change) => [keyFor(change.entity, change.id), change] as const)))
     const missing = new Set([...touched.keys()].filter((key) => !remote.has(key)))
     if (missing.size) {
       let cursor = '0'
@@ -113,7 +114,7 @@ export async function prepareConflictReview(
     review = {
       id: 'workspace', token: crypto.randomUUID(), createdAt: new Date().toISOString(),
       localFingerprint: fingerprint(state), cloudFingerprint: cloudFingerprint(snapshot), cursor: snapshot.cursor,
-      pendingOperations: state.tasks.length, rows, cloudRecords: [...remote.values()], localChoiceChanges: ordered,
+      pendingOperations: personalTasks.length, rows, cloudRecords: [...remote.values()], localChoiceChanges: ordered,
       localNames: state.records.flatMap(({ entity, records }) => records.flatMap((record) =>
         'name' in record && record.name ? [{ entity, id: record.id, name: record.name }] : [])),
     }
@@ -129,7 +130,7 @@ export async function resolveConflictReview(
   store: LocalSyncStore,
   token: string,
   choice: 'local' | 'cloud',
-  cloud: typeof syncCloudAdapter = syncCloudAdapter,
+  cloud: SyncCloud = syncCloudAdapter,
   lock: SyncLock = browserSyncLock,
 ): Promise<void> {
   if (choice !== 'local' && choice !== 'cloud') throw new ValidationError('衝突選擇不正確。')
@@ -167,7 +168,10 @@ export async function resolveConflictReview(
       for (const row of review.cloudRecords) {
         await database.syncBaselines.put({ entity: row.entity, id: row.id, version: row.version, record: row.record ?? undefined, sequence: review.cursor })
       }
-      await database.outbox.clear()
+      const queued = await database.outbox.toArray()
+      for (const task of queued) {
+        if (!task.sharedTrip) await database.outbox.delete(task.sequence!)
+      }
       if (choice === 'local' && review.localChoiceChanges.length) {
         await database.outbox.add({ operationId: crypto.randomUUID(), account: database.account, deviceId: metadata.deviceId,
           protocolVersion: 1, operation: 'conflict.keep-local', createdAt: new Date().toISOString(), changes: review.localChoiceChanges, status: 'pending', attempts: 0 })

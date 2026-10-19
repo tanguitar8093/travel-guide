@@ -2,6 +2,7 @@ import type { Table } from 'dexie'
 import { TravelDatabase } from './database'
 import { getSyncDatabaseName, validateSyncAccount } from './sync-account-context'
 import type { SyncAccount, SyncBaseline, SyncConflictReview, SyncMetadata, SyncTask } from './sync.types'
+import type { SharedTripSnapshot } from './shared-trip.types'
 
 export class SyncDatabase extends TravelDatabase {
   readonly account: SyncAccount
@@ -9,6 +10,7 @@ export class SyncDatabase extends TravelDatabase {
   syncMetadata!: Table<SyncMetadata, string>
   syncBaselines!: Table<SyncBaseline, [string, string]>
   syncConflicts!: Table<SyncConflictReview, string>
+  sharedItineraries!: Table<SharedTripSnapshot, string>
 
   constructor(account: SyncAccount) {
     super(getSyncDatabaseName(account))
@@ -28,5 +30,6 @@ export class SyncDatabase extends TravelDatabase {
       routeMaps: '&id, &tripId',
       routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId]',
     })
+    this.version(9).stores({ sharedItineraries: '&id' })
   }
 }

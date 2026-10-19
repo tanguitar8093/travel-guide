@@ -1,4 +1,4 @@
-export { default as ItineraryModule } from './ItineraryModule'
+export { default as ItineraryModule } from './ItineraryEntry'
 export { ItineraryController, itineraryController } from './itinerary.controller'
 export { ItineraryService } from './itinerary.service'
 export type { ItineraryWorkspace, NewScheduledItem } from './itinerary.service'
@@ -7,3 +7,6 @@ export type { ItineraryMapData, UnlocatedMapPlace } from './itinerary-map.servic
 export { TripCollaborationPanel } from './TripCollaborationPanel'
 export { TripCollaborationController, tripCollaborationController } from './trip-collaboration.controller'
 export { TripCollaborationService } from './trip-collaboration.service'
+export { SharedTripController, sharedTripController } from './shared-trip.controller'
+export { SharedTripService } from './shared-trip.service'
+export { CollaborativeItineraryService } from './collaborative-itinerary.service'

@@ -3,6 +3,7 @@ import { dataManagementController } from './data-management.controller'
 import type { SyncPreview } from '../../database/sync-preview'
 import { useHybridStatus } from '../../database/useHybridStatus'
 import { HybridConflictReview } from './HybridConflictReview'
+import { sharedTripEditingEnabled } from '../../database/shared-trip.types'
 
 const entityLabels = { regions: '區域', places: '地點', labels: '標籤', trips: '行程', itineraryItems: '行程項目', routeMaps: '試算地圖', routeMapPlaces: '試算後加地點' }
 const differenceLabels = { 'local-only': '僅本機有', 'cloud-only': '僅雲端有', different: '內容不同', same: '內容相同／兩邊皆已刪除' }
@@ -47,6 +48,7 @@ export function HybridSyncPreview() {
   return <section className="data-management-card" aria-label="同步前差異預覽">
     <h2>同步前差異預覽</h2>
     <p>只讀取目前帳號的雲端資料做比對，不會上傳、下載保存或覆蓋。此預覽不是同步結果。</p>
+    {sharedTripEditingEnabled && <p>此處比對與衝突選擇只涵蓋個人資料。共同編輯與共享草稿匯出、衝突處理，請使用行程模組；手動同步仍會依序處理兩種操作。</p>}
     <button type="button" disabled={busy} onClick={() => { void compare() }}>
       {busy ? '正在比對…' : '比對本機與雲端'}
     </button>

@@ -5,6 +5,8 @@ import syncMigration from '../../supabase/migrations/20261017153641_local_first_
 import distanceMigration from '../../supabase/migrations/20261018220000_itinerary_travel_distance.sql?raw'
 import routeMapsMigration from '../../supabase/migrations/20261019010000_route_maps.sql?raw'
 import collaborationMigration from '../../supabase/migrations/20261019060000_trip_collaboration.sql?raw'
+import emailMigration from '../../supabase/migrations/20261019070000_trip_collaboration_email.sql?raw'
+import emailRollback from '../../supabase/rollback/20261019070000_trip_collaboration_email.sql?raw'
 
 const db = new PGlite()
 const owner = '11111111-1111-4111-8111-111111111111'
@@ -52,6 +54,7 @@ beforeAll(async () => {
   await db.exec(distanceMigration)
   await db.exec(routeMapsMigration)
   await db.exec(collaborationMigration)
+  await db.exec(emailMigration)
 }, 120000)
 
 afterAll(async () => { await db.close() })
@@ -146,6 +149,64 @@ describe('trip collaboration migration foundation', () => {
     })
     await asUser(basic, async () => {
       await expect(rpc('app_trip_collaboration', ['list', null, {}])).rejects.toThrow('requires member or admin access')
+    })
+  })
+
+    it('resolves email only for trip managers and preserves the accept/remove workflow', async () => {
+      const regionId = crypto.randomUUID()
+      const tripId = crypto.randomUUID()
+      let invitationId = ''
+      await asUser(owner, async () => {
+        await db.query('insert into public.regions(id,name,google_place_id,zoom) values($1,$2,$3,12)', [regionId, 'Email region', 'email-region'])
+        await db.query(
+          "insert into public.trips(id,region_id,name,start_date,end_date) values($1,$2,'Email trip','2026-10-20','2026-10-21')",
+          [tripId, regionId],
+        )
+        const result = await rpc<{ invitationId: string }>('app_trip_collaboration_v2',
+          ['invite', tripId, { email: '  EDITOR@Example.com ', role: 'viewer' }])
+        invitationId = result.invitationId
+        const duplicate = await rpc<{ invitationId: string }>('app_trip_collaboration_v2',
+          ['invite', tripId, { email: 'editor@example.com', role: 'viewer' }])
+        expect(duplicate.invitationId).toBe(invitationId)
+        const details = await rpc<{ trip: { ownerEmail: string }; invitations: Array<{ inviteeEmail: string }> }>(
+          'app_trip_collaboration_v2', ['details', tripId, {}],
+        )
+        expect(details.trip.ownerEmail).toBe('owner@example.com')
+        expect(details.invitations[0].inviteeEmail).toBe('editor@example.com')
+      })
+      for (const email of ['unknown@example.com', 'basic@example.com']) {
+        await expect(asUser(owner, () => rpc('app_trip_collaboration_v2',
+          ['invite', tripId, { email, role: 'viewer' }]))).rejects.toThrow('無法邀請此 Email')
+      }
+      await expect(asUser(owner, () => rpc('app_trip_collaboration_v2',
+        ['invite', tripId, { email: 'not-email', role: 'viewer' }]))).rejects.toThrow('有效的 Email')
+      await expect(asUser(owner, () => rpc('app_trip_collaboration_v2',
+        ['invite', tripId, { email: 'viewer@example.com', inviteeUserId: viewer, role: 'viewer' }]))).rejects.toThrow('Unexpected')
+      await expect(asUser(viewer, () => rpc('app_trip_collaboration_v2',
+        ['invite', tripId, { email: 'editor@example.com', role: 'viewer' }]))).rejects.toThrow('Only owner or admin')
+      await expect(asUser(basic, () => rpc('app_trip_collaboration_v2', ['list', null, {}]))).rejects.toThrow('requires member')
+      await asUser(editor, async () => {
+        await rpc('app_trip_collaboration_v2', ['accept', tripId, { invitationId }])
+        const details = await rpc<{ members: Array<{ userId: string; email: string }> }>(
+          'app_trip_collaboration_v2', ['details', tripId, {}],
+        )
+        expect(details.members.find((member) => member.userId === editor)?.email).toBe('editor@example.com')
+      })
+      await asUser(owner, async () => {
+        await rpc('app_trip_collaboration_v2', ['remove_member', tripId, { userId: editor }])
+      })
+      await expect(asUser(editor, () => rpc('app_trip_collaboration_v2', ['details', tripId, {}]))).rejects.toThrow('Trip unavailable')
+    })
+
+    it('disables the email endpoint without removing invitations or the original API', async () => {
+      const before = await db.query<{ count: number }>('select count(*)::int as count from public.trip_invitations')
+      await db.exec(emailRollback)
+      const after = await db.query<{ count: number }>('select count(*)::int as count from public.trip_invitations')
+      expect(after.rows).toEqual(before.rows)
+      await expect(asUser(owner, () => rpc('app_trip_collaboration_v2', ['list', null, {}]))).rejects.toThrow('permission denied')
+      await asUser(owner, async () => {
+        const result = await rpc<{ trips: unknown[] }>('app_trip_collaboration', ['list', null, {}])
+        expect(result.trips.length).toBeGreaterThan(0)
     })
   })
 })

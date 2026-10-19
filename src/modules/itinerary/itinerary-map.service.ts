@@ -43,7 +43,10 @@ export class ItineraryMapService {
     if (!region) {
       throw new Error(`區域 "${regionId}" 不存在，無法載入行程地圖。`);
     }
+    return this.loadRecords(region, regionPlaces);
+  }
 
+  async loadRecords(region: Region, regionPlaces: Place[]): Promise<ItineraryMapData> {
     let center = positionFromLegacyRegion(region);
     let viewport: GoogleMapViewport | undefined;
     let regionWarning: string | undefined;

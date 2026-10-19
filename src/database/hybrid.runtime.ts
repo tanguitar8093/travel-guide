@@ -275,10 +275,14 @@ export async function runHybridMutation<Result>(
   operation: string,
   work: (repositories: LocalRepositories) => Promise<Result>,
 ): Promise<Result> {
+  return runHybridTask((store) => store.mutate(operation, work))
+}
+
+export async function runHybridTask<Result>(work: (store: LocalSyncStore) => Promise<Result>): Promise<Result> {
   const store = requireHybridStore()
   const currentGeneration = generation
   const started = performance.now()
-  const result = await store.mutate(operation, work)
+  const result = await work(store)
   if (generation === currentGeneration) {
     publish({ ...status, lastOperationMs: performance.now() - started })
     if (readSyncModePreference() === 'auto') {

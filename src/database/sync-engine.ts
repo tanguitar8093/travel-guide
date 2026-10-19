@@ -2,8 +2,11 @@ import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter } from './sync-cloud.adapter'
 import { previewHybridSync } from './sync-preview'
+import { SharedTripLocal } from './shared-trip.local'
+import { SharedTripPermissionError } from './shared-trip.cloud'
+import type { sharedTripCloud } from './shared-trip.cloud'
 
-type SyncCloud = typeof syncCloudAdapter
+export type SyncCloud = Pick<typeof syncCloudAdapter, 'snapshot' | 'pull' | 'push'> & { shared?: typeof sharedTripCloud }
 export type SyncLock = (name: string, work: () => Promise<void>) => Promise<void>
 
 export const browserSyncLock: SyncLock = async (name, work) => {
@@ -82,6 +85,14 @@ export async function syncHybridManually(
       if (!task) return false
       assertCurrent()
       try {
+        if (task.sharedTrip) {
+          if (!cloud.shared) throw new ValidationError('此帳號有共同編輯待同步操作，請啟用對應功能後重試；未移除任何操作。')
+          const local = new SharedTripLocal(store)
+          const response = await cloud.shared.save(task.sharedTrip.tripId, task.operationId, task.sharedTrip.baseVersion, task.sharedTrip.after)
+          assertCurrent()
+          await local.acknowledge(task, response)
+          return true
+        }
         const response = await cloud.push(task)
         assertCurrent()
         if (response.status === 'conflict') {
@@ -91,6 +102,10 @@ export async function syncHybridManually(
         await store.applyRemote(response.changes, { acknowledge: task })
       } catch (error) {
         assertCurrent()
+        if (task.sharedTrip && error instanceof SharedTripPermissionError && cloud.shared) {
+          await new SharedTripLocal(store).download(await cloud.shared.list())
+          assertCurrent()
+        }
         if ((await store.listTasks()).find((current) => current.operationId === task.operationId)?.status !== 'conflict') {
           await store.markUpload(task, 'failed', error instanceof Error ? error.message : String(error))
         }
@@ -112,7 +127,14 @@ export async function syncHybridManually(
           throw new ValidationError('下載遇到衝突，未覆蓋本機資料。')
         }
         cursor = response.cursor
-        if (!response.hasMore) return
+        if (!response.hasMore) {
+          if (cloud.shared) {
+            const snapshots = await cloud.shared.list()
+            assertCurrent()
+            await new SharedTripLocal(store).download(snapshots)
+          }
+          return
+        }
       }
       throw new ValidationError('資料較多，請再按一次同步以繼續下載。')
     }

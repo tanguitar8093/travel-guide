@@ -1,12 +1,20 @@
 # Travel Guide TODO
 
 ## 0) 工作準則 (固定)
+
 - [ ] 功能改完預設不跑 Playwright；只在流程驗證需要時才跑。
 - [ ] 不用跑 npm run build。
 - [ ] 最少驗證：git diff --check、npm run lint。
 - [ ] 避免會卡住或高成本但低價值的多餘指令。
+- [ ] 整理文件
+      docs 中有設計過渡期的文件和過時的文件:
+      過時的: 評估是否有必要更新或直接刪掉
+      過渡期的: 直接刪掉
+
+只留可以整合進專案憲法的文件
 
 ## 1) 本輪已完成 (可追蹤)
+
 - [x] Auth 註冊 + 角色 gate (basic 不進工作區、member/admin 可用)。
 - [x] Supabase owner isolation 主線落地。
 - [x] region/label/place/trip/itinerary item 建立流程統一補齊 UUID，修掉 id=null 連環錯誤。
@@ -15,6 +23,7 @@
 - [x] 高價值測試補強與調整，phase-2 focused tests 已通過。
 
 ## 2) 目前進行中 (收尾驗證)
+
 - [ ] Member: 驗證 preview/apply replace 成功，筆數與預覽一致。
 - [ ] Member: 驗證 preview/apply clear 成功，清空後為 0。
 - [ ] Member: 驗證 token 過期防護 (預覽後資料變更再 apply 應被擋)。
@@ -22,6 +31,7 @@
 - [ ] Admin: 重跑同一組驗證，確認仍只影響自己的資料範圍。
 
 ## 3) 下一步 (你明天先做這些)
+
 - [ ] 在 UI 走一輪 data-management 三個路徑：
   1. 匯入覆蓋雲端 (replace)
   2. 清空雲端 (clear)
@@ -31,38 +41,45 @@
 - [ ] 把本輪手動驗證結論寫進 [docs/testing.md](docs/testing.md)。
 
 ## 4) OAuth / 角色管理待辦
+
 - [ ] 串接 Google OAuth 登入。
 - [ ] 確認 user_roles 與註冊預設角色流程一致。
 - [ ] 驗證 basic -> member 升級流程與降級回 basic 的即時失權。
 - [ ] 定義 admin 升降級介面與操作紀錄需求。
 
 ## 5) 權限與分享功能規劃待辦
+
 - [ ] 分享行程 (readonly) 功能設計與資料模型定稿。
 - [ ] 協作行程功能設計：editor 權限、可見範圍、衝突策略。
 - [ ] 評估「分享行程是否要連帶暴露相關 places/labels/regions」。
 - [ ] itinerary 模組加上「分享/瀏覽入口」與權限導向 UI。
 
 ## 6) 風險清單 (實作前必檢)
+
 - [ ] 資料層：新增權限欄位不破壞既有 local/supabase schema 對映。
 - [ ] 同步層：local <-> cloud 覆蓋邊界明確，不影響他人資料。
 - [ ] 邏輯層：每個 operation 需通過 role + ownership 雙重檢查。
 - [ ] UI 層：local mode 隱藏所有跨帳號分享/協作入口。
 
 ## 7) MVP 權限矩陣 (目前共識)
+
 - [ ] basic：可登入與讀 auth 狀態；不可讀寫業務資料。
 - [ ] member：可讀寫自己資料；可瀏覽他人分享行程(唯讀)；可發起分享/協作。
 - [ ] admin：可讀寫全域資料；可管理分享/協作與角色升降級。
 
 ## 8) 自動同步任務規劃（依據 [docs/local-first-sync-design.md](docs/local-first-sync-design.md) 與 [docs/local-first-sync-phase5-review.md](docs/local-first-sync-phase5-review.md)）
+
 > 目標：在現有 React → repository → Dexie 本機資料＋待同步佇列 → 同步引擎 → Supabase RPC 架構上，追加自動同步功能，沿用手動同步已有的版本檢查、安全重送、跨分頁鎖與帳號隔離；第六階段採 6A → 6B → 6C → 6D 逐段交付，並在每段完成後等待使用者 review 後再往下做。
 
 ### 8.1) 6A：模式與全站警告
+
 - [ ] 新增自動／手動切換，保存使用者偏好，預設仍為手動。
 - [ ] 在全站展示同步衝突警告與處理入口，讓使用者可從其他頁面直接進入處理。
 - [ ] 刷新頁面時保留模式設定；確保自動選項先標示尚未開放，避免使用者誤以為已啟用。
 - [ ] 驗收重點：模式切換正確、設定保留、全站警告入口可用。
 
 ### 8.2) 6B：基本自動同步
+
 - [ ] 開放自動模式，並在本機交易成功後啟用 2 秒 debounce。
 - [ ] 連續修改最多 10 秒內觸發一次同步，不讓快速連續修改造成大量請求。
 - [ ] 與手動同步共用同步引擎與鎖，避免雙重排程或重入問題。
@@ -70,6 +87,7 @@
 - [ ] 驗收重點：修改後自行上傳、快速連續修改不密集發請求、手動模式不背景傳輸。
 
 ### 8.3) 6C：生命週期與重試
+
 - [ ] 監聽開啟自動模式、恢復連線、回到前景時同步，並在前景每 4 分鐘補拉雲端變更。
 - [ ] 實作網路錯誤的有限指數退避與 jitter，避免重試無限循環。
 - [ ] 離線時保留本地修改，重連後可恢復自動同步。
@@ -78,24 +96,28 @@
 - [ ] 驗收重點：離線修改保留、連線後恢復、排程正確停止、權限錯誤不重試放大。
 
 ### 8.4) 6D：畫面與衝突整合
+
 - [ ] 下載後刷新資料畫面時，保護未儲存的表單草稿，避免被清空。
 - [ ] 發現衝突時立即警告並暫停自動同步，沿用既有整批衝突處理流程。
 - [ ] 確保兩個瀏覽器修改同一筆資料時，不互相覆蓋；處理完衝突後可恢復自動同步。
 - [ ] 驗收重點：草稿不被刷新抹掉、衝突即時阻止覆蓋、處理完成後重新可用。
 
 ### 8.5) 共用驗收要求
+
 - [ ] 依照設計採用事件驅動同步 + 定期補拉 + 退避重試，將時間參數維持為初始值並可依量測調整。
 - [ ] 各階段需同時驗證：同步成功、離線保留、重試恢復、衝突警告、跨分頁鎖、帳號隔離。
 - [ ] Browser 關閉／休眠期間不保證同步；重新開啟後由持久佇列恢復。
 - [ ] 不增加 service worker 或 PWA 冷啟動承諾；本階段僅擴充前端同步排程與生命週期管理。
 
 ### 8.6) 交付節奏
+
 - [ ] 先完成 6A，停止等待使用者 review。
 - [ ] 6A 通過後再執行 6B，依此類推。
 - [ ] 每個小階段都要附上：修改檔案、檢查結果、未跑項目、使用者 review 結果、限制與回退方式。
 - [ ] 最終不以 mock 或單一 PGlite 結果代替實際跨裝置／瀏覽器驗證；未執行時要明確標示。
 
 ### 8.7) 相關文件
+
 - [docs/local-first-sync-design.md](docs/local-first-sync-design.md)
 - [docs/local-first-sync-phase5-review.md](docs/local-first-sync-phase5-review.md)
 - [docs/local-first-sync-phase3-review.md](docs/local-first-sync-phase3-review.md)

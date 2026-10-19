@@ -27,9 +27,9 @@ export class TripCollaborationService {
     return this.repository.details(tripId)
   }
 
-  invite(tripId: string, userId: string, role: TripMemberRole) {
+  invite(tripId: string, email: string, role: TripMemberRole) {
     this.assertCloudAccount()
-    return this.repository.invite(tripId, userId, role)
+    return this.repository.invite(tripId, email, role)
   }
 
   accept(tripId: string, invitationId: string) {

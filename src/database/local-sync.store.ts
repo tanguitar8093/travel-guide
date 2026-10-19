@@ -7,6 +7,7 @@ import { ItineraryItemRepository, PlaceRepository, RegionRepository, TripReposit
 import { SyncAccountContext } from './sync-account-context'
 import { SyncDatabase } from './sync.database'
 import { RouteMapRepository, RouteMapPlaceRepository } from './route-map.repository'
+import type { SharedTripSnapshot } from './shared-trip.types'
 import { emptySyncData, syncEntityNames } from './sync.types'
 import type {
   LocalSyncSummary, SyncChange, SyncEntityName, SyncMetadata, SyncRecord, SyncTask,
@@ -131,6 +132,13 @@ export class LocalSyncStore {
     return tasks
   }
 
+  async listSharedTrips(): Promise<SharedTripSnapshot[]> {
+    const assertCurrent = this.captureAccount()
+    const snapshots = await this.database.sharedItineraries.toArray()
+    assertCurrent()
+    return snapshots
+  }
+
   captureAccount(): () => void {
     return this.context.capture(this.database.account)
   }
@@ -155,6 +163,7 @@ export class LocalSyncStore {
       const task = await this.database.outbox.orderBy('sequence').first()
       if (!task) return undefined
       if (task.status === 'conflict') throw new ValidationError('有待處理的衝突；已停止同步，本機資料仍保留。')
+      if (task.sharedTrip?.predecessorOperationId) throw new ValidationError('共享行程的前序操作尚未完成，不能上傳。')
       const changes = task.uploadChanges ?? task.changes
       if (changes.some((change) => change.baseVersion === undefined || change.predecessorOperationId)) {
         throw new ValidationError('缺少安全基準或前序操作尚未完成，不能上傳。')

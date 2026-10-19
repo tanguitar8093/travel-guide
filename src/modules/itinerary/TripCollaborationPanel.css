@@ -11,6 +11,8 @@
 .trip-collaboration-list { display: grid; gap: 8px; padding: 0; list-style: none; }
 .trip-collaboration-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid #edf0ed; }
 .trip-collaboration-list code { min-width: 0; flex: 1 1 200px; font-size: 12px; }
+.trip-collaboration-list li > span:first-child { min-width: 0; flex: 1 1 200px; overflow-wrap: anywhere; }
+.trip-collaboration-account { overflow-wrap: anywhere; }
 .trip-collaboration-items { padding-left: 24px; }
 .trip-collaboration-items li { padding: 10px 0; border-bottom: 1px solid #edf0ed; overflow-wrap: anywhere; }
 .trip-collaboration-items li > span { display: block; margin-top: 6px; }

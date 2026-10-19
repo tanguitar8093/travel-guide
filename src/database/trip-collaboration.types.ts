@@ -2,6 +2,7 @@ export type TripMemberRole = 'viewer' | 'editor'
 export type TripAccess = TripMemberRole | 'owner'
 
 export interface CollaborationTrip {
+  ownerEmail?: string
   id: string
   name: string
   regionId: string
@@ -13,6 +14,7 @@ export interface CollaborationTrip {
 }
 
 export interface TripMember {
+  email?: string
   userId: string
   role: TripMemberRole
   createdBy: string
@@ -20,6 +22,7 @@ export interface TripMember {
 }
 
 export interface TripInvitation {
+  inviteeEmail?: string
   id: string
   tripId: string
   tripName: string

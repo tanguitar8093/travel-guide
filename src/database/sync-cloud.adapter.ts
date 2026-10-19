@@ -2,6 +2,8 @@ import { supabase } from './supabase.client'
 import { ValidationError } from './errors'
 import { withSupabaseTimeout } from './supabase.utils'
 import type { SyncRecord, SyncEntityName, SyncTask } from './sync.types'
+import { sharedTripCloud } from './shared-trip.cloud'
+import { sharedTripEditingEnabled } from './shared-trip.types'
 
 export interface CloudSyncRecord {
   entity: SyncEntityName
@@ -48,6 +50,7 @@ async function callSyncRpc(name: string, parameters?: Record<string, unknown>): 
 }
 
 export const syncCloudAdapter = {
+  shared: sharedTripEditingEnabled ? sharedTripCloud : undefined,
   async snapshot(): Promise<CloudSyncSnapshot> {
     const result = await callSyncRpc('app_sync_snapshot') as CloudSyncSnapshot
     if (result.protocolVersion !== 1 || typeof result.cursor !== 'string' || !Array.isArray(result.records)) throw new ValidationError('同步快照格式不正確。')

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import type { FormEvent, ReactNode } from "react";
 import type {
   ItineraryItem,
   Label,
@@ -18,13 +18,15 @@ import type {
   GoogleMapHandle,
   GoogleMapMarkerData,
 } from "../place/google-places.service";
-import { itineraryController } from "./itinerary.controller";
+import { itineraryController as defaultItineraryController } from "./itinerary.controller";
+import type { ItineraryController } from "./itinerary.controller";
 import type { ItineraryMapData } from "./itinerary-map.service";
 import "./ItineraryModule.css";
 import { SearchableSelect } from "../../common/SearchableSelect";
 import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
 import { tripCollaborationEnabled } from "../../database";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
+import { sharedTripEditingEnabled } from "../../database/shared-trip.types";
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
@@ -147,7 +149,13 @@ function getTripDates(trip: Trip): string[] {
   return dates;
 }
 
-function ItineraryModule() {
+function ItineraryModule({ sharedNavigation, controller = defaultItineraryController, sourceRevision = "", onCollaborationChange }: {
+  sharedNavigation?: ReactNode;
+  controller?: ItineraryController;
+  sourceRevision?: string;
+  onCollaborationChange?(tripId?: string): void;
+}) {
+  const itineraryController = controller;
   const [trips, setTrips] = useState<Trip[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -199,6 +207,10 @@ function ItineraryModule() {
   const deleteRouteMapCheckGeneration = useRef(0);
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
+  const canEditItems = !selectedTripId || itineraryController.getAccess(selectedTripId) !== "viewer";
+  const canManageTrip = !selectedTripId || itineraryController.getAccess(selectedTripId) === "owner";
+  const selectedTripIdRef = useRef(selectedTripId);
+  selectedTripIdRef.current = selectedTripId;
   const selectedRegionId = selectedTrip?.regionId;
   const selectedRegion = regions.find(
     (region) => region.id === selectedRegionId,
@@ -302,13 +314,15 @@ function ItineraryModule() {
   const tripDates = selectedTrip ? getTripDates(selectedTrip) : [];
   const startEditItem = useCallback(
     (item: ItineraryItem) => {
+      if (itineraryController.getAccess(item.tripId) === "viewer") return;
+      itineraryController.beginEdit(item.tripId);
       setItemDraft(toItemDraft(item));
       setEditingItemId(item.id);
       setAddingItem(false);
       setError("");
       setNotice("");
     },
-    [],
+    [itineraryController],
   );
   const scheduledPlaceSequence = useMemo(() => {
     const sequence = new Map<string, number>();
@@ -336,7 +350,7 @@ function ItineraryModule() {
 
   async function refreshWorkspace(preferredTripId = selectedTripId) {
     const [workspace, labelTree] = await Promise.all([
-      itineraryController.loadWorkspace(),
+      itineraryController.loadWorkspace(preferredTripId),
       labelController.listTree(),
     ]);
     setTrips(workspace.trips);
@@ -360,24 +374,29 @@ function ItineraryModule() {
     }
   }
 
+  const hasOpenDraft = creatingTrip || editingTrip || addingItem || editingItemId !== undefined || hasPendingDayReorder;
+
   useEffect(() => {
+    if (hasOpenDraft || saving || calculatingItemId) return;
     let active = true;
     Promise.all([
-      itineraryController.loadWorkspace(),
+      itineraryController.loadWorkspace(selectedTripIdRef.current),
       labelController.listTree(),
     ])
       .then(([workspace, labelTree]) => {
         if (!active) return;
-        setError("");
         setWorkspaceLoadFailed(false);
         setTrips(workspace.trips);
         setRegions(workspace.regions);
         setPlaces(workspace.places);
         setLabels(flattenLabels(labelTree));
-        const firstTrip = workspace.trips[0];
-        setSelectedTripId(firstTrip?.id);
-        setTripDraft(firstTrip ? toTripDraft(firstTrip) : emptyTripDraft);
-        setSelectedDate(firstTrip?.startDate ?? "");
+        const nextTrip = workspace.trips.find((trip) => trip.id === selectedTripIdRef.current) ?? workspace.trips[0];
+        setSelectedTripId(nextTrip?.id);
+        setTripDraft(nextTrip ? toTripDraft(nextTrip) : emptyTripDraft);
+        setSelectedDate((current) => nextTrip
+          ? current >= nextTrip.startDate && current <= nextTrip.endDate ? current : nextTrip.startDate
+          : "");
+        if (!nextTrip) setItems([]);
       })
       .catch((cause: unknown) => {
         if (active) {
@@ -393,7 +412,7 @@ function ItineraryModule() {
     return () => {
       active = false;
     };
-  }, [workspaceReloadKey]);
+  }, [workspaceReloadKey, itineraryController, sourceRevision, selectedTripId, hasOpenDraft, saving, calculatingItemId]);
 
   useEffect(() => {
     if (!selectedTripId) {
@@ -414,7 +433,7 @@ function ItineraryModule() {
     return () => {
       active = false;
     };
-  }, [selectedTripId]);
+  }, [selectedTripId, trips, itineraryController]);
 
   useEffect(() => {
     setDayOrderDraftIds(undefined);
@@ -428,7 +447,7 @@ function ItineraryModule() {
     async function refreshAvailablePlaces() {
       try {
         const [workspace, labelTree, nextItems] = await Promise.all([
-          itineraryController.loadWorkspace(),
+          itineraryController.loadWorkspace(tripId),
           labelController.listTree(),
           itineraryController.listItems(tripId),
         ]);
@@ -460,10 +479,10 @@ function ItineraryModule() {
       active = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [addingItem, selectedTripId]);
+  }, [addingItem, selectedTripId, itineraryController]);
 
   useEffect(() => {
-    if (!hasPendingDayReorder) return;
+    if (!hasOpenDraft) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -472,7 +491,7 @@ function ItineraryModule() {
 
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hasPendingDayReorder]);
+  }, [hasOpenDraft]);
 
   useEffect(() => {
     if (!deleteTripDialogOpen || saving) return;
@@ -528,12 +547,18 @@ function ItineraryModule() {
     };
   }, [focusMode]);
 
+  const mapSourceKey = JSON.stringify([
+    selectedRegion,
+    places.filter((place) => selectedRegionId && place.regionIds.includes(selectedRegionId))
+      .map(({ id, name, googlePlaceId, mapsUrl, icon }) => ({ id, name, googlePlaceId, mapsUrl, icon })),
+  ]);
+
   useEffect(() => {
     if (!selectedRegionId) return;
     const regionId = selectedRegionId;
     let active = true;
     itineraryController
-      .loadMapData(regionId)
+      .loadMapData(regionId, selectedTripId)
       .then((nextMapData) => {
         if (!active) return;
         setMapData(nextMapData);
@@ -554,7 +579,7 @@ function ItineraryModule() {
     return () => {
       active = false;
     };
-  }, [selectedRegionId]);
+  }, [selectedRegionId, selectedTripId, mapSourceKey, itineraryController]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
@@ -601,8 +626,8 @@ function ItineraryModule() {
 
   function selectTrip(trip: Trip) {
     if (
-      hasPendingDayReorder &&
-      !window.confirm("目前有未儲存的排序變更，切換行程後會遺失。要繼續嗎？")
+      hasOpenDraft &&
+      !window.confirm("目前有未儲存的變更，切換行程後會遺失。要繼續嗎？")
     ) {
       return;
     }
@@ -734,6 +759,8 @@ function ItineraryModule() {
   }
 
   function startAddItem() {
+    if (!selectedTripId || !canEditItems) return;
+    itineraryController.beginEdit(selectedTripId);
     setItemDraft({
       placeId: "",
       date: selectedDate,
@@ -810,6 +837,7 @@ function ItineraryModule() {
       setSelectedDate(itemDraft.date);
       setAddingItem(false);
       setEditingItemId(undefined);
+      await refreshWorkspace(selectedTripId);
       setNotice(editingItemId ? "行程項目已更新。" : "地點已加入每日行程。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "儲存行程項目失敗。");
@@ -819,6 +847,7 @@ function ItineraryModule() {
   }
 
   async function handleDeleteItem(item: ItineraryItem) {
+    itineraryController.beginEdit(item.tripId);
     const placeName =
       places.find((place) => place.id === item.placeId)?.name ?? "此地點";
     if (!window.confirm(`確定要從行程中移除「${placeName}」嗎？`)) return;
@@ -848,6 +877,7 @@ function ItineraryModule() {
 
   async function handleCalculateTravelDuration(item: ItineraryItem) {
     if (!selectedTripId) return;
+    itineraryController.beginEdit(item.tripId);
     setCalculatingItemId(item.id);
     setError("");
     setNotice("");
@@ -866,6 +896,8 @@ function ItineraryModule() {
   }
 
   function moveItem(item: ItineraryItem, direction: -1 | 1) {
+    if (!canEditItems) return;
+    if (!hasPendingDayReorder) itineraryController.beginEdit(item.tripId);
     const index = dayItems.findIndex((candidate) => candidate.id === item.id);
     const targetIndex = index + direction;
     if (index < 0 || targetIndex < 0 || targetIndex >= dayItems.length) return;
@@ -933,10 +965,15 @@ function ItineraryModule() {
       shellClassName="itinerary-app-shell"
       mainClassName="itinerary-main"
     >
+      {sharedNavigation}
       {tripCollaborationEnabled && collaborationOpen && (
         <TripCollaborationPanel
           preferredTripId={selectedTripId}
-          onClose={() => setCollaborationOpen(false)}
+          onClose={(tripId) => {
+            setCollaborationOpen(false);
+            setWorkspaceReloadKey((value) => value + 1);
+            onCollaborationChange?.(tripId ?? selectedTripId);
+          }}
         />
       )}
       <div className="itinerary-content">
@@ -961,7 +998,7 @@ function ItineraryModule() {
                 disabled={interactionBusy}
                 onClick={() => setCollaborationOpen(true)}
               >
-                協作預覽
+                {sharedTripEditingEnabled ? "協作管理" : "協作預覽"}
               </button>
             )}
             {trips.length > 1 && !editingTrip && (
@@ -976,6 +1013,7 @@ function ItineraryModule() {
                     if (trip) selectTrip(trip);
                   }}
                 >
+                  {!selectedTrip && <option value="">請選擇行程</option>}
                   {trips.map((trip) => (
                     <option key={trip.id} value={trip.id}>
                       {trip.name}
@@ -984,7 +1022,7 @@ function ItineraryModule() {
                 </select>
               </label>
             )}
-            {selectedTrip && !editingTrip && (
+            {selectedTrip && canManageTrip && !editingTrip && (
               <>
                 <button
                   type="button"
@@ -1526,7 +1564,7 @@ function ItineraryModule() {
                     <button
                       type="button"
                       className="itinerary-add-button"
-                      disabled={interactionBusy || itemFormVisible}
+                      disabled={interactionBusy || itemFormVisible || !canEditItems}
                       onClick={startAddItem}
                     >
                       ＋ 加入地點
@@ -1691,7 +1729,7 @@ function ItineraryModule() {
                             <button
                               type="button"
                               aria-label="往前移"
-                              disabled={interactionBusy || index === 0}
+                              disabled={interactionBusy || !canEditItems || index === 0}
                               onClick={() => void moveItem(item, -1)}
                             >
                               ↑
@@ -1700,7 +1738,7 @@ function ItineraryModule() {
                               type="button"
                               aria-label="往後移"
                               disabled={
-                                interactionBusy || index === dayItems.length - 1
+                                interactionBusy || !canEditItems || index === dayItems.length - 1
                               }
                               onClick={() => void moveItem(item, 1)}
                             >
@@ -1710,7 +1748,7 @@ function ItineraryModule() {
                               <button
                                 type="button"
                                 className="itinerary-calculate-route"
-                                disabled={interactionBusy || !routeReady}
+                                disabled={interactionBusy || !canEditItems || !routeReady}
                                 title={
                                   !item.transport
                                     ? "先編輯此地點並選擇交通方式"
@@ -1732,7 +1770,7 @@ function ItineraryModule() {
                             <button
                               type="button"
                               aria-label="編輯項目"
-                              disabled={interactionBusy}
+                              disabled={interactionBusy || !canEditItems}
                               onClick={() => startEditItem(item)}
                             >
                               編輯
@@ -1740,7 +1778,7 @@ function ItineraryModule() {
                             <button
                               type="button"
                               aria-label="移除項目"
-                              disabled={interactionBusy}
+                              disabled={interactionBusy || !canEditItems}
                               onClick={() => void handleDeleteItem(item)}
                             >
                               移除
@@ -1759,7 +1797,7 @@ function ItineraryModule() {
                         <button
                           type="button"
                           className="itinerary-primary"
-                          disabled={!tripPlaces.length}
+                          disabled={!tripPlaces.length || !canEditItems}
                           onClick={startAddItem}
                         >
                           ＋ 加入地點

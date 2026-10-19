@@ -9,9 +9,12 @@ export class ItineraryController {
     this.service = service
   }
 
-  loadWorkspace() {
-    return this.service.loadWorkspace()
+  loadWorkspace(tripId?: string) {
+    return this.service.loadWorkspace(tripId)
   }
+
+  getAccess(tripId: string) { return this.service.getAccess(tripId) }
+  beginEdit(tripId: string) { this.service.beginEdit(tripId) }
 
   createTrip(input: NewTrip) {
     return this.service.createTrip(input)
@@ -33,8 +36,8 @@ export class ItineraryController {
     return this.service.listItems(tripId)
   }
 
-  loadMapData(regionId: string) {
-    return this.service.loadMapData(regionId)
+  loadMapData(regionId: string, tripId?: string) {
+    return this.service.loadMapData(regionId, tripId)
   }
 
   addItem(input: NewScheduledItem) {

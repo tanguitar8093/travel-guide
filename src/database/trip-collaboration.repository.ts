@@ -54,7 +54,8 @@ function trip(value: unknown): CollaborationTrip {
   return {
     id: text(row.id), name: text(row.name), regionId: text(row.regionId),
     startDate: text(row.startDate), endDate: text(row.endDate),
-    ownerUid: text(row.ownerUid), access: access(row.access), aclVersion: text(row.aclVersion),
+    ownerUid: text(row.ownerUid), ownerEmail: optionalText(row.ownerEmail),
+    access: access(row.access), aclVersion: text(row.aclVersion),
   }
 }
 
@@ -62,7 +63,7 @@ function invitation(value: unknown): TripInvitation {
   const row = object(value)
   return {
     id: text(row.id), tripId: text(row.tripId), tripName: text(row.tripName),
-    invitedBy: text(row.invitedBy), inviteeUserId: text(row.inviteeUserId),
+    invitedBy: text(row.invitedBy), inviteeUserId: text(row.inviteeUserId), inviteeEmail: optionalText(row.inviteeEmail),
     role: validateTripMemberRole(row.role), expiresAt: text(row.expiresAt),
     acceptedAt: optionalText(row.acceptedAt), revokedAt: optionalText(row.revokedAt),
     createdAt: text(row.createdAt),
@@ -72,7 +73,7 @@ function invitation(value: unknown): TripInvitation {
 function member(value: unknown): TripMember {
   const row = object(value)
   return {
-    userId: text(row.userId), role: validateTripMemberRole(row.role),
+    userId: text(row.userId), email: optionalText(row.email), role: validateTripMemberRole(row.role),
     createdBy: text(row.createdBy), createdAt: text(row.createdAt),
   }
 }
@@ -117,6 +118,14 @@ export function validateCollaborationId(value: string): string {
   return id
 }
 
+export function validateInvitationEmail(value: string): string {
+  const email = value.trim().toLowerCase()
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new ValidationError('請輸入有效的 Email。')
+  }
+  return email
+}
+
 export class TripCollaborationRepository {
   private async call(action: string, tripId?: string, payload: Record<string, unknown> = {}): Promise<unknown> {
     if (!tripCollaborationEnabled) throw new ValidationError('行程協作尚未啟用。')
@@ -125,7 +134,7 @@ export class TripCollaborationRepository {
     const userId = sessionData.session?.user.id
     if (!userId) throw new ValidationError('請先登入後使用行程協作。')
     const { data, error } = await withSupabaseTimeout(
-      Promise.resolve(supabase.rpc('app_trip_collaboration', {
+      Promise.resolve(supabase.rpc('app_trip_collaboration_v2', {
         p_action: action,
         p_trip_id: tripId ? validateCollaborationId(tripId) : null,
         p_payload: payload,
@@ -137,7 +146,7 @@ export class TripCollaborationRepository {
     if (current.data.session?.user.id !== userId) throw new ValidationError('登入帳號已變更，請重新載入協作資料。')
     if (error) {
       if (error.code === 'PGRST202' || error.code === '42883') {
-        throw new ValidationError('雲端尚未安裝行程協作遷移。既有旅行資料未變更，請勿重播基礎 schema。')
+        throw new ValidationError('雲端尚未安裝 Email 邀請更新。既有旅行資料未變更，請勿重播基礎 schema。')
       }
       throw mapSupabasePermissionError(error) ?? new ValidationError(error.message)
     }
@@ -152,8 +161,8 @@ export class TripCollaborationRepository {
     return parseCollaborationDetails(await this.call('details', tripId))
   }
 
-  async invite(tripId: string, userId: string, role: TripMemberRole): Promise<void> {
-    await this.call('invite', tripId, { inviteeUserId: validateCollaborationId(userId), role: validateTripMemberRole(role) })
+  async invite(tripId: string, email: string, role: TripMemberRole): Promise<void> {
+    await this.call('invite', tripId, { email: validateInvitationEmail(email), role: validateTripMemberRole(role) })
   }
 
   async accept(tripId: string, invitationId: string): Promise<void> {

@@ -12,6 +12,8 @@ import type {
   RouteMapChanges,
 } from '../../database'
 import { isGoogleTravelMode } from '../../common/route-estimate'
+import { sharedTripEditingEnabled } from '../../database/shared-trip.types'
+import { sharedTrips } from '../../database/shared-trip.repository'
 import {
   getGooglePlaceDetails,
   getGoogleRouteEstimate,
@@ -189,7 +191,8 @@ export class RouteCalculatorService {
   }
 
   async loadTripMarkers(tripId: string): Promise<TripMapData> {
-    const items = await this.itemRepository.findByTripId(tripId)
+    const shared = sharedTripEditingEnabled ? (await sharedTrips.list()).find((row) => row.id === tripId)?.document : undefined
+    const items = shared?.items ?? await this.itemRepository.findByTripId(tripId)
     const dates = [...new Set(items.map((item) => item.date))].sort()
     const placeIds = [...new Set(items.map((item) => item.placeId))]
     const markers: TripMapData['markers'] = []
@@ -198,11 +201,16 @@ export class RouteCalculatorService {
     const work = async () => {
       while (cursor < placeIds.length) {
         const id = placeIds[cursor++]
-        const place = await this.placeRepository.getById(id)
+        const place = shared ? shared.places.find((row) => row.id === id) : await this.placeRepository.getById(id)
         if (!place) { unavailable.push(`已不存在的地點（${id}）`); continue }
         try {
-          const resolved = await this.resolveEndpoint({ source: 'saved', placeId: place.id })
-          markers.push({ ...resolved, dates: items.filter((item) => item.placeId === id).map((item) => item.date) })
+          const resolved = shared
+            ? place.googlePlaceId
+              ? await this.resolveEndpoint({ source: 'google', place: { id: place.googlePlaceId } })
+              : undefined
+            : await this.resolveEndpoint({ source: 'saved', placeId: place.id })
+          if (!resolved) { unavailable.push(`${place.name}：只有自訂地圖網址，無法取得試算圖釘位置。`); continue }
+          markers.push({ ...resolved, ...(shared ? { name: place.name } : {}), dates: items.filter((item) => item.placeId === id).map((item) => item.date) })
         } catch (cause) {
           unavailable.push(`${place.name}：${cause instanceof Error ? cause.message : '無法取得地圖位置'}`)
         }

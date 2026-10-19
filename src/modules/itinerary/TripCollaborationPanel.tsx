@@ -5,12 +5,14 @@ import { useDatabaseMode } from '../../database'
 import type { CollaborationDetails, CollaborationList, TripMemberRole } from '../../database'
 import { tripCollaborationController } from './trip-collaboration.controller'
 import './TripCollaborationPanel.css'
+import { sharedTripEditingEnabled } from '../../database/shared-trip.types'
+import { sharedTripController } from './shared-trip.controller'
 
 const roleLabels = { viewer: '唯讀', editor: '可編輯', owner: '擁有者' }
 
 interface Props {
   preferredTripId?: string
-  onClose(): void
+  onClose(tripId?: string): void
 }
 
 export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
@@ -21,6 +23,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
   const inviteInputRef = useRef<HTMLInputElement>(null)
   const [listing, setListing] = useState<CollaborationList>()
   const [details, setDetails] = useState<CollaborationDetails>()
+  const [enabledTripIds, setEnabledTripIds] = useState<string[]>([])
   const [tripId, setTripId] = useState(preferredTripId ?? '')
   const [invitee, setInvitee] = useState('')
   const [role, setRole] = useState<TripMemberRole>('viewer')
@@ -42,9 +45,13 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
   }, [])
 
   const load = useCallback(async (preferred: string, currentGeneration: number) => {
-    const next = await tripCollaborationController.list()
+    const [next, shared] = await Promise.all([
+      tripCollaborationController.list(),
+      sharedTripEditingEnabled ? sharedTripController.list() : Promise.resolve([]),
+    ])
     if (generation.current !== currentGeneration) return
     setListing(next)
+    setEnabledTripIds(shared.filter((row) => row.document).map((row) => row.id))
     const nextTripId = next.trips.some((trip) => trip.id === preferred) ? preferred : next.trips[0]?.id ?? ''
     setTripId(nextTripId)
     setDetails(undefined)
@@ -74,7 +81,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
   }, [load, preferredTripId, user?.id, mode])
 
   useEffect(() => {
-    if (!loading && listing) firstInputRef.current?.focus()
+    if (!loading && listing) (inviteInputRef.current ?? firstInputRef.current)?.focus()
   }, [loading, listing])
 
   async function changeTrip(nextTripId: string) {
@@ -127,7 +134,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
     void run(async () => {
       await tripCollaborationController.invite(details.trip.id, invitee, role)
       setInvitee('')
-    }, '邀請已送出。對方接受後才會取得行程權限。')
+    }, '站內邀請已送出。請對方登入後接受邀請；不會寄送 Email 通知。')
   }
 
   const pendingInvitations = listing?.invitations.filter((invitation) =>
@@ -138,16 +145,17 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
 
   return (
     <dialog ref={dialogRef} className="trip-collaboration-dialog" aria-labelledby="trip-collaboration-title"
-      onCancel={(event) => { event.preventDefault(); if (!busy) onClose() }}>
+      onCancel={(event) => { event.preventDefault(); if (!busy) onClose(tripId) }}>
       <header className="trip-collaboration-heading">
-        <h2 id="trip-collaboration-title">行程協作預覽</h2>
-        <button type="button" className="itinerary-secondary" disabled={busy} onClick={onClose}>關閉</button>
+        <h2 id="trip-collaboration-title">{sharedTripEditingEnabled ? '行程協作管理' : '行程協作預覽'}</h2>
+        <button type="button" className="itinerary-secondary" disabled={busy} onClick={() => onClose(tripId)}>關閉</button>
       </header>
       <p className="trip-collaboration-warning">
-        此階段提供邀請、權限管理與唯讀預覽，尚未開放共同編輯或離線協作。
-        需連線；混合模式僅顯示已同步到雲端的行程，不搬移或覆蓋本機資料。
+        {sharedTripEditingEnabled
+          ? '邀請與權限管理需要連線。啟用後，雙方從原本的行程清單使用同一套行程介面。混合模式使用本機快取與待同步佇列，不會搬移整個私人收藏。'
+          : '此階段提供邀請、權限管理與唯讀預覽，尚未開放共同編輯或離線協作。需連線；混合模式僅顯示已同步到雲端的行程，不搬移或覆蓋本機資料。'}
       </p>
-      <p className="trip-collaboration-account">我的帳號 ID：<code>{user?.id}</code>（提供此 ID 給邀請人）</p>
+      <p className="trip-collaboration-account">我的 Email：{user?.email}</p>
       {error && <p className="itinerary-feedback itinerary-error" role="alert">{error}</p>}
       {notice && <p className="itinerary-feedback itinerary-success" role="status">{notice}</p>}
       {loading && <p role="status">正在載入協作資料…</p>}
@@ -176,30 +184,48 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
       </label>}
       {details && <>
         <p>{details.trip.startDate} — {details.trip.endDate} · {roleLabels[details.trip.access]}</p>
+        {sharedTripEditingEnabled && canManage && <section>
+          <h3>共同編輯</h3>
+          <p>共同編輯使用原本的行程畫面。只共享此行程安排與已排入地點的公開地圖欄位，不分享私人收藏筆記或標籤。</p>
+          {enabledTripIds.includes(details.trip.id) ? <>
+            <p role="status">共同編輯已啟用；行程仍在原本的行程清單中。</p>
+            <button type="button" className="itinerary-delete" disabled={busy || loading} onClick={() => {
+              if (!window.confirm('確定取消此行程的共享？會撤銷所有成員與邀請，並將最新共同編輯內容保留為你的個人行程，不會還原成啟用前的舊內容。請先完成待同步操作。')) return
+              void run(() => sharedTripController.cancel(details.trip.id), '已取消共享；最新共同編輯內容已保留為個人行程。')
+            }}>取消共享行程</button>
+          </> : <button type="button" className="itinerary-primary" disabled={busy || loading} onClick={() => {
+            if (!window.confirm('確定啟用此行程的共同編輯？行程會留在原本的清單，成員可從同一套行程介面使用。')) return
+            void run(async () => {
+              await sharedTripController.enable(details.trip.id)
+              await sharedTripController.refresh()
+            }, '共同編輯已啟用。關閉視窗後，直接使用原本的行程畫面。')
+          }}>啟用共同編輯</button>}
+        </section>}
         {canManage && <form className="trip-collaboration-invite" onSubmit={submitInvite}>
           <h3>邀請既有帳號</h3>
           <label className="itinerary-field">
-            <span>對方帳號 ID（UUID）</span>
-            <input ref={inviteInputRef} required value={invitee} disabled={busy || loading}
-              onChange={(event) => setInvitee(event.target.value)} autoComplete="off" />
+            <span>對方 Email</span>
+            <input ref={inviteInputRef} type="email" required maxLength={254} value={invitee} disabled={busy || loading}
+              onChange={(event) => setInvitee(event.target.value)} autoComplete="email" autoCapitalize="none" spellCheck={false} />
           </label>
+          <p>對方需已註冊且具有工作區權限。這是站內邀請，不會寄送 Email 通知。</p>
           <label className="itinerary-field">
             <span>接受後的權限</span>
             <select value={role} disabled={busy || loading} onChange={(event) => setRole(event.target.value === 'editor' ? 'editor' : 'viewer')}>
               <option value="viewer">唯讀</option>
-              <option value="editor">可編輯（共同編輯介面尚未開放）</option>
+              <option value="editor">{sharedTripEditingEnabled ? '可編輯（擁有者啟用共同編輯後生效）' : '可編輯（共同編輯介面尚未開放）'}</option>
             </select>
           </label>
           <button type="submit" className="itinerary-primary" disabled={busy || loading || !invitee.trim()}>送出邀請</button>
         </form>}
         <section aria-label="行程成員">
           <h3>行程成員</h3>
-          <p>擁有者：<code>{details.trip.ownerUid}</code></p>
+          <p>擁有者：{details.trip.ownerEmail ?? '行程擁有者'}</p>
           <ul className="trip-collaboration-list">{details.members.map((member) => (
             <li key={member.userId}>
-              <code>{member.userId}</code>
+              <span>{member.email ?? '行程成員'}</span>
               {canManage ? <>
-                <select aria-label={`${member.userId} 的權限`} value={member.role} disabled={busy || loading}
+                <select aria-label={`${member.email ?? '行程成員'} 的權限`} value={member.role} disabled={busy || loading}
                   onChange={(event) => void run(() => tripCollaborationController.setMember(details.trip.id, member.userId,
                     event.target.value === 'editor' ? 'editor' : 'viewer'), '成員權限已更新。')}>
                   <option value="viewer">唯讀</option><option value="editor">可編輯</option>
@@ -224,7 +250,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
           <h3>送出的邀請</h3>
           <ul className="trip-collaboration-list">{details.invitations.map((invitation) => (
             <li key={invitation.id}>
-              <code>{invitation.inviteeUserId}</code>
+              <span>{invitation.inviteeEmail ?? '受邀帳號'}</span>
               <span>{roleLabels[invitation.role]} · {invitation.revokedAt ? '已撤銷' : invitation.acceptedAt ? '已接受' :
                 Date.parse(invitation.expiresAt) <= Date.now() ? '已過期' : '待接受'}</span>
               {!invitation.acceptedAt && !invitation.revokedAt && <button type="button" className="itinerary-secondary" disabled={busy || loading}
@@ -232,7 +258,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
             </li>
           ))}</ul>
         </section>}
-        <section aria-label="共享行程唯讀預覽">
+        {!sharedTripEditingEnabled && <section aria-label="共享行程唯讀預覽">
           <h3>行程內容（唯讀）</h3>
           {!details.items.length && <p>這趟行程尚未安排地點。</p>}
           <ol className="trip-collaboration-items">{[...details.items].sort((left, right) =>
@@ -245,7 +271,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
             </li>
           ))}</ol>
           <p>只顯示此行程安排的地點，不提供私人收藏筆記或標籤。</p>
-        </section>
+        </section>}
       </>}
     </dialog>
   )

@@ -10,7 +10,7 @@ export class TripCollaborationController {
 
   list() { return this.service.list() }
   details(tripId: string) { return this.service.details(tripId) }
-  invite(tripId: string, userId: string, role: TripMemberRole) { return this.service.invite(tripId, userId, role) }
+  invite(tripId: string, email: string, role: TripMemberRole) { return this.service.invite(tripId, email, role) }
   accept(tripId: string, invitationId: string) { return this.service.accept(tripId, invitationId) }
   revokeInvitation(tripId: string, invitationId: string) { return this.service.revokeInvitation(tripId, invitationId) }
   setMember(tripId: string, userId: string, role: TripMemberRole) { return this.service.setMember(tripId, userId, role) }

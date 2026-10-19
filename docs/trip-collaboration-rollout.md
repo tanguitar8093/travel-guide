@@ -2,15 +2,92 @@
 
 ## Status and scope
 
-This is a disabled-by-default collaboration **preview**, not a completed
-co-editing release. It provides an online control plane for invitations,
-membership and a narrowly scoped read-only trip projection. Editor membership
-is represented, but the application does not yet permit collaborative content
-editing, shared offline edits, or shared route-map editing.
+The original collaboration **preview** provides invitation/member management
+and a read-only projection. A separately gated shared-itinerary editing slice
+now supports item editing and hybrid queued drafts after explicit activation.
+It does not provide shared saved route-map editing, offline cold login or
+instant multi-user push updates.
 
-No live Supabase connection, backup, migration, or production deployment is
-performed by implementing these files. Passing isolated tests is not proof of
-live permissions or cross-device behavior.
+### Current correction: original itinerary UI and cancellation
+
+The UI correction is implemented in source. The cancellation migration has
+been separately authorized, rehearsed and installed. Frontend tests, build
+and browser checks were declined for this correction and were not run.
+The earlier 90-test/build results below do not cover the new frontend code.
+
+- Personal and activated shared trips now use the original `ItineraryModule`
+  renderer and normal trip selector. The owner trip is deduplicated, not
+  hidden. The separate shared card renderer and scope selector are removed.
+  Dates, ordering, item forms, focus mode, original map and responsive layout
+  remain in that renderer.
+- `CollaborativeItineraryService` adapts the existing controller operations:
+  private operations retain the original persistence facade; activated item
+  operations use the shared repository and existing hybrid outbox/scheduler.
+  A form or reorder draft keeps its opening snapshot for version checking.
+  Background refresh does not reset an open form or date selection. Shared
+  conflict preview/export and per-trip resolution remain available separately
+  from the itinerary renderer.
+- Viewers cannot use item-write controls, editors cannot edit/delete trip
+  metadata, and the server remains the authority. Private place notes/labels
+  are shown only from the current user's own collection, never shared.
+  The existing map mount, initial fit and explicit default-display behavior
+  are unchanged; a shared trip uses the same region/map service.
+- The new, separately approved installation is
+  `20261019090000_cancel_trip_sharing.sql`; do not replay prior migrations.
+  Its authenticated owner/admin-only RPC checks the expected shared version
+  under the existing global transaction lock. It archives the workspace,
+  original items, membership and invitation records in a private,
+  non-client-readable cancellation receipt before atomic copy-back.
+- Cancellation keeps the latest shared itinerary as normal owner-only rows,
+  not the activation-time baseline. Unchanged owner places retain IDs, private
+  notes and labels. New or changed shared places are materialized as separate
+  owner places rather than overwriting unrelated private definitions; an
+  owner's original notes/labels are retained when applicable. Item IDs are
+  retained unless another trip already owns the ID.
+- The same transaction removes the active workspace, members and invitations,
+  clears the editor list, returns the trip to private mode and publishes
+  versioned revocations. Invitation history remains in the private archive;
+  an old accepted invitation cannot restore access. Re-enabling starts from
+  the current private itinerary and a new shared revision.
+- Standalone local mode has no sharing to cancel. Cloud cancellation is an
+  explicit online action. Hybrid refuses cancellation while any local tasks
+  are pending, then downloads the private records and revocation through the
+  existing sync engine. If that download fails after cloud commit, the UI
+  explicitly reports that cancellation completed but local sync did not.
+  Other users' pending drafts remain exportable conflicts; revoked users
+  cannot upload or requeue them.
+- The cancellation rollback revokes only the new RPC. It does not delete
+  receipts, restore invitations, undo a completed cancellation or discard
+  current trip data. A data restore requires a separately reviewed operation.
+
+The fresh private backup and isolated PostgreSQL 17 restore matched all 46
+existing table fingerprints. The new migration and its API-shutdown rollback
+also preserved those rows. In the isolated restored database, a synthetic
+trip exercised editor edits, owner-only and stale-version denial, atomic
+cancellation, changed-place mapping without private-place overwrite, preserved
+private notes, idempotent cancellation retry, restored private writes,
+revoked reads/uploads, old-invitation rejection and fresh activation using the
+latest private content. These operations were rolled back and never performed
+against live business data.
+
+Only the new migration was then committed live. Transaction fingerprint guards
+verified all 46 pre-existing tables before/after installation. Subsequent
+read-only catalog checks confirmed authenticated RPC execute permission,
+anonymous denial, an empty safe function search path, archive RLS and no client
+archive SELECT permission. The archive contained zero cancellation records:
+installation did not cancel any user's trip.
+
+Added automated regressions remain unrun, including owner visibility and shared
+operations through the original controller, frozen form versions, viewer
+denial, map inputs, private hybrid downloads and retained revoked drafts.
+Frontend build and authenticated two-browser acceptance remain unverified;
+isolated PostgreSQL results do not establish frontend or cross-device behavior.
+
+The initial implementation did not connect to or change live Supabase.
+Subsequently authorized read-only inspection and a private backup/isolated
+restore rehearsal and separately approved live migration are recorded below.
+No application deployment has been performed by this work. Passing isolated tests is not proof of live
+permissions or cross-device behavior.
 
 The source baseline before this work is commit `b7fd6a3` (`feat: debug mode`).
 It already contains the RWD changes and administrator debug functionality.
@@ -62,6 +139,99 @@ Unset or `false` leaves current application behavior unchanged.
 It is a Vite build-time setting. Update the deployment configuration and
 rebuild/redeploy to change it. A feature flag is not authorization; the RPC
 must independently check identity, application role and trip membership.
+
+### Shared editing implementation and authorized installation
+
+`VITE_TRIP_SHARED_EDITING_ENABLED=true` is a separate, default-off switch.
+It requires the collaboration flag and the separately approved
+`20261019080000_shared_trip_editing.sql` and
+`20261019081000_shared_trip_maintenance.sql`. Do not enable it against a database
+that has only the invitation migrations. The existing personal sync endpoints
+and seven personal sync entities remain unchanged.
+
+The user approved explicit per-trip activation with a separate shared source:
+
+- The owner (or an administrator) enables editing online. Only that trip's
+  scheduled places and itinerary items are copied once into
+  `trip_shared_workspaces`; private place notes, labels and unrelated
+  collections are not copied. Itinerary notes are shared trip content.
+- The original private itinerary rows remain as the activation-time recovery
+  baseline, not a second writable source. A server trigger rejects later
+  private scheduling writes for enabled trips. No-op updates and travel-estimate
+  maintenance remain allowed, so editing the owner's personal place does not
+  fail merely because it is referenced by the retained baseline.
+  Repeated activation does not reset
+  shared content. Shared writes never rewrite the original item/place IDs.
+- The normal itinerary selector opens the same authorized shared document for
+  both users using the original itinerary UI. Editors can add a selected personal place (only public map/name
+  fields), edit items, move dates, remove items, reorder and estimate travel.
+  Viewers cannot mutate. Shared trip metadata/deletion and shared saved route
+  maps are not provided by this slice. Owner route-calculator markers read
+  the current shared itinerary rather than the retained original rows.
+- Cloud writes check the whole document revision and authorization inside the
+  same advisory-locked transaction. Concurrent edits produce an explicit
+  conflict, not last-writer-wins. Account/operation receipts make retries
+  idempotent; rights are checked before returning a receipt.
+- Hybrid uses the account/project-specific IndexedDB `sharedItineraries`
+  store (version 9). A shared cache write and its `outbox` task commit in the
+  same transaction. Shared tasks use a separate typed envelope, not personal
+  entity changes, and run in the existing manual/automatic sync scheduler and
+  cross-tab lock. Personal RPC payloads and cursors are unchanged.
+- The shared server sends complete authorized snapshots and versioned
+  revocations. Revocation removes the readable cached document even if an
+  unsent draft exists. The draft remains in the outbox for explicit export or
+  discard; this cannot erase information the user already viewed or copied.
+  Server authorization blocks uploads while offline permission checks cannot.
+- Conflicts are resolved per shared trip, after preview/export and a fresh
+  cloud-version check. Adopting cloud discards only that trip's shared tasks;
+  keeping local queues a new version-checked operation. Revoked/viewer users
+  cannot requeue their drafts. Personal conflict resolution retains shared
+  tasks and does not discard them.
+- The shared synchronization controls can export its snapshot and pending tasks as a
+  JSON draft. This is not a portable backup import format. Existing personal
+  JSON backup/export still describes personal data, including the retained
+  original itinerary, not current shared contents or authorization metadata.
+  Shared full database recovery must include the workspace, deliveries and
+  receipts.
+
+The user separately authorized the build, targeted validation, fresh backups,
+isolated rehearsals, incremental live installation and the local feature
+switch. The production build passed with the shared feature enabled.
+Eight targeted files / 90 tests passed, including real PGlite shared writes and
+Dexie/engine integration plus the personal synchronization regressions. The
+personal regression baseline keeps the shared feature switch off; shared
+integration fixtures explicitly inject the shared SQL adapter. Route-marker
+regressions also exercise the feature-enabled shared source and preserve shared
+place names rather than using the retained private schedule. These are not
+browser-authenticated two-account acceptance tests.
+
+Both incremental migrations committed after isolated PostgreSQL 17 rehearsals.
+Transaction fingerprint guards verified all 43 pre-existing tables around the
+shared-scope installation, and all 46 scoped tables around the maintenance
+guard installation. No existing row values or IDs changed during either
+migration. The second backup includes the newly installed shared tables as well
+as `public`, `sync_private`, `auth` and `collaboration_private`. The maintenance
+guard also rejects oversized initial documents before activation, rather than
+leaving a trip activated with an unreadable client payload.
+
+Read-only live inspection confirmed authenticated shared snapshot access,
+anonymous denial, no direct authenticated table SELECT, and the original sync
+snapshot still working. PostgREST recognizes the shared RPC and rejects
+anonymous requests with HTTP 401 / SQLSTATE 42501. The local itinerary URL
+responded HTTP 200 and served the enabled feature flag. No application
+deployment to a hosting provider was performed.
+
+No production trip was activated or shared test content written by this work;
+the live shared workspace count was zero at verification. The owner must use
+**Collaboration management -> Enable shared editing**. After acceptance, users
+choose the shared trip in the itinerary scope selector and can edit if their
+role allows it. Initial hybrid recipients may need **Reload/sync shared trips**.
+
+Disabling the switch alone does not undo
+activation. The shared rollback only revokes the shared RPC; it preserves
+shared content and the legacy-write guard. Reverting to the old private
+baseline can omit subsequent legitimate shared edits and requires an explicit
+recovery decision after exporting current shared data.
 
 Do not enable the flag in production before separately approving and applying
 the incremental SQL and validating it in staging.
@@ -128,10 +298,9 @@ decision, not an automatic script.
    local/hybrid sync behave as before.
 2. Apply the incremental migration only to the isolated database.
 3. Enable the preview flag and use two existing member accounts.
-4. Open **Itinerary -> Collaboration preview**. The recipient can provide
-   their own account UUID from this dialog; no directory of private emails is
-   exposed.
-5. Invite that UUID as a viewer. Confirm access is denied before acceptance.
+4. Open **Itinerary -> Collaboration preview**. Use the recipient's existing
+   registered email; no directory of private emails is exposed.
+5. Invite that email as a viewer. Confirm access is denied before acceptance.
 6. Accept as the recipient. Confirm only that trip's scheduled places and
    trip content appear, not unrelated collections, private place notes or
    labels.
@@ -146,3 +315,114 @@ decision, not an automatic script.
 
 The UI explicitly labels this as a read-only preview even for editor members.
 Do not present this acceptance list as full collaborative editing acceptance.
+
+## Authorized backup and restore rehearsal — 2026-10-19
+
+- Read-only catalog inspection confirmed PostgreSQL 17.11 and that the
+  collaboration tables/API were absent. Original owner-scoped policies remain
+  deployed. One existing trip has sharing/editor metadata; it must not be
+  reset or silently replaced.
+- PostgreSQL 16 backup tools were incompatible with the server major version.
+  After explicit approval, the official `postgres:17` container image was
+  downloaded and used for backup and an isolated PostgreSQL 17 restore.
+- A custom-format archive includes the `public`, `sync_private`, and `auth`
+  schemas, including application roles stored in `user_roles`, auth records,
+  sync state, definitions and ACLs. It is stored outside the repository in a
+  private owner-only directory; the archive has mode `0600`. No backup data
+  or credentials are published as a chat artifact.
+- The source was unchanged between the before/after checks. All 40 tables in
+  this scope matched the isolated restore in row count and content
+  fingerprints (sorted hashes of each complete row).
+- The restore target had no network access or published ports. Non-login
+  placeholder roles and pgcrypto were prepared there. Restore used
+  `--no-owner`; original production role memberships, ownership and the
+  complete Supabase platform are **not** reproduced by this rehearsal.
+- The incremental collaboration migration was then applied to the isolated
+  restore only. Comparing all original columns confirmed unchanged original
+  row values and IDs. New fields were excluded only from this comparison.
+- In rollback-only transactions on the isolated database, original owner
+  updates to trips, items, maps and markers and the original sync snapshot
+  succeeded after migration and after API shutdown. The collaboration list
+  RPC succeeded before shutdown; execute permission for `authenticated`
+  was confirmed revoked after shutdown.
+- The non-destructive shutdown script preserved all original data and left
+  new schema/metadata in place. This is feature shutdown, **not** exact
+  removal of all migration objects.
+- Isolated containers and their anonymous volumes were removed afterward.
+  The verified archive and private fingerprint/rehearsal records remain.
+- This backup does not include storage files, other platform schemas,
+  provider configuration, role passwords/memberships or PITR. Supabase
+  managed backup/PITR availability has not been established.
+- Applying anything to live Supabase still requires separate approval.
+  If source data changes before approval, take a new backup and reconcile the
+  live catalog again before applying the migration.
+
+## Separately approved live migration — 2026-10-19
+
+- After the backup rehearsal, the user explicitly approved only
+  `20261019060000_trip_collaboration.sql` and read-only verification.
+- A fresh private archive was restored and rehearsed again before execution.
+  The verification tool was corrected to parse complete multiline JSON results
+  and compare table arrays independently of database collation. A temporary
+  container readiness race was also corrected. These initial failed attempts
+  did not run the live migration.
+- The live migration ran in one transaction with the existing synchronization
+  advisory lock. Before applying DDL, all 40 scoped tables were compared with
+  the verified archive's counts and full-row fingerprints. Before commit,
+  original columns of all 40 tables were compared again. Both guards passed
+  and the transaction committed.
+- Post-commit read-only inspection confirmed all three collaboration tables
+  exist, are empty, have RLS enabled, and deny direct authenticated SELECT.
+  Only the authenticated role can execute the new RPC; anonymous callers
+  cannot.
+- Business counts remained `regions=2`, `places=22`, `labels=19`, `trips=1`,
+  `itinerary_items=17`, `route_maps=2`, `route_map_places=3`. The existing trip's
+  sharing/editor metadata was preserved; no automatic membership conversion
+  was performed.
+- An unauthenticated PostgREST request recognized the new endpoint and returned
+  HTTP 401 / SQLSTATE 42501, not a missing-RPC error.
+- No production business-data invitation, acceptance, editing or member
+  removal smoke tests were performed. Browser-authenticated cross-device
+  behavior and collaborative content editing are not established by this
+  installation.
+- The non-destructive rollback has been rehearsed on the restored copy; it has
+  **not** been applied to live Supabase. Production recovery remains a
+  separately authorized operation.
+
+## Email invitation update
+
+- The incremental `20261019070000_trip_collaboration_email.sql` adds
+  `app_trip_collaboration_v2`, preserving the deployed UUID API and existing
+  invitations/member IDs. It does not rewrite business records.
+- The frontend accepts email instead of UUID. The server checks the caller's
+  owner/admin rights before performing an exact, case-insensitive lookup.
+  Only an existing member/admin account may be invited. Unknown and
+  ineligible addresses receive the same actionable error.
+- This is an in-app invitation, **not** an email delivery system or an
+  invitation to register. No email notification is sent.
+- Management screens show recipient/member emails to the trip manager.
+  Other members receive only their own member email plus the trip owner's
+  email; there is no searchable account directory.
+- The new client requires the v2 API. Deploy the incremental SQL only after
+  separate live approval, then deploy the updated client.
+- The user separately approved testing, a fresh backup and this exact Email
+  mapping migration. The build and 22 focused tests passed.
+- A fresh private archive included `public`, `sync_private`, `auth` and
+  `collaboration_private`. All 43 tables in the first three schemas matched
+  the isolated restore by row count and full-row fingerprints. The Email
+  migration and v2 shutdown were rehearsed there without changing existing
+  row values or IDs.
+- The live Email migration then committed under the synchronization advisory
+  lock. Transaction guards matched all 43 tables against that verified backup
+  both before and after DDL, including all existing columns.
+- Live verification confirmed authenticated list access and, in a transaction
+  that was rolled back, owner details with scoped Email resolution. Anonymous
+  execution is denied; PostgREST recognizes v2 and returns HTTP 401 /
+  SQLSTATE 42501 to an anonymous request.
+- No production invitations were sent or accepted for testing. Browser login,
+  two-account acceptance and cross-device behavior still require manual
+  acceptance; this update does not enable collaborative content editing.
+- The email rollback revokes v2 execution without removing any rows. To roll
+  back the application, deploy the pre-email client alongside the original API.
+  To shut down collaboration entirely, revoke **both** API versions, not just
+  the original function.

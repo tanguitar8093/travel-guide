@@ -7,7 +7,10 @@ const mocks = vi.hoisted(() => ({
   trips: vi.fn(), items: vi.fn(),
   routeMapCreate: vi.fn(), routeMapUpdate: vi.fn(), routeMapGet: vi.fn(), routeMapList: vi.fn(), routeMapFindByTrip: vi.fn(),
   routeMapPlaceCreate: vi.fn(), routeMapPlaceDelete: vi.fn(), routeMapPlaceFind: vi.fn(),
+  sharedTrips: vi.fn(),
 }))
+vi.mock('../../database/shared-trip.types', () => ({ sharedTripEditingEnabled: true }))
+vi.mock('../../database/shared-trip.repository', () => ({ sharedTrips: { list: mocks.sharedTrips } }))
 vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
   places: { list: mocks.list, getById: mocks.getById },
@@ -57,6 +60,23 @@ beforeEach(() => {
   mocks.routeMapPlaceCreate.mockResolvedValue('marker-id')
   mocks.routeMapPlaceDelete.mockResolvedValue(undefined)
   mocks.routeMapPlaceFind.mockResolvedValue([])
+  mocks.sharedTrips.mockResolvedValue([])
+})
+
+it('uses the current shared itinerary and its names rather than retained private items', async () => {
+  mocks.sharedTrips.mockResolvedValue([{
+    id: 'shared-trip', version: '2', document: {
+      places: [{ id: 'shared-place', name: 'Shared park', googlePlaceId: 'shared-google' }],
+      items: [{ id: 'shared-item', placeId: 'shared-place', date: '2026-10-20', order: 0 }],
+    },
+  }])
+  mocks.details.mockResolvedValue({ id: 'shared-google', displayName: 'Provider name', location: { lat: 25, lng: 121 } })
+  const result = await new RouteCalculatorService().loadTripMarkers('shared-trip')
+  expect(result.markers).toEqual([expect.objectContaining({
+    name: 'Shared park', googlePlaceId: 'shared-google', dates: ['2026-10-20'],
+  })])
+  expect(mocks.items).not.toHaveBeenCalled()
+  expect(mocks.getById).not.toHaveBeenCalled()
 })
 
 it('reads all saved places through the existing repository without filtering by trip region', async () => {

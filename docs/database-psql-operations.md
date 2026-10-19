@@ -130,3 +130,29 @@ node --env-file=.env.local scripts/db-psql.mjs \
   data, user-facing trip-delete warnings for stored route maps, or any live
   business-data write smoke test beyond the migration transaction itself.
   Cross-device/manual browser validation was not run here.
+
+## Cancel-sharing installation record — 2026-10-19
+
+- The user declined frontend tests/build/browser validation but explicitly
+  authorized a fresh private backup, isolated restore rehearsal and installation
+  of only `20261019090000_cancel_trip_sharing.sql` after that rehearsal passed.
+- Read-only reconciliation confirmed the shared API and required itinerary
+  columns existed and that the new cancellation API/archive did not.
+- A PostgreSQL 17 application-scope backup restored successfully in a
+  network-isolated container. All 46 existing table fingerprints matched.
+  The incremental migration and shutdown rollback preserved the original rows.
+- Rolled-back synthetic operations in the isolated restore verified
+  owner-only/stale-version checks, latest-content copy-back, non-overwriting
+  private-place mapping, idempotent retry, restored private editing, revoked
+  reads/uploads, rejected old invitations and fresh activation.
+- The new migration committed live under the shared transaction advisory lock.
+  All 46 pre-existing tables matched the verified backup before and after the
+  installation. No old migrations were replayed and no existing trip was
+  automatically cancelled.
+- Post-installation read-only checks confirmed authenticated execute permission,
+  anonymous denial, `SECURITY DEFINER` with an empty `search_path`, archive RLS
+  and no authenticated archive SELECT permission. The private cancellation
+  archive was empty. No live business-data write smoke test was performed.
+- The shutdown rollback revokes only the cancellation RPC and preserves
+  completed copy-backs and private recovery records; it does not restore
+  sharing permissions or an old itinerary.
