@@ -22,6 +22,8 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .itinerary-heading p { margin: 8px 0 0; color: #8b958d; font-size: 10px; }
 .itinerary-heading p i { width: 3px; height: 3px; display: inline-block; margin: 0 7px 2px; border-radius: 50%; background: #a8b3aa; }
 .itinerary-heading-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 7px; }
+.itinerary-place-select-trigger { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex: 1; min-width: 0; width: 100%; min-height: 35px; padding: 7px 9px; border: 1px solid #e7ebe7; border-radius: 5px; color: #626d65; background: #fff; text-align: left; cursor: pointer; }
+.itinerary-place-select-trigger > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .itinerary-trip-switcher,.itinerary-action-menu { position: relative; }
 .itinerary-trip-switcher summary,.itinerary-action-menu summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
 .itinerary-trip-switcher summary::-webkit-details-marker,.itinerary-action-menu summary::-webkit-details-marker { display: none; }
