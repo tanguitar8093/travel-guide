@@ -155,10 +155,37 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
   function submitInvite(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!details) return;
+    const shouldEnableCollaboration =
+      sharedTripEditingEnabled && !enabledTripIds.includes(details.trip.id);
+    if (
+      shouldEnableCollaboration &&
+      mode === "indexeddb"
+    ) {
+      setError("單機模式無法啟用協作，請切換到混合或雲端模式後再送出邀請。");
+      return;
+    }
     void run(async () => {
       await tripCollaborationController.invite(details.trip.id, invitee, role);
+      if (shouldEnableCollaboration) {
+        try {
+          await sharedTripController.enable(details.trip.id);
+        } catch (cause) {
+          throw new Error(
+            `邀請已送出，但協作啟用失敗：${cause instanceof Error ? cause.message : "請重新載入後再試。"}`,
+          );
+        }
+        try {
+          await sharedTripController.refresh();
+        } catch (cause) {
+          throw new Error(
+            `邀請已送出，協作也已啟用，但共享行程載入失敗：${cause instanceof Error ? cause.message : "請重新載入確認狀態。"}`,
+          );
+        }
+      }
       setInvitee("");
-    }, "站內邀請已送出。請對方接受邀請。");
+    }, shouldEnableCollaboration
+      ? "站內邀請已送出。協作已啟用，請對方接受邀請。"
+      : "站內邀請已送出，請對方接受邀請。");
   }
 
   const pendingInvitations =
@@ -180,6 +207,15 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
         event.preventDefault();
         if (!busy) onClose(tripId);
       }}
+      onClick={(event) => {
+        const bounds = event.currentTarget.getBoundingClientRect();
+        const clickedOutside =
+          event.clientX < bounds.left ||
+          event.clientX > bounds.right ||
+          event.clientY < bounds.top ||
+          event.clientY > bounds.bottom;
+        if (clickedOutside && !busy) onClose(tripId);
+      }}
     >
       <header className="trip-collaboration-heading">
         <h2 id="trip-collaboration-title">
@@ -189,7 +225,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
           {details &&
             sharedTripEditingEnabled &&
             canManage &&
-            (enabledTripIds.includes(details.trip.id) ? (
+            enabledTripIds.includes(details.trip.id) && (
               <button
                 type="button"
                 className="itinerary-delete"
@@ -209,27 +245,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
               >
                 結束協作
               </button>
-            ) : (
-              <button
-                type="button"
-                className="itinerary-primary"
-                disabled={busy || loading}
-                onClick={() => {
-                  if (
-                    !window.confirm(
-                      "確定啟用此行程的共同編輯？行程會留在原本的清單，成員可從同一套行程介面使用。",
-                    )
-                  )
-                    return;
-                  void run(async () => {
-                    await sharedTripController.enable(details.trip.id);
-                    await sharedTripController.refresh();
-                  }, "共同編輯已啟用。關閉視窗後，直接使用原本的行程畫面。");
-                }}
-              >
-                啟用協作
-              </button>
-            ))}
+            )}
           <button
             type="button"
             className="itinerary-secondary"
@@ -350,7 +366,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
                   <option value="viewer">唯讀</option>
                   <option value="editor">
                     {sharedTripEditingEnabled
-                      ? "可編輯（擁有者啟用協作後生效）"
+                      ? "可編輯（接受邀請後可共同編輯）"
                       : "可編輯（共同編輯介面尚未開放）"}
                   </option>
                 </select>
