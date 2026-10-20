@@ -225,6 +225,39 @@ function ItineraryModule({
   const focusModeCloseRef = useRef<HTMLButtonElement>(null);
   const placePickerInputRef = useRef<HTMLInputElement>(null);
   const deleteRouteMapCheckGeneration = useRef(0);
+  const tripSwitcherRef = useRef<HTMLDetailsElement>(null);
+  const tripActionsRef = useRef<HTMLDetailsElement>(null);
+  const mapToolsRef = useRef<HTMLDetailsElement>(null);
+
+  useEffect(() => {
+    function closeMenus(event: PointerEvent | KeyboardEvent) {
+      for (const ref of [tripSwitcherRef, tripActionsRef, mapToolsRef]) {
+        const menu = ref.current;
+        if (!menu?.open) continue;
+        if (event instanceof KeyboardEvent) {
+          if (event.key !== "Escape" || !menu.contains(document.activeElement)) continue;
+          menu.open = false;
+          menu.querySelector("summary")?.focus();
+        } else if (event.target instanceof Node && !menu.contains(event.target)) {
+          menu.open = false;
+        }
+      }
+    }
+    document.addEventListener("pointerdown", closeMenus);
+    document.addEventListener("keydown", closeMenus);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenus);
+      document.removeEventListener("keydown", closeMenus);
+    };
+  }, []);
+
+  function runTripAction(action: () => void) {
+    if (tripActionsRef.current) {
+      tripActionsRef.current.open = false;
+      tripActionsRef.current.querySelector("summary")?.focus();
+    }
+    action();
+  }
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
   const canEditItems =
@@ -406,7 +439,8 @@ function ItineraryModule({
     hasPendingDayReorder;
 
   useEffect(() => {
-    if (hasOpenDraft || saving || calculatingItemId || refreshingSharedTrip) return;
+    if (hasOpenDraft || saving || calculatingItemId || refreshingSharedTrip)
+      return;
     let active = true;
     Promise.all([
       itineraryController.loadWorkspace(selectedTripIdRef.current),
@@ -1036,7 +1070,8 @@ function ItineraryModule({
       hasOpenDraft ||
       collaborationOpen ||
       deleteTripDialogOpen
-    ) return;
+    )
+      return;
     setRefreshingSharedTrip(true);
     setError("");
     setNotice("");
@@ -1072,10 +1107,39 @@ function ItineraryModule({
       <div className="itinerary-content">
         <section className="itinerary-heading">
           <div className="workspace-page-heading-title">
-            <h1>
+            {trips.length > 1 && !editingTrip && !creatingTrip ? (
+              <details className="itinerary-trip-switcher" ref={tripSwitcherRef}>
+                <summary aria-label={`切換行程，目前為${selectedTrip?.name ?? "尚未選取"}`}>
+                  <h1>{selectedTrip?.name ?? "選擇行程"}</h1>
+                  <svg className="itinerary-menu-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+                </summary>
+                <div className="itinerary-dropdown itinerary-trip-options" aria-label="切換行程">
+                  <div className="itinerary-dropdown-heading">你的行程</div>
+                  {trips.map((trip) => (
+                    <button
+                      key={trip.id}
+                      type="button"
+                      className="itinerary-trip-option"
+                      aria-current={trip.id === selectedTripId ? "true" : undefined}
+                      disabled={interactionBusy}
+                      onClick={() => {
+                        if (tripSwitcherRef.current) {
+                          tripSwitcherRef.current.open = false;
+                          tripSwitcherRef.current.querySelector("summary")?.focus();
+                        }
+                        selectTrip(trip);
+                      }}
+                    >
+                      <span><strong>{trip.name}</strong><small>{trip.startDate} — {trip.endDate}</small></span>
+                      {trip.id === selectedTripId && <span aria-hidden="true">✓</span>}
+                    </button>
+                  ))}
+                </div>
+              </details>
+            ) : <h1>
               {selectedTrip?.name ??
                 (creatingTrip ? "新增行程" : "開始規劃一趟旅行")}
-            </h1>
+            </h1>}
             {selectedTrip && (
               <p>
                 {selectedTrip.startDate} — {selectedTrip.endDate} <i />{" "}
@@ -1090,9 +1154,17 @@ function ItineraryModule({
                 <button
                   type="button"
                   className="itinerary-secondary itinerary-refresh"
-                  aria-label={refreshingSharedTrip ? "正在重新整理協作行程" : "重新整理協作行程"}
+                  aria-label={
+                    refreshingSharedTrip
+                      ? "正在重新整理協作行程"
+                      : "重新整理協作行程"
+                  }
                   aria-busy={refreshingSharedTrip}
-                  title={hasOpenDraft ? "請先儲存或取消編輯，再重新整理" : "重新整理協作行程"}
+                  title={
+                    hasOpenDraft
+                      ? "請先儲存或取消編輯，再重新整理"
+                      : "重新整理協作行程"
+                  }
                   disabled={
                     loading ||
                     interactionBusy ||
@@ -1109,61 +1181,24 @@ function ItineraryModule({
                   </svg>
                 </button>
               )}
-            <button
-              type="button"
-              className="itinerary-secondary"
-              disabled={interactionBusy}
-              onClick={() => setCollaborationOpen(true)}
-            >
-              協作
-            </button>
-            {trips.length > 1 && !editingTrip && (
-              <label className="itinerary-trip-select">
-                <span>切換行程</span>
-                <select
-                  value={selectedTripId ?? ""}
-                  onChange={(event) => {
-                    const trip = trips.find(
-                      (candidate) => candidate.id === event.target.value,
-                    );
-                    if (trip) selectTrip(trip);
-                  }}
-                >
-                  {!selectedTrip && <option value="">請選擇行程</option>}
-                  {trips.map((trip) => (
-                    <option key={trip.id} value={trip.id}>
-                      {trip.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-            {selectedTrip && canManageTrip && !editingTrip && (
-              <>
-                <button
-                  type="button"
-                  className="itinerary-secondary"
-                  onClick={startEditTrip}
-                >
-                  編輯
-                </button>
-                <button
-                  type="button"
-                  className="itinerary-delete"
-                  disabled={saving}
-                  onClick={openDeleteTripDialog}
-                >
-                  刪除
-                </button>
-              </>
-            )}
-            <button
-              type="button"
-              className="itinerary-primary"
-              onClick={startCreateTrip}
-            >
-              ＋ 新增
-            </button>
+            <details className="itinerary-action-menu" ref={tripActionsRef}>
+              <summary className="itinerary-secondary">
+                行程操作
+                <svg className="itinerary-menu-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+              </summary>
+              <div className="itinerary-dropdown itinerary-action-options">
+                <button type="button" disabled={interactionBusy} onClick={() => runTripAction(startCreateTrip)}>＋ 新增行程</button>
+                <hr />
+                <button type="button" disabled={interactionBusy} onClick={() => runTripAction(() => setCollaborationOpen(true))}>協作管理</button>
+                {selectedTrip && canManageTrip && !editingTrip && (
+                  <>
+                    <button type="button" disabled={interactionBusy} onClick={() => runTripAction(startEditTrip)}>編輯行程</button>
+                    <hr />
+                    <button type="button" className="itinerary-action-danger" disabled={interactionBusy} onClick={() => runTripAction(openDeleteTripDialog)}>刪除行程</button>
+                  </>
+                )}
+              </div>
+            </details>
           </div>
         </section>
         {error && !deleteTripDialogOpen && (
@@ -1982,9 +2017,39 @@ function ItineraryModule({
                     {tripPlaces.length} 個收藏地點
                   </span>
                 )}
-                <RouterLink
-                  className="itinerary-secondary itinerary-link-button itinerary-route-link"
+                <details className="itinerary-action-menu" ref={mapToolsRef}>
+                  <summary className="itinerary-secondary">
+                    地圖工具
+                    <svg className="itinerary-menu-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>
+                  </summary>
+                  <div className="itinerary-dropdown itinerary-action-options">
+                    <button
+                      type="button"
+                      title="將地圖調整為顯示全部標記"
+                      disabled={
+                        !visibleMapData ||
+                        Boolean(visibleMapError) ||
+                        mountedMapRegionId !== selectedRegionId ||
+                        !mapHandleRef.current ||
+                        !googleMapMarkers.length
+                      }
+                      onClick={() => {
+                        if (mapToolsRef.current) {
+                          mapToolsRef.current.open = false;
+                          mapToolsRef.current.querySelector("summary")?.focus();
+                        }
+                        mapHandleRef.current?.setMarkers(googleMapMarkers, {
+                          fitBounds: true,
+                        });
+                      }}
+                    >
+                      恢復預設
+                    </button>
+                    <RouterLink
+                  className="itinerary-map-tool-link"
                   to={routes.routeCalculator}
+                  aria-label="路程試算"
+                  title="路程試算"
                   aria-disabled={
                     interactionBusy ||
                     creatingTrip ||
@@ -2006,38 +2071,15 @@ function ItineraryModule({
                         ))
                     ) {
                       event.preventDefault();
+                    } else if (mapToolsRef.current) {
+                      mapToolsRef.current.open = false;
                     }
                   }}
                 >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <circle cx="10" cy="10" r="7" />
-                    <path d="M10 5.5v4.8l3.2 1.9" />
-                  </svg>
-                  <span>路程</span>
+                  路程試算
                 </RouterLink>
-                <button
-                  type="button"
-                  className="itinerary-secondary itinerary-map-default-button"
-                  title="將地圖調整為顯示全部標記"
-                  disabled={
-                    !visibleMapData ||
-                    Boolean(visibleMapError) ||
-                    mountedMapRegionId !== selectedRegionId ||
-                    !mapHandleRef.current ||
-                    !googleMapMarkers.length
-                  }
-                  onClick={() =>
-                    mapHandleRef.current?.setMarkers(googleMapMarkers, {
-                      fitBounds: true,
-                    })
-                  }
-                >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <circle cx="8.5" cy="8.5" r="5.5" />
-                    <path d="m12.5 12.5 4 4" />
-                  </svg>
-                  <span>預設</span>
-                </button>
+                  </div>
+                </details>
               </span>
             </div>
             <div className="itinerary-map-canvas">

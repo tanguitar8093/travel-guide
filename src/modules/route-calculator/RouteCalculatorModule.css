@@ -19,6 +19,25 @@
 .route-panel-heading p { margin: 7px 0 0; color: #849087; font-size: 11px; line-height: 1.7; }
 .route-settings-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .route-settings-heading > span { min-width: 0; color: #849087; font-size: 11px; text-align: right; overflow-wrap: anywhere; }
+.route-trip-switcher { position: relative; min-width: 0; flex: 1; }
+.route-trip-switcher summary { display: flex; align-items: center; gap: 8px; width: fit-content; max-width: 100%; box-sizing: border-box; margin: -5px -7px; padding: 5px 7px; border-radius: 8px; color: #3f4b42; list-style: none; cursor: pointer; font-size: 20px; font-weight: 600; transition: background .15s; }
+.route-trip-switcher summary::-webkit-details-marker { display: none; }
+.route-trip-switcher summary > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.route-trip-switcher summary:hover,.route-trip-switcher[open] summary { background: #eaf0e9; }
+.route-trip-switcher summary svg { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: #849087; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; transition: transform .15s; }
+.route-trip-switcher[open] summary svg { transform: rotate(180deg); }
+.route-trip-options { position: absolute; top: calc(100% + 10px); left: 0; z-index: 40; width: 300px; max-width: calc(100vw - 60px); max-height: min(360px,55dvh); overflow-y: auto; box-sizing: border-box; padding: 6px; border: 1px solid #dfe7df; border-radius: 12px; background: #fff; box-shadow: 0 12px 32px rgba(36,57,42,.14); }
+.route-trip-options-heading { padding: 7px 10px; color: #8b958d; font-size: 10px; letter-spacing: .08em; }
+.route-trip-options button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 10px; border: 0; border-radius: 7px; color: #526057; background: transparent; text-align: left; cursor: pointer; font-size: 12px; }
+.route-trip-options button:hover:not(:disabled) { background: #f1f5f0; }
+.route-trip-options button[aria-current="true"] { color: #456c50; background: #edf4ed; }
+.route-trip-options button > span:first-child { min-width: 0; }
+.route-trip-options strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: 600; }
+.route-trip-options small { display: block; margin-top: 5px; color: #8b958d; font-size: 10px; }
+.route-trip-switcher summary:focus-visible,.route-trip-options button:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.route-trip-date { display: flex; flex: 0 0 auto; flex-direction: column; gap: 4px; color: #849087; font-size: 10px; }
+.route-trip-date select { max-width: 135px; min-height: 32px; padding: 5px 7px; border: 1px solid #e1e8e2; border-radius: 6px; color: #647068; background: #fff; }
+.route-trip-notices { margin-top: 12px; }
 .route-persistent-error { margin: 12px 18px 0; }
 .route-calculator-form { display: grid; gap: 22px; padding: 20px 18px; }
 .route-calculator-shell button, .route-calculator-shell input, .route-calculator-shell select { font: inherit; }

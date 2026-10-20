@@ -272,7 +272,7 @@ export class RouteCalculatorService {
       this.resolveEndpoint(input.destination),
     ])
     if (origin.googlePlaceId === destination.googlePlaceId) {
-      throw new ValidationError('出發點與目的地相同，請選擇不同的地點。')
+      throw new ValidationError('起點與終點相同，請選擇不同的地點。')
     }
     const estimate = await this.estimateRoute(origin.googlePlaceId, destination.googlePlaceId, input.transport)
     return { ...estimate, origin, destination, transport: input.transport }

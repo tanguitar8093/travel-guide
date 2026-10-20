@@ -96,7 +96,7 @@ it('supports mixed endpoint sources and reuses coordinates from an already selec
 })
 
 it('supports two freely searched endpoints without database lookup or detail refetches', async () => {
-  const other: GooglePlaceDetails = { id: 'other', displayName: '目的地', location: { lat: 24, lng: 121 } }
+  const other: GooglePlaceDetails = { id: 'other', displayName: '終點', location: { lat: 24, lng: 121 } }
   await new RouteCalculatorService().calculate({
     origin: { source: 'google', place: google },
     destination: { source: 'google', place: other },
@@ -155,7 +155,7 @@ it('resolves marker endpoints without reading or writing saved places', async ()
 it('rejects the same Google location across different endpoint sources before requesting routes', async () => {
   await expect(new RouteCalculatorService().calculate({
     ...input, origin: { source: 'google', place: google },
-  })).rejects.toThrow('出發點與目的地相同')
+  })).rejects.toThrow('起點與終點相同')
   expect(mocks.estimate).not.toHaveBeenCalled()
 })
 
