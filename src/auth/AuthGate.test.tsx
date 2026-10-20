@@ -36,7 +36,11 @@ describe('AuthGate role access control', () => {
     }
 
     const html = renderGate()
-    expect(html).toContain('正在確認登入狀態')
+    expect(html).toContain('role="status"')
+    expect(html).toContain('aria-label="正在確認登入狀態"')
+    expect(html).toContain('class="auth-guide"')
+    expect(html).toContain('class="auth-guide-flag"')
+    expect(html).not.toContain('<h1>正在確認登入狀態</h1>')
   })
 
   it('renders workspace for authenticated member/admin', () => {
