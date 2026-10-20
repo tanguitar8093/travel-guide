@@ -1153,7 +1153,15 @@
   }
 }
 
-@media (max-width: 760px) {
+@media (min-width: 651px) and (max-width: 850px) {
+  .place-app-shell .page-content { padding: 24px 14px 16px; }
+  .place-workspace { grid-template-columns: 220px minmax(0,1fr); gap: 10px; }
+  .place-form-grid,.place-info-grid { grid-template-columns: minmax(0,1fr); }
+  .notes-info-section { grid-column: auto; }
+  .place-readonly,.place-form { padding-inline: 14px; }
+}
+
+@media (max-width: 650px) {
   .place-app-shell .page-content {
     padding: 27px 17px 20px;
   }

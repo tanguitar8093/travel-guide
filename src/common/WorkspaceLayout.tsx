@@ -38,8 +38,8 @@ const debugLayoutBreakpoints: Record<
   { mobile: number; compact: number; narrow?: number }
 > = {
   regions: { mobile: 650, compact: 900 },
-  places: { mobile: 760, compact: 1050, narrow: 480 },
-  labels: { mobile: 760, compact: 1000, narrow: 480 },
+  places: { mobile: 650, compact: 1050, narrow: 480 },
+  labels: { mobile: 650, compact: 1000, narrow: 480 },
   itinerary: { mobile: 680, compact: 1000 },
   "route-calculator": { mobile: 680, compact: 1000, narrow: 480 },
   data: { mobile: 800, compact: 800, narrow: 560 },

@@ -1173,7 +1173,19 @@ kbd {
   }
 }
 
-@media (max-width: 760px) {
+@media (min-width: 651px) and (max-width: 850px) {
+  .app-shell .page-content { padding: 24px 14px 16px; }
+  .workspace-grid,.place-preview-workspace { grid-template-columns: 220px minmax(0,1fr); gap: 10px; }
+  .form-fields { grid-template-columns: minmax(0,1fr); }
+  .preview-toolbar { align-items: stretch; flex-direction: column; padding-inline: 14px; }
+  .preview-search { width: 100%; }
+  .assign-place-form.preview-assign-form { flex-direction: column; margin-inline: 14px; }
+  .preview-assign-form .searchable-select input,.preview-assign-form .assign-button { width: 100%; }
+  .usage-heading { flex-wrap: wrap; gap: 10px; }
+  .place-preview { flex-wrap: wrap; }
+}
+
+@media (max-width: 650px) {
   .page-content {
     padding: 28px 18px 20px;
   }
