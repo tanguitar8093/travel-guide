@@ -76,6 +76,16 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
     }
   }
 
+  async function refreshSharedTrips() {
+    setBusy(true)
+    setError('')
+    try {
+      await load(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const tripIds = [...new Set(tasks.flatMap((task) => task.sharedTrip ? [task.sharedTrip.tripId] : []))]
   const navigation = enabled ? <section aria-label="共享同步狀態">
     <AdminInfo>
@@ -110,6 +120,9 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
   if (!ready) return <p role="status">正在準備本機行程工作區…</p>
   return <ItineraryModule controller={controller} sharedNavigation={navigation}
     sourceRevision={JSON.stringify([revision, snapshots, tasks])}
+    sharedTripIds={enabled ? snapshots.filter((snapshot) => snapshot.document).map((snapshot) => snapshot.id) : []}
+    sharedSyncBusy={busy}
+    onRefreshSharedTrips={refreshSharedTrips}
     onCollaborationChange={() => {
       if (enabled) void run(async () => { await sharedTripController.refresh() })
     }} />

@@ -160,11 +160,17 @@ function ItineraryModule({
   controller = defaultItineraryController,
   sourceRevision = "",
   onCollaborationChange,
+  sharedTripIds = [],
+  sharedSyncBusy = false,
+  onRefreshSharedTrips,
 }: {
   sharedNavigation?: ReactNode;
   controller?: ItineraryController;
   sourceRevision?: string;
   onCollaborationChange?(tripId?: string): void;
+  sharedTripIds?: readonly string[];
+  sharedSyncBusy?: boolean;
+  onRefreshSharedTrips?(): Promise<void>;
 }) {
   const itineraryController = controller;
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -199,6 +205,7 @@ function ItineraryModule({
   const [workspaceReloadKey, setWorkspaceReloadKey] = useState(0);
   const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshingSharedTrip, setRefreshingSharedTrip] = useState(false);
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
   const [dayOrderDraftIds, setDayOrderDraftIds] = useState<string[]>();
   const [error, setError] = useState("");
@@ -397,7 +404,7 @@ function ItineraryModule({
     hasPendingDayReorder;
 
   useEffect(() => {
-    if (hasOpenDraft || saving || calculatingItemId) return;
+    if (hasOpenDraft || saving || calculatingItemId || refreshingSharedTrip) return;
     let active = true;
     Promise.all([
       itineraryController.loadWorkspace(selectedTripIdRef.current),
@@ -447,6 +454,7 @@ function ItineraryModule({
     hasOpenDraft,
     saving,
     calculatingItemId,
+    refreshingSharedTrip,
   ]);
 
   useEffect(() => {
@@ -1013,7 +1021,33 @@ function ItineraryModule({
 
   const activeItemId = editingItemId;
   const itemFormVisible = addingItem || activeItemId !== undefined;
-  const interactionBusy = saving || calculatingItemId !== undefined;
+  const interactionBusy =
+    saving || calculatingItemId !== undefined || refreshingSharedTrip;
+
+  async function refreshSharedTrip() {
+    if (
+      !selectedTripId ||
+      !onRefreshSharedTrips ||
+      interactionBusy ||
+      sharedSyncBusy ||
+      hasOpenDraft ||
+      collaborationOpen ||
+      deleteTripDialogOpen
+    ) return;
+    setRefreshingSharedTrip(true);
+    setError("");
+    setNotice("");
+    try {
+      await onRefreshSharedTrips();
+      setWorkspaceReloadKey((value) => value + 1);
+    } catch (cause) {
+      setError(
+        cause instanceof Error ? cause.message : "重新載入協作行程失敗。",
+      );
+    } finally {
+      setRefreshingSharedTrip(false);
+    }
+  }
 
   return (
     <WorkspaceLayout
@@ -1047,6 +1081,31 @@ function ItineraryModule({
             )}
           </div>
           <div className="itinerary-heading-actions">
+            {selectedTripId &&
+              sharedTripIds.includes(selectedTripId) &&
+              onRefreshSharedTrips && (
+                <button
+                  type="button"
+                  className="itinerary-secondary itinerary-refresh"
+                  aria-label={refreshingSharedTrip ? "正在重新整理協作行程" : "重新整理協作行程"}
+                  aria-busy={refreshingSharedTrip}
+                  title={hasOpenDraft ? "請先儲存或取消編輯，再重新整理" : "重新整理協作行程"}
+                  disabled={
+                    loading ||
+                    interactionBusy ||
+                    sharedSyncBusy ||
+                    hasOpenDraft ||
+                    collaborationOpen ||
+                    deleteTripDialogOpen
+                  }
+                  onClick={() => void refreshSharedTrip()}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M20 7v5h-5M4 17v-5h5" />
+                    <path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17" />
+                  </svg>
+                </button>
+              )}
             <button
               type="button"
               className="itinerary-secondary"

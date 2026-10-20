@@ -29,6 +29,11 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .itinerary-primary:hover { background: #557b65; }
 .itinerary-primary:disabled,.itinerary-secondary:disabled,.itinerary-delete:disabled,.itinerary-add-button:disabled { opacity: .55; cursor: not-allowed; }
 .itinerary-secondary { border-color: #e4e9e4; color: #647068; background: white; }
+.itinerary-refresh { width: 35px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; }
+.itinerary-refresh svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.6; }
+.itinerary-refresh[aria-busy="true"] svg { animation: itinerary-refresh-spin 1s linear infinite; }
+@keyframes itinerary-refresh-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .itinerary-refresh[aria-busy="true"] svg { animation: none; } }
 .itinerary-delete { border-color: #f0d9d5; color: #b5675b; background: white; }
 .itinerary-feedback { margin-bottom: 15px; padding: 11px 14px; border-radius: 6px; font-size: 12px; }
 .itinerary-error { color: #a34f45; background: #fff0ed; }
