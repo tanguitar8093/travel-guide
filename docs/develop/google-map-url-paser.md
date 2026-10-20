@@ -75,3 +75,31 @@
 3.  **短網址 (Share Link)**
     - 輸入：`https://maps.app.goo.gl/xxxxxx` (請 Agent 自行替換有效短網址測試)
     - 預期流程：需先呼叫 Supabase Edge Function 取得長網址，再解析出對應的地點名稱。
+
+---
+
+## 6. 工作量估算
+
+**估算：約 1–1.5 小時實作，加整合除錯約 2 小時。** 另需加上使用者端的 Edge Function 部署與實際網址驗證時間。
+
+| 項目 | 時間 |
+|---|---:|
+| `mapUrlParser.ts`：長網址、純文字、短網址判斷與解碼，加單元測試 | 15 分鐘 |
+| Edge Function `parse-map-url`：用 `fetch` 追重導向，只允許 `maps.app.goo.gl` 與 `goo.gl/maps`，加 CORS | 15 分鐘 |
+| `google-places.service.ts` 新增 `Place.searchByText`（Places API New）包裝，關鍵字轉成 `googlePlaceId` 與座標 | 15–20 分鐘 |
+| `PlaceModule.tsx` 增加貼網址輸入，接 loading 與錯誤提示，命中後走現有的 `googlePlaceId` 流程 | 20–30 分鐘 |
+| **合計** | **約 1–1.5 小時，加整合除錯到 2 小時** |
+
+### 估算依據
+
+- 不需要資料表、migration 或同步改動，`mapsUrl` 與 `googlePlaceId` 已存在。
+- 不需要自建轉接層，Places API (New) 的 `searchByText` 可直接把關鍵字轉成 place ID。
+- 長網址中的 `@lat,lng` 可作為 `locationBias`，降低同名地點的誤判。
+- 前端已有 `supabase` client，可直接呼叫 `supabase.functions.invoke`。
+
+### 風險與注意事項
+
+1. **Edge Function 部署**：專案目前沒有 `supabase/functions`。`supabase functions deploy` 需要使用者授權或 token。
+2. **無 `/place/` 或 `/search/` 的分享網址**：例如只有座標或 `ftid` 的網址，需要後備解析。屬邊角案例，不影響主流程。
+3. **關鍵字有歧義**：`searchByText` 可能回傳多筆。第一版建議取第一筆，並顯示給使用者確認。
+4. **專案規則**：Playwright、build 與 lint 需使用者授權後才會執行。
