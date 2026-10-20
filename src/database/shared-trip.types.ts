@@ -27,5 +27,5 @@ export type SharedTripSaveResult =
   | { status: 'applied'; operationId: string; snapshot: SharedTripSnapshot }
   | { status: 'conflict'; snapshot: SharedTripSnapshot }
 
-export const sharedTripEditingEnabled = import.meta.env.VITE_TRIP_COLLABORATION_ENABLED === 'true'
-  && import.meta.env.VITE_TRIP_SHARED_EDITING_ENABLED === 'true'
+// Released in every build. Individual trips still require explicit activation.
+export const sharedTripEditingEnabled = true

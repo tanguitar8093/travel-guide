@@ -12,7 +12,25 @@
 - `npm run build` 包含 TypeScript 與 Vite 打包；`npx --no-install tsc -b`
   只做型別／project 檢查，不等於 production build。
 - 套件與命令以 [package.json](../package.json) 為準。存在命令不表示獲准執行。
-- 沒有在本次文件整理執行任何新測試、build、lint、Git 或 live DB 檢查。
+- 本輪 A／B 增量與測試程式已寫，沒有執行新測試、型別檢查、build、lint、Git 或 live DB 檢查。
+
+## 收斂 A／B：待批准的針對性驗證
+
+新增 [privilege-convergence-cloud.test.ts](../../src/database/privilege-convergence-cloud.test.ts)
+及 [itinerary-reorder-cloud.test.ts](../../src/database/itinerary-reorder-cloud.test.ts)，
+均使用 synthetic PGlite 與目前排序的 migration 鏈，不使用線上連線。
+**測試程式已寫，結果尚不存在。**
+
+建議本輪批准範圍：上述兩檔，以及既有
+[auto-sync.integration.test.ts](../../src/database/auto-sync.integration.test.ts)、
+[shared-trip.integration.test.ts](../../src/database/shared-trip.integration.test.ts)、
+[shared-trip.service.test.ts](../../src/modules/itinerary/shared-trip.service.test.ts)、
+[hybrid.backend.test.ts](../../src/database/hybrid.backend.test.ts)，另加 `tsc -b`。
+既有套件仍依其 fixture 載入 SQL；新增兩檔才是本輪 A／B migration 的直接證據。
+這不是 full suite、build、lint、Playwright、Git 或任何線上存取的授權。
+
+default ACL 修補未完成，權限 migration 刻意阻擋未批准 defaults；
+synthetic 通過仍不代表實際線上可安裝。多連線競爭、備份還原演練與安裝各需新批准。
 
 獲准後可使用：
 

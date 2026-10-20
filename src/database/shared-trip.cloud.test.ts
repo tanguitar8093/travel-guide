@@ -17,14 +17,25 @@ const request = {
 
 beforeEach(() => {
   vi.resetModules()
-  vi.stubEnv('VITE_TRIP_COLLABORATION_ENABLED', 'true')
-  vi.stubEnv('VITE_TRIP_SHARED_EDITING_ENABLED', 'true')
   rpc.mockReset()
   getSession.mockReset()
   getSession.mockResolvedValue({ data: { session: { user: { id: userId } } }, error: null })
 })
 
 afterEach(() => { vi.unstubAllEnvs() })
+
+it.each(['', 'false'])('keeps released shared editing available with legacy flags %j', async (flag) => {
+  vi.stubEnv('VITE_TRIP_COLLABORATION_ENABLED', flag)
+  vi.stubEnv('VITE_TRIP_SHARED_EDITING_ENABLED', flag)
+  rpc.mockResolvedValue({ data: [], error: null })
+  const { sharedTripEditingEnabled } = await import('./shared-trip.types')
+  const { sharedTripCloud } = await import('./shared-trip.cloud')
+  expect(sharedTripEditingEnabled).toBe(true)
+  expect(await sharedTripCloud.list()).toEqual([])
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('app_shared_trip', {
+    p_action: 'snapshot', p_trip_id: null, p_payload: {},
+  })
+})
 
 it('confirms cancellation through the dedicated RPC without repeating a confirmed request', async () => {
   rpc.mockResolvedValue({ data: { cancelled: true }, error: null })

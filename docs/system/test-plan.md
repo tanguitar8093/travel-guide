@@ -11,7 +11,12 @@
 不自動跑 Vitest、型別檢查、build、lint、Git 檢查或 Playwright。
 只跑獲准範圍；文件變更本身不需要 production build。
 
-## 優先 A：資料庫權限與版本收斂（尚未實作）
+## 優先 A：資料庫權限與版本收斂（增量與測試程式已寫，未執行）
+
+本輪新增 [權限回歸](../../src/database/privilege-convergence-cloud.test.ts)
+及 [排序回歸](../../src/database/itinerary-reorder-cloud.test.ts)。
+default ACL 的精確建立者專屬修補與反向權限定義仍待新 catalog 盤點及決策；
+現有權限 migration 會阻擋未批准 defaults／繼承來源，不把阻擋當修復成功。
 
 - 隔離重現 live catalog 的額外 grants/default privileges，確認增量修正只影響批准物件。
 - anon/basic 拒絕、member 自有 CRUD、admin 既有管理、跨 owner 引用拒絕。

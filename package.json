@@ -12,8 +12,14 @@
     "e2e:install": "playwright install chromium",
     "e2e:install:linux": "playwright install --with-deps chromium",
     "e2e": "playwright test",
+    "e2e:smoke": "playwright test e2e/core-check.e2e.ts",
     "e2e:headed": "playwright test --headed",
     "e2e:report": "playwright show-report",
+    "core-check": "node scripts/core-check.mjs",
+    "core-check:app": "node scripts/core-check-app.mjs",
+    "core-check:supabase": "node scripts/core-check-supabase.mjs",
+    "core-check:google": "node scripts/core-check-google.mjs",
+    "core-check:psql": "node scripts/core-check-psql.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

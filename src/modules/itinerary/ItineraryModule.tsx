@@ -24,9 +24,7 @@ import type { ItineraryMapData } from "./itinerary-map.service";
 import "./ItineraryModule.css";
 import { SearchableSelect } from "../../common/SearchableSelect";
 import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
-import { tripCollaborationEnabled } from "../../database";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
-import { sharedTripEditingEnabled } from "../../database/shared-trip.types";
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
@@ -966,7 +964,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
       mainClassName="itinerary-main"
     >
       {sharedNavigation}
-      {tripCollaborationEnabled && collaborationOpen && (
+      {collaborationOpen && (
         <TripCollaborationPanel
           preferredTripId={selectedTripId}
           onClose={(tripId) => {
@@ -991,16 +989,14 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
             )}
           </div>
           <div className="itinerary-heading-actions">
-            {tripCollaborationEnabled && (
-              <button
-                type="button"
-                className="itinerary-secondary"
-                disabled={interactionBusy}
-                onClick={() => setCollaborationOpen(true)}
-              >
-                {sharedTripEditingEnabled ? "協作管理" : "協作預覽"}
-              </button>
-            )}
+            <button
+              type="button"
+              className="itinerary-secondary"
+              disabled={interactionBusy}
+              onClick={() => setCollaborationOpen(true)}
+            >
+              協作管理
+            </button>
             {trips.length > 1 && !editingTrip && (
               <label className="itinerary-trip-select">
                 <span>切換行程</span>

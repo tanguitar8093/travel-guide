@@ -1,7 +1,6 @@
 import { ValidationError } from './errors'
 import { supabase } from './supabase.client'
 import { withSupabaseTimeout } from './supabase.utils'
-import { sharedTripEditingEnabled } from './shared-trip.types'
 import type { SharedTripDocument, SharedTripSaveResult, SharedTripSnapshot } from './shared-trip.types'
 import { parseSharedTripSnapshot } from './shared-trip.validation'
 
@@ -20,7 +19,6 @@ async function call(
   action: string, tripId?: string, payload: Record<string, unknown> = {},
   rpc = 'app_shared_trip', expectedUserId?: string,
 ): Promise<unknown> {
-  if (!sharedTripEditingEnabled) throw new ValidationError('共同編輯尚未啟用。')
   const session = await supabase.auth.getSession()
   if (session.error) throw new ValidationError(session.error.message)
   const uid = session.data.session?.user.id
@@ -37,7 +35,7 @@ async function call(
   if (result.error) {
     if (result.error.code === 'PGRST202' || result.error.code === '42883') {
       if (rpc === 'app_cancel_shared_trip') throw new ValidationError('取消共享的資料庫更新尚未安裝，尚未取消或變更行程。')
-      throw new ValidationError('共同編輯資料庫更新尚未安裝。請停用共同編輯開關，原有同步不需更動。')
+      throw new ValidationError('共同編輯資料庫更新尚未安裝，請聯絡管理員確認；請勿重播基礎 schema。')
     }
 
     if (result.error.code === '42501') throw new SharedTripPermissionError(result.error.message)

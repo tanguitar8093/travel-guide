@@ -17,7 +17,6 @@ const trip = {
 
 beforeEach(() => {
   vi.resetModules()
-  vi.stubEnv('VITE_TRIP_COLLABORATION_ENABLED', 'true')
   rpc.mockReset()
   getSession.mockReset()
   getSession.mockResolvedValue({ data: { session: { user: { id: userId } } }, error: null })
@@ -25,12 +24,15 @@ beforeEach(() => {
 
 afterEach(() => { vi.unstubAllEnvs() })
 
-it('defaults collaboration to disabled and performs no network calls', async () => {
-  vi.stubEnv('VITE_TRIP_COLLABORATION_ENABLED', '')
+it.each(['', 'false'])('keeps released collaboration available with legacy flag %j', async (flag) => {
+  vi.stubEnv('VITE_TRIP_COLLABORATION_ENABLED', flag)
+  rpc.mockResolvedValue({ data: { trips: [trip], invitations: [] }, error: null })
   const { TripCollaborationRepository, tripCollaborationEnabled } = await import('./trip-collaboration.repository')
-  expect(tripCollaborationEnabled).toBe(false)
-  await expect(new TripCollaborationRepository().list()).rejects.toThrow('尚未啟用')
-  expect(rpc).not.toHaveBeenCalled()
+  expect(tripCollaborationEnabled).toBe(true)
+  expect((await new TripCollaborationRepository().list()).trips).toHaveLength(1)
+  expect(rpc).toHaveBeenCalledExactlyOnceWith('app_trip_collaboration_v2', {
+    p_action: 'list', p_trip_id: null, p_payload: {},
+  })
 })
 
 it('parses explicit access and rejects malformed list responses', async () => {

@@ -11,11 +11,13 @@
 
 > 請接續「線上資料庫與版本一致」的收斂工作。
 > 請先載入專案 development workflow 與 Supabase architecture skills。
-> 我允許你查閱 docs/database-version-convergence.md、docs/progress.md、
-> docs/database-psql-operations.md、docs/trip-collaboration-rollout.md、
-> docs/testing.md、docs/test-plan.md，以及相關程式碼／migration／測試。
+> 我允許你查閱 docs/database/database-version-convergence.md、docs/task/progress.md、
+> docs/database/database-psql-operations.md、docs/system/trip-collaboration-rollout.md、
+> docs/system/testing.md、docs/system/test-plan.md，以及相關程式碼／migration／測試。
 > 先完整讀收斂計畫，從 A「權限收斂」與 B「雲端原子排序 API」開始：
-> 核對現有實作後，完成增量 migration、隔離回歸測試程式及文件更新。
+> 增量 migration 與隔離回歸測試程式已寫但未測、未安裝；先核對本輪新增檔案，
+> 不要重寫既有成果。權限 migration 會阻擋未批准的 default／繼承授權，
+> 必須另行批准 catalog 盤點後才能準備建立者專屬 default ACL 修補及精確回復 SQL。
 > 不要重新設計共享，也不要重播 baseline 或清除 outbox。
 > 不預設舊會話授權仍適用；任何新線上存取、Git 檢查、測試／型別檢查、
 > build／lint／Playwright 與部署都先列出範圍並取得本輪授權。
@@ -25,8 +27,9 @@
 
 ### 接手時先確認
 
-1. 本階段目前只完成**唯讀盤點與文件交接**，A～E 的收斂程式／SQL 尚未實作。
-2. 先看[目前進度](progress.md)與本文件，不把舊測試通過當作這一階段已驗證。
+1. A／B 的增量 SQL、隔離測試程式與盤點入口已寫；**未測、未安裝**。
+  A 的 default ACL 修補與精確反向權限 SQL 尚待新盤點及批准；C～E 尚未實作。
+2. 先看[目前進度](../task/progress.md)與本文件，不把舊測試通過當作這一階段已驗證。
 3. 使用者已允許本次整理全部 docs 文字文件，但歷史 SQL 僅查閱、不修改。
    新對話如需其他文件，仍遵守專案文件授權規則。
 4. 不假設工作區乾淨、已提交或新對話仍有舊 session 檔案。
@@ -40,7 +43,11 @@
 
 ## 結論與目前進度
 
-**唯讀盤點完成，差異尚未收斂；沒有授權或執行任何本階段線上修改。**
+**A／B 增量實作與測試程式已寫，尚未執行驗證或安裝；線上差異仍未收斂。**
+
+本輪僅閱讀獲准文件／程式並修改工作區，沒有 Git 檢查、測試／型別檢查、
+build／lint／Playwright、線上連線、備份、演練或部署。
+「已寫」不等於已測、已安裝或已人工驗收。
 
 共享編輯、邀請、取消共享及共享行程刪除所需的核心資料庫函式，已與目前工作區 SQL 一致。
 剩餘工作是基礎權限、缺少的排序 API、歷史結構差異與版本追蹤，
@@ -81,6 +88,38 @@
 
 ### A. 優先：權限收斂
 
+**本輪已寫（未測、未安裝）**
+
+- [catalog 唯讀盤點](../../supabase/inspection/privilege_convergence.sql)：
+  表／欄位／函式原始 ACL、owner、grantor、grant option、PUBLIC／直接／繼承來源、
+  角色成員關係及 default ACL 的建立者／全域／schema 範圍；不讀業務或帳號內容。
+  檔案存在不是執行授權，本輪未執行。
+- [增量權限 migration](../../supabase/migrations/20261020010000_privilege_convergence.sql)：
+  交易、timeout、既有全域共用鎖；僅撤除列出的直接漂移。
+  不改資料／角色／RLS／schema ACL，不遞迴撤除平台角色權限。
+- [隔離回歸程式](../../src/database/privilege-convergence-cloud.test.ts)：
+  重現直接／PUBLIC／繼承／欄位授權與 default ACL，檢查失敗回滾及平台權限保留；
+  包含角色隔離、備份 token／共享守門、個人同步與共享撤權，但**尚未執行**。
+- [權限回復範本](../../supabase/rollback/20261020010000_privilege_convergence.sql)
+  刻意阻擋執行，不是可直接安裝的反向 migration。
+  必須依安裝前精確 ACL 產生逐物件／grantor 回復 SQL，另行批准並演練；
+  不盲目把危險 grants 加回去。
+
+| 物件 | 預期保留／撤除（仍須新 catalog 核對） |
+| --- | --- |
+| 10 張指定表 | authenticated 保留 CRUD，撤 TRUNCATE／REFERENCES／TRIGGER；anon 不應有表或欄位存取 |
+| 9 個備份／ACL 函式 | 保留既有 authenticated EXECUTE，撤 anon EXECUTE；不趁此改 API 契約 |
+| 2 個 owner trigger 函式 | 撤 anon／authenticated EXECUTE；trigger 正常運作不需要呼叫者直接 EXECUTE |
+| owner／service_role／其他平台角色 | 不改其直接 grants、grant option、角色成員關係或 schema 權限 |
+| PUBLIC／繼承／額外 grant option | 若仍提供非預期存取，整份 migration 回滾，待逐項決策，不任意遞迴 REVOKE |
+| default privileges | **未修復**；涉及 anon／authenticated／PUBLIC 的未批准全域或 public-schema defaults 會阻擋安裝 |
+
+**尚缺的決策與證據**：舊摘要沒有精確 default ACL 建立者與 grantor。
+不能猜測 `ALTER DEFAULT PRIVILEGES FOR ROLE ...`，也不能忽略全域與 schema ACL 的加總。
+目前 gate 刻意保守，連顯式保留 PUBLIC EXECUTE 的 default ACL 也需單獨核准。
+預期線上既有 defaults 會先阻擋本 migration；取得新的唯讀批准與結果後，
+才準備精確建立者專屬修補／反向定義，未完成前不得稱 A 可安裝或已收斂。
+
 **現況**
 
 - 10 張表有受檢 grant 差異：9 張業務表與 `user_roles`。
@@ -118,9 +157,31 @@ RLS 不應被當作所有表權限的替代品，也不應在沒有驗證前宣�
 
 ### B. 優先：補齊雲端原子排序 API
 
+**本輪已寫（未測、未安裝）**
+
+- [原子排序增量 SQL](../../supabase/migrations/20261020020000_atomic_itinerary_reorder.sql)：
+  `SECURITY DEFINER`、空 search path、member 與 owner/admin 檢查，
+  使用既有全域共用鎖及行程／項目 row locks；拒絕 active shared workspace，含空白日。
+- 嚴格驗證日期及完整單維 ID 集合；先保存原前驅地點，分成兩個獨立 UPDATE，
+  不使用會對同一列重複更新的 data-modifying CTE。
+  核對既有 deferrable 唯一限制後使用固定暫存區間，不以最大 sort_order 相加，
+  避免整數溢位。僅清除前驅地點改變項目的時間／距離估計。
+- 保留同步 triggers；兩階段資料、events、versions 一起提交或回滾。
+  local／hybrid repository、outbox、自動同步與 activated shared API 均未修改；
+  舊環境缺 RPC 時的前端 fallback 仍保留，未宣稱已切換線上流量。
+- [隔離排序回歸程式](../../src/database/itinerary-reorder-cloud.test.ts)
+  使用含 A／B 的排序 migration 鏈，涵蓋輸入／角色／共享拒絕、估計失效、
+  最大整數、暫存碰撞與第二階段失敗的資料／同步事件回滾，尚未執行。
+- [停用 rollback](../../supabase/rollback/20261020020000_atomic_itinerary_reorder.sql)
+  只撤 RPC 權限，不還原已完成的排序、不刪資料；若替換原有 RPC，
+  精確還原舊定義仍須安裝前保存及另行批准。
+
+限制：PGlite 回歸不取代 PostgreSQL 多連線競爭演練；RPC 會將排序唯一限制
+切回 immediate，外層交易若另有未完成 deferred 排序違規，也會被拒絕。
+
 **現況**
 
-缺少 `app_reorder_itinerary_items(uuid,date,uuid[])`。
+前次唯讀盤點時線上缺少 `app_reorder_itinerary_items(uuid,date,uuid[])`，本輪未重查。
 [雲端 repository](../src/database/supabase.repositories.ts) 遇到缺少 API 時，
 會先改暫時順序、再逐筆寫最終順序；不是完全不能排序，但不是單一原子交易。
 
@@ -187,7 +248,7 @@ RLS 不應被當作所有表權限的替代品，也不應在沒有驗證前宣�
 | 順序 | 工作 | 粗估 | 目前狀態 |
 | --- | --- | --- | --- |
 | 0 | catalog 唯讀盤點 | 已完成 | 尚未做資料／部署驗證 |
-| 1 | 權限與排序 API 修正、針對性測試 | 1～2 小時 | 未實作／未授權本階段測試 |
+| 1 | 權限與排序 API 修正、針對性測試 | 原估 1～2 小時 | 增量與測試程式已寫；未測；default ACL 精確修補／反向定義待盤點 |
 | 2 | 新備份、隔離還原與演練、核准後安裝及確認 | 再 1～2 小時 | 未授權／未執行 |
 | 3 | 欄位、限制、舊物件及版本追蹤 | 再約 2～4 小時 | 逐項決策後實施 |
 

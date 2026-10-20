@@ -21,6 +21,28 @@ The earlier catalog inspection read no business/account rows and checked no
 Git or frontend deployment revision. Old installation row counts/empty-table
 observations below are historical, not current business inventory.
 
+### A/B source implementation — not validated or installed
+
+Two incremental migrations now exist in the working tree:
+[permission convergence](../../supabase/migrations/20261020010000_privilege_convergence.sql)
+and [atomic private reorder](../../supabase/migrations/20261020020000_atomic_itinerary_reorder.sql).
+Their focused isolated tests are written but have not been run. No new live
+connection, backup, restore rehearsal, installation or deployment occurred.
+
+The [catalog-only inventory](../../supabase/inspection/privilege_convergence.sql)
+requires separate live-read approval. Capture its complete output privately,
+including raw ACLs, grantors, memberships and creator/global/schema default ACLs.
+The permission migration intentionally blocks unapproved defaults or unexpected
+effective/inherited grants. It does NOT fix default privileges: reconcile the
+inventory and approve a creator-specific patch before considering installation.
+Do not remove that gate just to make installation pass.
+
+The permission rollback is a blocked recovery template, not an executable exact
+inverse. Prepare and rehearse object/grantor-specific recovery from the fresh
+preinstall capture. The reorder rollback only shuts down RPC access; it does
+not reverse completed sorts or restore a replaced function definition.
+All previous backup/rehearsal/exact-install approval requirements still apply.
+
 ## SQL file classification
 
 | Files | Use and limits |

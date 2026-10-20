@@ -6,7 +6,9 @@ import type {
   SharedTripPlace, TripAccess, TripInvitation, TripMember, TripMemberRole,
 } from './trip-collaboration.types'
 
-export const tripCollaborationEnabled = import.meta.env.VITE_TRIP_COLLABORATION_ENABLED === 'true'
+// Released capability; retained export keeps existing consumers compatible.
+// Access is enforced by authentication and the server, not environment flags.
+export const tripCollaborationEnabled = true
 
 function object(value: unknown): Record<string, unknown> {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) {
@@ -128,7 +130,6 @@ export function validateInvitationEmail(value: string): string {
 
 export class TripCollaborationRepository {
   private async call(action: string, tripId?: string, payload: Record<string, unknown> = {}): Promise<unknown> {
-    if (!tripCollaborationEnabled) throw new ValidationError('行程協作尚未啟用。')
     const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
     if (sessionError) throw new ValidationError(sessionError.message)
     const userId = sessionData.session?.user.id
