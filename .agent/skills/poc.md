@@ -6,7 +6,8 @@
 
 會依 prompt 需求看要停止在哪階段
 
-- ui 設計 code:產出 demo workflow 畫面, 直接 hardcode 示意, 不需要資料串接, 但示意的內容要有邏輯合理的關聯性不能隨機無關, 可以先直接改 code, code 核准後, 依需求產出設計稿放到 poc/ui/{模組-功能語意命名}.{可瀏覽網頁的副檔名}
+- ui 設計 code:產出 demo workflow 畫面, 直接 hardcode 示意, 不需要資料串接, 但示意的內容要有邏輯合理的關聯性不能隨機無關, 可以先直接改 code, 
+- ui code 核准後, 依需求產出設計稿放到 poc/ui/{模組-功能語意命名}.{可瀏覽網頁的副檔名}
 - vite test 測項: 使用者驗證 ui workflow 符合預期, 開始寫 test 測項, 走 TDD
 - IndexedDB:
   - 依功能需求所需要的資料料先定義好資料的核心 code, 和需要用的範例資料

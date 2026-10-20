@@ -12,21 +12,21 @@
 
 ## 接續工作
 
-1. 依[線上資料庫收斂計畫](database-version-convergence.md)先決定權限與原子排序 API 的修正。
+1. 依[線上資料庫收斂計畫](../database/database-version-convergence.md)先決定權限與原子排序 API 的修正。
 2. 實作後另請測試批准；線上修改需新備份、隔離還原演練與精確安裝授權。
 3. 另行釐清最新 E2E「B 找不到本輪共享行程」與瀏覽器已關閉的收尾錯誤，
    確認該輪結果與殘留資料，不自動重跑或刪除。
 
 ## 文件索引
 
-- [資料庫差異、工作清單、估時與驗收](database-version-convergence.md)
-- [協作現況、模式邊界與歷史安裝](trip-collaboration-rollout.md)
-- [架構與三種資料路徑](architecture-notes.md)、[架構圖](architecture-current.mmd)
-- [測試方式、已跑結果與 E2E 限制](testing.md)、[後續測試計畫](test-plan.md)
-- [資料庫連線、備份與增量安裝規範](database-psql-operations.md)
-- [私人資料與協作權限邊界](owner-isolation.md)
-- [目前待辦](todo)、[產品議題](issue.md)
+- [資料庫差異、工作清單、估時與驗收](../database/database-version-convergence.md)
+- [協作現況、模式邊界與歷史安裝](../system/trip-collaboration-rollout.md)
+- [架構與三種資料路徑](../system/architecture-notes.md)、[架構圖](../system/architecture-current.mmd)
+- [測試方式、已跑結果與 E2E 限制](../system/testing.md)、[後續測試計畫](../system/test-plan.md)
+- [資料庫連線、備份與增量安裝規範](../database/database-psql-operations.md)
+- [私人資料與協作權限邊界](../system/owner-isolation.md)
+- [目前待辦](../task/todo)、[產品議題](../task/issue.md)
 
 `inital.md`、`record` 是原始需求；`20261018` 是舊工作準則紀錄。
-歷史 SQL 的用途與禁用情況見[操作規範](database-psql-operations.md)，
+歷史 SQL 的用途與禁用情況見[操作規範](../database/database-psql-operations.md)，
 不要把舊 SQL 當成目前線上重建腳本。
