@@ -1,6 +1,6 @@
-import schemaSql from '../../docs/supabase-schema-from-indexeddb.sql?raw'
-import rolesSql from '../../docs/supabase-basic-role-rls.sql?raw'
-import isolationSql from '../../docs/supabase-owner-isolation.sql?raw'
+import schemaSql from '../../docs/database/sql/supabase-schema-from-indexeddb.sql?raw'
+import rolesSql from '../../docs/database/sql/supabase-basic-role-rls.sql?raw'
+import isolationSql from '../../docs/database/sql/supabase-owner-isolation.sql?raw'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 

@@ -1,11 +1,6 @@
 import 'fake-indexeddb/auto'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, afterEach, beforeAll, expect, it, vi } from 'vitest'
-import baseline from '../../supabase/migrations/20261017153621_repository_baseline.sql?raw'
-import migration from '../../supabase/migrations/20261017153641_local_first_sync.sql?raw'
-import distanceMigration from '../../supabase/migrations/20261018220000_itinerary_travel_distance.sql?raw'
-import routeMapsMigration from '../../supabase/migrations/20261019010000_route_maps.sql?raw'
-import deletionMigration from '../../supabase/migrations/20261020000000_shared_trip_delete_order.sql?raw'
 import { syncCloudAdapter } from './sync-cloud.adapter'
 import { supabase } from './supabase.client'
 import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore } from './hybrid.runtime'
@@ -16,6 +11,9 @@ import { placeController } from '../modules/place/place.controller'
 import { setDatabaseModeRole } from './mode-access'
 
 const sql = new PGlite()
+const migrations = import.meta.glob<string>('../../supabase/migrations/*.sql', {
+  eager: true, query: '?raw', import: 'default',
+})
 const uid = '33333333-3333-4333-8333-333333333333'
 const account = { projectId: crypto.randomUUID(), userId: uid }
 
@@ -29,13 +27,11 @@ beforeAll(async () => {
     grant usage on schema auth to authenticated;
     grant execute on function auth.uid() to authenticated;
   `)
-  await sql.exec(baseline.replace('create extension if not exists pgcrypto;', ''))
+  for (const path of Object.keys(migrations).sort()) {
+    await sql.exec(migrations[path].replace('create extension if not exists pgcrypto;', ''))
+  }
   await sql.exec(`insert into auth.users values ('${uid}', 'admin@example.com');
     update public.user_roles set role='admin' where user_id='${uid}';`)
-  await sql.exec(migration)
-  await sql.exec(distanceMigration)
-  await sql.exec(routeMapsMigration)
-  await sql.exec(deletionMigration)
 }, 120000)
 
 afterEach(async () => {
@@ -68,12 +64,16 @@ it('automatically persists an admin label, place and itinerary item in productio
   vi.stubEnv('DEV', false)
 
   // Replace only the HTTP boundary: keep the adapter, engine, outbox and SQL real.
+  vi.spyOn(supabase.auth, 'getSession').mockResolvedValue({
+    data: { session: { user: { id: uid } } }, error: null,
+  } as Awaited<ReturnType<typeof supabase.auth.getSession>>)
   const rpc = vi.spyOn(supabase, 'rpc').mockImplementation((async (name: string, args?: Record<string, unknown>) => {
     await sql.exec('begin; set local role authenticated;')
     await sql.query("select set_config('request.jwt.claim.sub', $1, true)", [uid])
     try {
       const parameters = name === 'app_sync_push' ? [args?.p_task]
-        : name === 'app_sync_pull' ? [args?.p_cursor, args?.p_limit] : []
+        : name === 'app_sync_pull' ? [args?.p_cursor, args?.p_limit]
+        : name === 'app_shared_trip' ? [args?.p_action, args?.p_trip_id, args?.p_payload] : []
       const placeholders = parameters.map((_, index) => `$${index + 1}`).join(',')
       const result = await sql.query<{ result: unknown }>(`select public.${name}(${placeholders}) as result`, parameters)
       await sql.exec('commit')

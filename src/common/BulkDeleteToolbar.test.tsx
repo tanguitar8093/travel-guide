@@ -22,7 +22,7 @@ it("shows only the entry action before batch mode is enabled", () => {
   );
   expect(html).toContain("批次刪除");
   expect(html).not.toContain("清除選取");
-  expect(html).not.toContain("刪除所選");
+  expect(html).not.toContain('class="bulk-delete-danger"');
   expect(html).not.toContain("已選");
 });
 
@@ -38,9 +38,9 @@ it("shows selection actions and an exit action in batch mode", () => {
       canSelect
     />,
   );
-  expect(html).toContain("取消批次刪除");
+  expect(html).toContain(">取消</button>");
   expect(html).toContain("清除選取");
-  expect(html).toContain("刪除所選（1）");
+  expect(html).toContain("刪除（1）");
 });
 
 it("shows selection count including hidden results and named failure reasons", () => {
@@ -59,7 +59,7 @@ it("shows selection count including hidden results and named failure reasons", (
   );
   expect(html).toContain("已選 3 筆");
   expect(html).toContain("1 筆不在目前結果中");
-  expect(html).toContain("刪除所選（3）");
+  expect(html).toContain("刪除（3）");
   expect(html).toContain("成功刪除 1 筆，失敗 1 筆");
   expect(html).toContain("咖啡店仍被行程引用");
   expect(html).toContain("失敗項目保留選取");

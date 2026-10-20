@@ -90,8 +90,15 @@ describe('database runtime', () => {
     expect(runtime.getDatabaseMode()).toBe('supabase')
     expect(runtime.getSyncMode()).toBe('manual')
     expect(access.readEffectiveSyncMode()).toBe('manual')
+    expect(onMode).toHaveBeenLastCalledWith('supabase')
+    expect(onSync).toHaveBeenLastCalledWith('manual')
+    expect(onMode).toHaveBeenCalledTimes(2)
+    expect(onSync).toHaveBeenCalledTimes(2)
     unsubscribeMode()
     unsubscribeSync()
+    access.setDatabaseModeRole('member')
+    expect(onMode).toHaveBeenCalledTimes(2)
+    expect(onSync).toHaveBeenCalledTimes(2)
   })
 
   it.each([null, 'basic'] as const)('does not permit mode overrides with role %s', async (role) => {

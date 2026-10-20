@@ -107,13 +107,13 @@ export function subscribeSyncMode(listener: SyncModeListener): () => void {
   return () => {
     syncModeListeners.delete(listener)
   }
-
-  subscribeDatabaseModeRole(() => {
-    currentDatabaseMode = readStoredDatabaseMode()
-    currentSyncMode = readStoredSyncMode()
-    for (const listener of databaseModeListeners) listener(getDatabaseMode())
-    for (const listener of syncModeListeners) listener(getSyncMode())
-    if (readEffectiveSyncMode() === 'manual') stopHybridAutoSync()
-    else if (getHybridStatus().ready) scheduleHybridAutoSync()
-  })
 }
+
+subscribeDatabaseModeRole(() => {
+  currentDatabaseMode = readStoredDatabaseMode()
+  currentSyncMode = readStoredSyncMode()
+  for (const listener of databaseModeListeners) listener(getDatabaseMode())
+  for (const listener of syncModeListeners) listener(getSyncMode())
+  if (readEffectiveSyncMode() === 'manual') stopHybridAutoSync()
+  else if (getHybridStatus().ready) scheduleHybridAutoSync()
+})
