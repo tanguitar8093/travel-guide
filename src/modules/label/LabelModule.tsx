@@ -68,6 +68,9 @@ function LabelModule() {
   const [activeTab, setActiveTab] = useState<"taxonomy" | "preview">("taxonomy");
   const [previewSearch, setPreviewSearch] = useState("");
   const [matchingPlaces, setMatchingPlaces] = useState<Place[]>([]);
+  const [usageCollapsed, setUsageCollapsed] = useState(false);
+  const usageHeadingRef = useRef<HTMLDivElement>(null);
+  const usageToggleRef = useRef<HTMLButtonElement>(null);
   const [selectedPlaceId, setSelectedPlaceId] = useState("");
   const [dialog, setDialog] = useState<LabelDialogState | null>(null);
   const [dialogName, setDialogName] = useState("");
@@ -730,7 +733,7 @@ function LabelModule() {
             )}
 
             <section className="panel usage-panel">
-              <div className="usage-heading">
+              <div className="usage-heading" ref={usageHeadingRef}>
                 <div>
                   <h2>套用中的地點</h2>
                   <p>
@@ -738,6 +741,7 @@ function LabelModule() {
                     {includeDescendants ? "（包含子標籤）" : "（直接套用）"}
                   </p>
                 </div>
+                <div className="usage-heading-actions">
                 <label className="descendant-toggle">
                   <input
                     type="checkbox"
@@ -748,6 +752,13 @@ function LabelModule() {
                   />
                   包含子標籤
                 </label>
+                  <button ref={usageToggleRef} type="button" className="usage-collapse-toggle"
+                    aria-expanded={!usageCollapsed} aria-controls="label-applied-places"
+                    onClick={() => setUsageCollapsed((value) => !value)}>
+                    {usageCollapsed ? "展開" : "收起"}
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d={usageCollapsed ? "m4 6 4 4 4-4" : "m4 10 4-4 4 4"} /></svg>
+                  </button>
+                </div>
               </div>
 
               {selectedLabel && (
@@ -776,6 +787,7 @@ function LabelModule() {
                 </form>
               )}
 
+              <div id="label-applied-places" hidden={usageCollapsed}>
               <div className="place-preview-list">
                 {displayedPlaces.slice(0, 5).map((place) => {
                   const directlyAssigned =
@@ -829,6 +841,21 @@ function LabelModule() {
                 {displayedPlaces.length > 5 && (
                   <div className="more-places-note">
                     另有 {displayedPlaces.length - 5} 個地點
+                  </div>
+                )}
+              </div>
+                {displayedPlaces.length > 0 && (
+                  <div className="usage-collapse-footer">
+                    <button type="button" className="usage-collapse-toggle"
+                      aria-expanded={!usageCollapsed} aria-controls="label-applied-places"
+                      onClick={() => {
+                        setUsageCollapsed(true);
+                        usageToggleRef.current?.focus({ preventScroll: true });
+                        usageHeadingRef.current?.scrollIntoView({ block: "nearest" });
+                      }}>
+                      收起
+                      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4" /></svg>
+                    </button>
                   </div>
                 )}
               </div>

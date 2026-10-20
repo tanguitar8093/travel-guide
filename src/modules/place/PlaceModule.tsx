@@ -316,6 +316,15 @@ function PlaceModule() {
   const saving = singleSaving || bulk.busy;
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [resultsCollapsed, setResultsCollapsed] = useState(false);
+  const resultsHeadingRef = useRef<HTMLDivElement>(null);
+  const resultsToggleRef = useRef<HTMLButtonElement>(null);
+
+  function collapseResultsFromBottom() {
+    setResultsCollapsed(true);
+    resultsToggleRef.current?.focus({ preventScroll: true });
+    resultsHeadingRef.current?.scrollIntoView({ block: "nearest" });
+  }
   const selectedPlaceIdRef = useRef(selectedPlaceId);
   selectedPlaceIdRef.current = selectedPlaceId;
   const reloadBlocked = editing || creating || saving;
@@ -796,9 +805,19 @@ function PlaceModule() {
               )}
             </div>
 
-            <div className="place-list-heading">
+            <div className="place-list-heading" ref={resultsHeadingRef}>
               <span>搜尋結果</span>
-              <span>{filteredPlaces.length}</span>
+              <div className="place-results-actions">
+                <span>{filteredPlaces.length}</span>
+                <button ref={resultsToggleRef} type="button"
+                  className="place-results-toggle"
+                  aria-expanded={!resultsCollapsed}
+                  aria-controls="place-search-results"
+                  onClick={() => setResultsCollapsed((value) => !value)}>
+                  {resultsCollapsed ? "展開" : "收起"}
+                  <svg viewBox="0 0 16 16" aria-hidden="true"><path d={resultsCollapsed ? "m4 6 4 4 4-4" : "m4 10 4-4 4 4"} /></svg>
+                </button>
+              </div>
             </div>
             <div className="place-list">
               {bulk.active && bulkMode === "label" ? (
@@ -895,6 +914,7 @@ function PlaceModule() {
                   }
                 />
               )}
+              <div id="place-search-results" hidden={resultsCollapsed}>
               {loading ? (
                 <div className="empty-state">正在載入地點…</div>
               ) : filteredPlaces.length ? (
@@ -969,6 +989,18 @@ function PlaceModule() {
                     : "還沒有收藏地點，先新增一個吧。"}
                 </div>
               )}
+              {!loading && filteredPlaces.length > 0 && (
+                <div className="place-results-footer">
+                  <button type="button" className="place-results-toggle"
+                    aria-expanded={!resultsCollapsed}
+                    aria-controls="place-search-results"
+                    onClick={collapseResultsFromBottom}>
+                    收起
+                    <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 10 4-4 4 4" /></svg>
+                  </button>
+                </div>
+              )}
+              </div>
             </div>
           </aside>
 

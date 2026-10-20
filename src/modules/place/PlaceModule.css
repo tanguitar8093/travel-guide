@@ -1232,3 +1232,9 @@
   background: #fff;
   font: inherit;
 }
+.place-results-actions { display: flex; align-items: center; gap: 10px; }
+.place-results-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 32px; padding: 5px 9px; border: 1px solid #dfe7df; border-radius: 7px; color: #647068; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+.place-results-toggle:hover { color: #456c50; background: #f1f6f1; }
+.place-results-toggle:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.place-results-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.place-results-footer { display: flex; justify-content: flex-end; padding: 10px 12px; }

@@ -1275,3 +1275,9 @@ kbd {
     text-align: left;
   }
 }
+.usage-heading-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.usage-collapse-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-height: 32px; padding: 5px 9px; border: 1px solid #dfe7df; border-radius: 7px; color: #647068; background: #fff; font: inherit; font-size: 11px; cursor: pointer; }
+.usage-collapse-toggle:hover { color: #456c50; background: #f1f6f1; }
+.usage-collapse-toggle:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.usage-collapse-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.usage-collapse-footer { display: flex; justify-content: flex-end; padding: 8px 0; }
