@@ -120,7 +120,7 @@ beforeAll(async () => {
     begin; set local role authenticated;
     select set_config('request.jwt.claim.sub','${owner}',true);
     insert into public.regions(id,name,google_place_id,zoom) values('${ids.regions}','Region','region',12);
-    insert into public.labels(id,name) values('${ids.labels}','Label');
+    insert into public.labels(id,name,color) values('${ids.labels}','Label','#336699');
     insert into public.places(id,name,google_place_id) values('${ids.places}','Place','place');
     insert into public.trips(id,region_id,name,start_date,end_date)
       values('${ids.trips}','${ids.regions}','Trip','2026-10-20','2026-10-22');
