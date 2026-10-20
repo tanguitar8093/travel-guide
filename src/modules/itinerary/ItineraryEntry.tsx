@@ -5,6 +5,7 @@ import { useHybridStatus } from '../../database/useHybridStatus'
 import type { SharedTripSnapshot } from '../../database/shared-trip.types'
 import { sharedTripEditingEnabled } from '../../database/shared-trip.types'
 import type { SyncTask } from '../../database/sync.types'
+import { AdminInfo } from '../../common/AdminInfo'
 import ItineraryModule from './ItineraryModule'
 import { ItineraryController } from './itinerary.controller'
 import { CollaborativeItineraryService } from './collaborative-itinerary.service'
@@ -86,17 +87,22 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
 
   const tripIds = [...new Set(tasks.flatMap((task) => task.sharedTrip ? [task.sharedTrip.tripId] : []))]
   const navigation = enabled ? <section aria-label="共享同步狀態">
-    <button type="button" className="itinerary-secondary" disabled={busy || !ready}
-      onClick={() => void run(async () => { await sharedTripController.refresh() })}>
-      {busy ? '同步中…' : '重新載入／同步共享行程'}
-    </button>
+    <AdminInfo>
+      <button type="button" className="itinerary-secondary" disabled={busy || !ready}
+        onClick={() => void run(async () => { await sharedTripController.refresh() })}>
+        {busy ? '同步中…' : '重新載入／同步共享行程'}
+      </button>
+    </AdminInfo>
     {error && <p role="alert">{error}</p>}
     {tripIds.map((tripId) => {
       const pending = tasks.filter((task) => task.sharedTrip?.tripId === tripId)
       const snapshot = snapshots.find((row) => row.id === tripId)
       const conflict = pending.find((task) => task.sharedTrip?.conflict)?.sharedTrip?.conflict
       return <section key={tripId} aria-label="共享草稿">
-        <p role="status">{snapshot?.document?.trip.name ?? '已撤權的共享行程'}：{pending.length} 筆待同步操作。{pending[0]?.error}</p>
+        <AdminInfo>
+          <p role="status">{snapshot?.document?.trip.name ?? '已撤權的共享行程'}：{pending.length} 筆待同步操作。</p>
+        </AdminInfo>
+        {pending[0]?.error && <p role="alert">{pending[0].error}</p>}
         <button type="button" className="itinerary-secondary" onClick={() => exportDraft(snapshot, pending, tripId)}>匯出共享草稿</button>
         {conflict && <>
           <p role="alert">共享內容或權限已改變，已暫停此行程上傳；草稿仍保留。</p>

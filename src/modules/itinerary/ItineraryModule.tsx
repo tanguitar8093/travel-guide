@@ -995,7 +995,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
               disabled={interactionBusy}
               onClick={() => setCollaborationOpen(true)}
             >
-              協作管理
+              協作
             </button>
             {trips.length > 1 && !editingTrip && (
               <label className="itinerary-trip-select">
@@ -1025,7 +1025,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                   className="itinerary-secondary"
                   onClick={startEditTrip}
                 >
-                  編輯行程
+                  編輯
                 </button>
                 <button
                   type="button"
@@ -1042,7 +1042,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
               className="itinerary-primary"
               onClick={startCreateTrip}
             >
-              ＋ 新增行程
+              ＋ 新增
             </button>
           </div>
         </section>
@@ -1563,21 +1563,8 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                       disabled={interactionBusy || itemFormVisible || !canEditItems}
                       onClick={startAddItem}
                     >
-                      ＋ 加入地點
+                      ＋地點
                     </button>
-                    <RouterLink
-                      className="itinerary-secondary itinerary-link-button"
-                      to={routes.routeCalculator}
-                      aria-disabled={interactionBusy || undefined}
-                      onClick={(event) => {
-                        if (interactionBusy || (hasPendingDayReorder &&
-                            !window.confirm("尚有未儲存的排序，離開會放棄排序變更。確定前往路程試算？"))) {
-                          event.preventDefault();
-                        }
-                      }}
-                    >
-                      路程試算
-                    </RouterLink>
                   </div>
                 </div>
                 <div className="itinerary-items-scroll">
@@ -1827,7 +1814,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                     className="itinerary-primary"
                     onClick={startCreateTrip}
                   >
-                    ＋ 新增行程
+                    ＋ 新增
                   </button>
                 )}
               </div>
@@ -1848,7 +1835,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                 )}
                 <button
                   type="button"
-                  className="itinerary-secondary"
+                  className="itinerary-secondary itinerary-map-default-button"
                   title="將地圖調整為顯示全部標記"
                   disabled={
                     !visibleMapData ||
@@ -1863,8 +1850,43 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                     })
                   }
                 >
-                  預設顯示
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="8.5" cy="8.5" r="5.5" />
+                    <path d="m12.5 12.5 4 4" />
+                  </svg>
+                  <span>預設</span>
                 </button>
+                <RouterLink
+                  className="itinerary-secondary itinerary-link-button itinerary-route-link"
+                  to={routes.routeCalculator}
+                  aria-disabled={
+                    interactionBusy ||
+                    creatingTrip ||
+                    editingTrip ||
+                    addingItem ||
+                    editingItemId !== undefined ||
+                    undefined
+                  }
+                  onClick={(event) => {
+                    if (
+                      interactionBusy ||
+                      creatingTrip ||
+                      editingTrip ||
+                      addingItem ||
+                      editingItemId !== undefined ||
+                        (hasPendingDayReorder &&
+                          !window.confirm("尚有未儲存的排序，離開會放棄排序變更。確定前往路程頁面？"))
+                    ) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="7" />
+                    <path d="M10 5.5v4.8l3.2 1.9" />
+                  </svg>
+                  <span>路程</span>
+                </RouterLink>
               </span>
             </div>
             <div className="itinerary-map-canvas">
