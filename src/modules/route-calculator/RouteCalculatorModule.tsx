@@ -71,6 +71,16 @@ export default function RouteCalculatorModule() {
   const tripGeneration = useRef(0);
   const mapIdRef = useRef("");
   const tripSettingsTrigger = useRef<HTMLDetailsElement>(null);
+  const resultDialog = useRef<HTMLDialogElement>(null);
+  const resultTrigger = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!result) {
+      resultDialog.current?.close();
+      return;
+    }
+    resultDialog.current?.showModal();
+  }, [result]);
   const mapSaveQueue = useRef(Promise.resolve());
   const configured = controller.isGooglePlacesConfigured();
   const markers = useMemo(
@@ -945,9 +955,25 @@ export default function RouteCalculatorModule() {
                 >
                   {calculating ? "正在計算…" : "路程計算"}
                 </button>
+                {result && (
+                  <button ref={resultTrigger} type="button" className="route-secondary"
+                    onClick={() => resultDialog.current?.showModal()}>
+                    試算結果
+                  </button>
+                )}
               </form>
             )}
             {result && (
+              <dialog ref={resultDialog} className="route-result-dialog"
+                aria-label="路程試算結果"
+                onClose={() => resultTrigger.current?.focus()}
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) resultDialog.current?.close();
+                }}>
+                <div className="route-result-dialog-content">
+                  <button type="button" className="route-dialog-close"
+                    aria-label="關閉試算結果" autoFocus
+                    onClick={() => resultDialog.current?.close()}>×</button>
               <section
                 className="route-result"
                 aria-label="路程試算結果"
@@ -979,6 +1005,8 @@ export default function RouteCalculatorModule() {
                   路線估算，非保證抵達時間；實際時間受路況與班次影響。修改條件後需重新計算。
                 </small>
               </section>
+                </div>
+              </dialog>
             )}
           </section>
           <RoutePreviewMap
@@ -1038,7 +1066,9 @@ export default function RouteCalculatorModule() {
             }
           />
         </div>
-        <div className="route-trip-notices">
+        <details className="route-trip-notices">
+          <summary>資料狀態{tripsError ? " · 行程載入失敗" : ""}{tripLoading ? " · 載入中…" : ""}{(tripData?.unavailable.length ?? 0) + routeMapUnavailable.length > 0 ? " · 部分地點無法顯示" : ""}</summary>
+          <div>
                 {tripsError && (
                   <div className="route-inline-error" role="alert">
                     {tripsError}
@@ -1048,7 +1078,8 @@ export default function RouteCalculatorModule() {
                     >
                       重試
                     </button>
-                  </div>
+                    </div>
+                  </details>
                 )}
                 {mapId && (
                   <p className="route-field-hint" role="status">
