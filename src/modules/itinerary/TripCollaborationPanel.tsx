@@ -157,35 +157,39 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
     if (!details) return;
     const shouldEnableCollaboration =
       sharedTripEditingEnabled && !enabledTripIds.includes(details.trip.id);
-    if (
-      shouldEnableCollaboration &&
-      mode === "indexeddb"
-    ) {
+    if (shouldEnableCollaboration && mode === "indexeddb") {
       setError("單機模式無法啟用協作，請切換到混合或雲端模式後再送出邀請。");
       return;
     }
-    void run(async () => {
-      await tripCollaborationController.invite(details.trip.id, invitee, role);
-      if (shouldEnableCollaboration) {
-        try {
-          await sharedTripController.enable(details.trip.id);
-        } catch (cause) {
-          throw new Error(
-            `邀請已送出，但協作啟用失敗：${cause instanceof Error ? cause.message : "請重新載入後再試。"}`,
-          );
+    void run(
+      async () => {
+        await tripCollaborationController.invite(
+          details.trip.id,
+          invitee,
+          role,
+        );
+        if (shouldEnableCollaboration) {
+          try {
+            await sharedTripController.enable(details.trip.id);
+          } catch (cause) {
+            throw new Error(
+              `邀請已送出，但協作啟用失敗：${cause instanceof Error ? cause.message : "請重新載入後再試。"}`,
+            );
+          }
+          try {
+            await sharedTripController.refresh();
+          } catch (cause) {
+            throw new Error(
+              `邀請已送出，協作也已啟用，但共享行程載入失敗：${cause instanceof Error ? cause.message : "請重新載入確認狀態。"}`,
+            );
+          }
         }
-        try {
-          await sharedTripController.refresh();
-        } catch (cause) {
-          throw new Error(
-            `邀請已送出，協作也已啟用，但共享行程載入失敗：${cause instanceof Error ? cause.message : "請重新載入確認狀態。"}`,
-          );
-        }
-      }
-      setInvitee("");
-    }, shouldEnableCollaboration
-      ? "站內邀請已送出。協作已啟用，請對方接受邀請。"
-      : "站內邀請已送出，請對方接受邀請。");
+        setInvitee("");
+      },
+      shouldEnableCollaboration
+        ? "站內邀請已送出。協作已啟用，請對方接受邀請。"
+        : "站內邀請已送出，請對方接受邀請。",
+    );
   }
 
   const pendingInvitations =
@@ -219,7 +223,7 @@ export function TripCollaborationPanel({ preferredTripId, onClose }: Props) {
     >
       <header className="trip-collaboration-heading">
         <h2 id="trip-collaboration-title">
-          {sharedTripEditingEnabled ? "行程協作管理" : "行程協作預覽"}
+          {sharedTripEditingEnabled ? "協作管理" : "協作預覽"}
         </h2>
         <div className="trip-collaboration-heading-actions">
           {details &&
