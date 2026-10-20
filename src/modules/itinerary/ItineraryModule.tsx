@@ -1584,7 +1584,11 @@ function ItineraryModule({
                                   autoFocus
                                   onClick={() => setPlacePickerOpen(true)}
                                 >
-                                  <span>{tripPlaces.find((place) => place.id === itemDraft.placeId)?.name ?? "搜尋或選擇地點"}</span>
+                                  <span>
+                                    {tripPlaces.find(
+                                      (place) => place.id === itemDraft.placeId,
+                                    )?.name ?? "搜尋或選擇地點"}
+                                  </span>
                                   <span aria-hidden="true">⌄</span>
                                 </button>
                                 <a
@@ -1673,7 +1677,7 @@ function ItineraryModule({
                             />
                           </label>
                           <label className="itinerary-field itinerary-field-wide">
-                            <span>交通方式</span>
+                            <span>交通</span>
                             <select
                               value={itemDraft.transport}
                               onChange={(event) =>

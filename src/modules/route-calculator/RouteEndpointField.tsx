@@ -153,14 +153,11 @@ export function RouteEndpointField({
         }}
       >
         <span>{selectedName || `選擇${label}`}</span>
-        <span aria-hidden="true">⌄</span>
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <circle cx="8" cy="8" r="5" />
+          <path d="m12 12 5 5" />
+        </svg>
       </button>
-      {selectedName && (
-        <p className="route-field-hint">
-          {selectedPlace ? '已存地點' : selectedMarker ? '後加標記' : 'Google 搜尋'}
-          {selectedMarker?.address && ` · ${selectedMarker.address}`}
-        </p>
-      )}
       {error && <p className="route-inline-error" role="alert">{error}</p>}
       {dialogSource && (
         <div

@@ -43,14 +43,16 @@ div.workspace-layout > main.route-calculator-main { height: 100dvh; min-height: 
 .route-trip-notices > summary { width: fit-content; cursor: pointer; }
 .route-trip-notices > div { max-height: 20dvh; overflow-y: auto; padding-block: 6px; }
 .route-persistent-error { margin: 12px 18px 0; }
-.route-calculator-form { display: grid; gap: 10px; padding: 12px 14px; }
+.route-calculator-form { display: grid; gap: clamp(12px,2.2dvh,24px); padding: clamp(12px,2.5dvh,24px) 16px; }
 .route-calculator-shell button, .route-calculator-shell input, .route-calculator-shell select { font: inherit; }
 .route-endpoint { min-width: 0; padding: 0; margin: 0; border: 0; }
 .route-endpoint legend, .route-transport > span { padding: 0; margin-bottom: 5px; color: #627168; font-size: 12px; }
 .route-endpoint b, .route-transport b { color: #cf7567; font-weight: 500; }
-.route-endpoint-trigger { width: 100%; min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #e1e8e2; border-radius: 5px; color: #626d65; background: #fff; text-align: left; cursor: pointer; }
-.route-endpoint-trigger > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.route-endpoint-trigger > span:last-child { color: #849087; }
+.route-endpoint-trigger { width: 100%; min-height: 46px; display: flex; align-items: center; justify-content: space-between; gap: 12px; box-sizing: border-box; padding: 10px 12px; border: 1px solid #e1e8e2; border-radius: 12px; color: #475d4e; background: #f5f8f4; text-align: left; cursor: pointer; transition: border-color .15s,background .15s; }
+.route-endpoint-trigger:hover:not(:disabled) { border-color: #9eb5a3; background: #edf4ed; }
+.route-endpoint-trigger:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.route-endpoint-trigger > span:first-child { min-width: 0; overflow-wrap: anywhere; line-height: 1.5; }
+.route-endpoint-trigger svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: #789080; stroke-width: 1.5; stroke-linecap: round; }
 .route-calculator-form > .route-endpoint { display: grid; grid-template-columns: 38px minmax(0,1fr); align-items: center; column-gap: 8px; }
 .route-calculator-form > .route-endpoint > legend { float: left; width: 38px; margin: 0; }
 .route-calculator-form > .route-endpoint > .route-field-hint { grid-column: 2; margin-top: 3px; }
@@ -61,6 +63,8 @@ div.workspace-layout > main.route-calculator-main { height: 100dvh; min-height: 
 .route-source-switch button { flex: 1; min-height: 34px; padding: 6px 9px; border: 1px solid transparent; border-radius: 5px; color: #78867d; background: transparent; cursor: pointer; font-size: 12px; }
 .route-source-switch button[aria-pressed="true"] { border-color: #dce6dd; color: #496c54; background: #fff; box-shadow: 0 1px 3px rgba(40, 55, 43, .06); }
 .route-calculator-shell .searchable-select input, .route-transport select { width: 100%; min-height: 40px; box-sizing: border-box; padding: 9px 10px; border: 1px solid #e1e8e2; border-radius: 5px; outline-color: #9eb5a3; color: #626d65; background: #fff; font-size: 12px; }
+.route-calculator-form > .route-transport select { min-width: 0; min-height: 44px; padding: 10px 12px; border-radius: 10px; color: #475d4e; background-color: #f5f8f4; cursor: pointer; }
+.route-calculator-form > .route-transport select:hover:not(:disabled) { border-color: #9eb5a3; }
 .route-google-search { min-height: 40px; }
 .route-google-search gmp-place-autocomplete { width: 100%; }
 .route-transport { display: flex; flex-direction: column; }

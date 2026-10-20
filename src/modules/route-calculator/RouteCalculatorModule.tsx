@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { EntityNotFoundError } from "../../database";
 import type { Place, RouteMapChanges, Trip } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
+import { AdminInfo } from "../../common/AdminInfo";
 import {
   formatTravelDistance,
   transportOptions,
@@ -904,7 +905,7 @@ export default function RouteCalculatorModule() {
                 )}
                 <label className="route-transport">
                   <span>
-                    交通方式 <b>*</b>
+                    交通 <b>*</b>
                   </span>
                   <select
                     value={transport}
@@ -1066,6 +1067,7 @@ export default function RouteCalculatorModule() {
             }
           />
         </div>
+        <AdminInfo>
         <details className="route-trip-notices">
           <summary>資料狀態{tripsError ? " · 行程載入失敗" : ""}{tripLoading ? " · 載入中…" : ""}{(tripData?.unavailable.length ?? 0) + routeMapUnavailable.length > 0 ? " · 部分地點無法顯示" : ""}</summary>
           <div>
@@ -1078,8 +1080,7 @@ export default function RouteCalculatorModule() {
                     >
                       重試
                     </button>
-                    </div>
-                  </details>
+                  </div>
                 )}
                 {mapId && (
                   <p className="route-field-hint" role="status">
@@ -1123,7 +1124,9 @@ export default function RouteCalculatorModule() {
                     </ul>
                   </details>
                 )}
-        </div>
+          </div>
+        </details>
+        </AdminInfo>
       </div>
     </WorkspaceLayout>
   );
