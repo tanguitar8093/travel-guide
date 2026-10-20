@@ -23,12 +23,20 @@ import type { ItineraryController } from "./itinerary.controller";
 import type { ItineraryMapData } from "./itinerary-map.service";
 import "./ItineraryModule.css";
 import { SearchableSelect } from "../../common/SearchableSelect";
-import { formatTravelDistance, transportOptions } from "../../common/route-estimate";
+import {
+  formatTravelDistance,
+  transportOptions,
+} from "../../common/route-estimate";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
-  | { tripId: string; status: "ready"; hasRouteMap: boolean; addedPlaceCount: number }
+  | {
+      tripId: string;
+      status: "ready";
+      hasRouteMap: boolean;
+      addedPlaceCount: number;
+    }
   | { tripId: string; status: "error"; message: string };
 
 interface TripDraft {
@@ -147,7 +155,12 @@ function getTripDates(trip: Trip): string[] {
   return dates;
 }
 
-function ItineraryModule({ sharedNavigation, controller = defaultItineraryController, sourceRevision = "", onCollaborationChange }: {
+function ItineraryModule({
+  sharedNavigation,
+  controller = defaultItineraryController,
+  sourceRevision = "",
+  onCollaborationChange,
+}: {
   sharedNavigation?: ReactNode;
   controller?: ItineraryController;
   sourceRevision?: string;
@@ -205,8 +218,12 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
   const deleteRouteMapCheckGeneration = useRef(0);
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
-  const canEditItems = !selectedTripId || itineraryController.getAccess(selectedTripId) !== "viewer";
-  const canManageTrip = !selectedTripId || itineraryController.getAccess(selectedTripId) === "owner";
+  const canEditItems =
+    !selectedTripId ||
+    itineraryController.getAccess(selectedTripId) !== "viewer";
+  const canManageTrip =
+    !selectedTripId ||
+    itineraryController.getAccess(selectedTripId) === "owner";
   const selectedTripIdRef = useRef(selectedTripId);
   selectedTripIdRef.current = selectedTripId;
   const selectedRegionId = selectedTrip?.regionId;
@@ -372,7 +389,12 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
     }
   }
 
-  const hasOpenDraft = creatingTrip || editingTrip || addingItem || editingItemId !== undefined || hasPendingDayReorder;
+  const hasOpenDraft =
+    creatingTrip ||
+    editingTrip ||
+    addingItem ||
+    editingItemId !== undefined ||
+    hasPendingDayReorder;
 
   useEffect(() => {
     if (hasOpenDraft || saving || calculatingItemId) return;
@@ -388,12 +410,19 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
         setRegions(workspace.regions);
         setPlaces(workspace.places);
         setLabels(flattenLabels(labelTree));
-        const nextTrip = workspace.trips.find((trip) => trip.id === selectedTripIdRef.current) ?? workspace.trips[0];
+        const nextTrip =
+          workspace.trips.find(
+            (trip) => trip.id === selectedTripIdRef.current,
+          ) ?? workspace.trips[0];
         setSelectedTripId(nextTrip?.id);
         setTripDraft(nextTrip ? toTripDraft(nextTrip) : emptyTripDraft);
-        setSelectedDate((current) => nextTrip
-          ? current >= nextTrip.startDate && current <= nextTrip.endDate ? current : nextTrip.startDate
-          : "");
+        setSelectedDate((current) =>
+          nextTrip
+            ? current >= nextTrip.startDate && current <= nextTrip.endDate
+              ? current
+              : nextTrip.startDate
+            : "",
+        );
         if (!nextTrip) setItems([]);
       })
       .catch((cause: unknown) => {
@@ -410,7 +439,15 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
     return () => {
       active = false;
     };
-  }, [workspaceReloadKey, itineraryController, sourceRevision, selectedTripId, hasOpenDraft, saving, calculatingItemId]);
+  }, [
+    workspaceReloadKey,
+    itineraryController,
+    sourceRevision,
+    selectedTripId,
+    hasOpenDraft,
+    saving,
+    calculatingItemId,
+  ]);
 
   useEffect(() => {
     if (!selectedTripId) {
@@ -458,9 +495,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
       } catch (cause) {
         if (active) {
           setError(
-            cause instanceof Error
-              ? cause.message
-              : "重新載入地點清單失敗。",
+            cause instanceof Error ? cause.message : "重新載入地點清單失敗。",
           );
         }
       }
@@ -547,8 +582,18 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
 
   const mapSourceKey = JSON.stringify([
     selectedRegion,
-    places.filter((place) => selectedRegionId && place.regionIds.includes(selectedRegionId))
-      .map(({ id, name, googlePlaceId, mapsUrl, icon }) => ({ id, name, googlePlaceId, mapsUrl, icon })),
+    places
+      .filter(
+        (place) =>
+          selectedRegionId && place.regionIds.includes(selectedRegionId),
+      )
+      .map(({ id, name, googlePlaceId, mapsUrl, icon }) => ({
+        id,
+        name,
+        googlePlaceId,
+        mapsUrl,
+        icon,
+      })),
   ]);
 
   useEffect(() => {
@@ -616,7 +661,8 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
 
   useEffect(() => {
     if (mountedMapRegionId === visibleMapData?.regionId) {
-      const fitBounds = !mapMarkersFittedRef.current && googleMapMarkers.length > 0;
+      const fitBounds =
+        !mapMarkersFittedRef.current && googleMapMarkers.length > 0;
       mapHandleRef.current?.setMarkers(googleMapMarkers, { fitBounds });
       if (fitBounds) mapMarkersFittedRef.current = true;
     }
@@ -718,25 +764,33 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
     setError("");
     setDeleteRouteMapCheck({ tripId, status: "loading" });
     setDeleteTripDialogOpen(true);
-    void itineraryController.getTripRouteMapSummary(tripId).then((summary) => {
-      if (deleteRouteMapCheckGeneration.current === generation) {
-        setDeleteRouteMapCheck({ tripId, status: "ready", ...summary });
-      }
-    }).catch((cause: unknown) => {
-      if (deleteRouteMapCheckGeneration.current === generation) {
-        setDeleteRouteMapCheck({
-          tripId,
-          status: "error",
-          message: cause instanceof Error ? cause.message : "讀取試算地圖資料失敗。",
-        });
-      }
-    });
+    void itineraryController
+      .getTripRouteMapSummary(tripId)
+      .then((summary) => {
+        if (deleteRouteMapCheckGeneration.current === generation) {
+          setDeleteRouteMapCheck({ tripId, status: "ready", ...summary });
+        }
+      })
+      .catch((cause: unknown) => {
+        if (deleteRouteMapCheckGeneration.current === generation) {
+          setDeleteRouteMapCheck({
+            tripId,
+            status: "error",
+            message:
+              cause instanceof Error ? cause.message : "讀取試算地圖資料失敗。",
+          });
+        }
+      });
   }
 
   async function handleDeleteTrip() {
-    if (!selectedTrip || saving ||
-        deleteRouteMapCheck?.tripId !== selectedTrip.id ||
-        deleteRouteMapCheck.status !== "ready") return;
+    if (
+      !selectedTrip ||
+      saving ||
+      deleteRouteMapCheck?.tripId !== selectedTrip.id ||
+      deleteRouteMapCheck.status !== "ready"
+    )
+      return;
     const deletingTrip = selectedTrip;
     const routeMapSummary = deleteRouteMapCheck;
     setSaving(true);
@@ -746,9 +800,11 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
       await itineraryController.deleteTrip(deletingTrip.id);
       setDeleteTripDialogOpen(false);
       await refreshWorkspace();
-      setNotice(routeMapSummary.hasRouteMap
-        ? `行程「${deletingTrip.name}」、每日安排及試算地圖（含 ${routeMapSummary.addedPlaceCount} 個後加標記）已刪除。`
-        : `行程「${deletingTrip.name}」及其行程項目已刪除。`);
+      setNotice(
+        routeMapSummary.hasRouteMap
+          ? `行程「${deletingTrip.name}」、每日安排及試算地圖（含 ${routeMapSummary.addedPlaceCount} 個後加標記）已刪除。`
+          : `行程「${deletingTrip.name}」及其行程項目已刪除。`,
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "刪除行程失敗。");
     } finally {
@@ -885,7 +941,9 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
       );
       setItems(await itineraryController.listItems(selectedTripId));
       setDayOrderDraftIds(undefined);
-      setNotice(`已計算並儲存路程：約 ${estimate.durationMinutes} 分鐘 · ${formatTravelDistance(estimate.distanceMeters)}。`);
+      setNotice(
+        `已計算並儲存路程：約 ${estimate.durationMinutes} 分鐘 · ${formatTravelDistance(estimate.distanceMeters)}。`,
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "計算路程失敗。");
     } finally {
@@ -1091,7 +1149,10 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
               </div>
             )}
             {focusMode && notice && (
-              <div className="itinerary-feedback itinerary-success" role="status">
+              <div
+                className="itinerary-feedback itinerary-success"
+                role="status"
+              >
                 {notice}
               </div>
             )}
@@ -1253,16 +1314,12 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                     {(focusMode || (!itemFormVisible && !editingTrip)) && (
                       <button
                         ref={
-                          focusMode
-                            ? focusModeCloseRef
-                            : focusModeTriggerRef
+                          focusMode ? focusModeCloseRef : focusModeTriggerRef
                         }
                         type="button"
                         className="itinerary-focus-toggle"
                         aria-label={
-                          focusMode
-                            ? "離開當日專注模式"
-                            : "進入當日專注模式"
+                          focusMode ? "離開當日專注模式" : "進入當日專注模式"
                         }
                         title={
                           focusMode
@@ -1350,11 +1407,17 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                                   disabled={saving}
                                   autoFocus
                                   onChange={(placeId) => {
-                                    setItemDraft((current) => ({ ...current, placeId }));
+                                    setItemDraft((current) => ({
+                                      ...current,
+                                      placeId,
+                                    }));
                                     setError("");
                                   }}
                                   onQueryChange={() => {
-                                    setItemDraft((current) => ({ ...current, placeId: "" }));
+                                    setItemDraft((current) => ({
+                                      ...current,
+                                      placeId: "",
+                                    }));
                                     setError("");
                                   }}
                                 />
@@ -1532,267 +1595,291 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                 {!itemFormVisible && (
                   <>
                     <div className="itinerary-items-heading">
-                  <div>
-                    <h3>當日安排</h3>
-                    <span>{dayItems.length} 個地點</span>
-                  </div>
-                  <div className="itinerary-items-actions">
-                    {hasPendingDayReorder && (
-                      <>
+                      <div>
+                        <h3>當日安排</h3>
+                        <span>{dayItems.length} 個地點</span>
+                      </div>
+                      <div className="itinerary-items-actions">
+                        {hasPendingDayReorder && (
+                          <>
+                            <button
+                              type="button"
+                              className="itinerary-secondary"
+                              disabled={interactionBusy || itemFormVisible}
+                              onClick={cancelDayReorder}
+                            >
+                              取消排序
+                            </button>
+                            <button
+                              type="button"
+                              className="itinerary-primary"
+                              disabled={interactionBusy || itemFormVisible}
+                              onClick={() => void saveDayReorder()}
+                            >
+                              儲存排序
+                            </button>
+                          </>
+                        )}
                         <button
                           type="button"
-                          className="itinerary-secondary"
-                          disabled={interactionBusy || itemFormVisible}
-                          onClick={cancelDayReorder}
-                        >
-                          取消排序
-                        </button>
-                        <button
-                          type="button"
-                          className="itinerary-primary"
-                          disabled={interactionBusy || itemFormVisible}
-                          onClick={() => void saveDayReorder()}
-                        >
-                          儲存排序
-                        </button>
-                      </>
-                    )}
-                    <button
-                      type="button"
-                      className="itinerary-add-button"
-                      disabled={interactionBusy || itemFormVisible || !canEditItems}
-                      onClick={startAddItem}
-                    >
-                      ＋地點
-                    </button>
-                  </div>
-                </div>
-                <div className="itinerary-items-scroll">
-                  {dayItems.length ? (
-                    <ol className="itinerary-item-list">
-                      {dayItems.map((item, index) => {
-                      const place = places.find(
-                        (candidate) => candidate.id === item.placeId,
-                      );
-                      const previousItem = dayItems[index - 1];
-                      const previousPlace = previousItem
-                        ? places.find(
-                            (candidate) =>
-                              candidate.id === previousItem.placeId,
-                          )
-                        : undefined;
-                      const cardReferenceArrival = addMinutesToTime(
-                        previousItem
-                          ? (getPreviousReferenceBaseTime(previousItem) ??
-                              previousItem.arrivalTime)
-                          : undefined,
-                        previousItem?.durationMinutes,
-                      );
-                      const transportLabel = transportOptions.find(
-                        (option) => option.value === item.transport,
-                      )?.label;
-                      const routeReady = Boolean(
-                        previousItem &&
-                        transportLabel &&
-                        previousPlace?.googlePlaceId &&
-                        place?.googlePlaceId,
-                      );
-                      const placeLabels =
-                        place?.labelIds.flatMap((labelId) => {
-                          const label = labelsById.get(labelId);
-                          return label ? [label] : [];
-                        }) ?? [];
-                      const mapUrl = place ? getPlaceMapUrl(place) : undefined;
-                      return (
-                        <li className="itinerary-item-row" key={item.id}>
-                          <span className="itinerary-order">
-                            {String(index + 1).padStart(2, "0")}
-                          </span>
-                          <div className="itinerary-item-copy">
-                            <div className="itinerary-item-title">
-                              <strong>
-                                {place?.icon && (
-                                  <span
-                                    className="itinerary-place-icon"
-                                    aria-hidden="true"
-                                  >
-                                    {place.icon}
-                                  </span>
-                                )}
-                                {place?.name ?? "地點已不存在"}
-                              </strong>
-                              {mapUrl && (
-                                <a
-                                  className="itinerary-map-link"
-                                  href={mapUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  aria-label={`在地圖開啟${place?.name}`}
-                                  title="在地圖開啟"
-                                >
-                                  ⌖ 地圖 ↗
-                                </a>
-                              )}
-                              {place?.notes?.trim() && (
-                                <button
-                                  className="itinerary-place-note-toggle"
-                                  type="button"
-                                  aria-label={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}${place.name}的地點備註`}
-                                  aria-expanded={expandedPlaceNotes.has(item.id)}
-                                  aria-controls={`place-note-${item.id}`}
-                                  title={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}地點備註`}
-                                  onClick={() => togglePlaceNote(item.id)}
-                                >
-                                  <svg
-                                    aria-hidden="true"
-                                    viewBox="0 0 16 16"
-                                    focusable="false"
-                                  >
-                                    <path d="M5 2.5h8v11H5zM3 4h2M3 7h2M3 10h2M3 13h2M7.5 5h3M7.5 7.5h3M7.5 10h2" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                            <div className="itinerary-item-meta">
-                              {item.arrivalTime && (
-                                <span>預計抵達 {item.arrivalTime}</span>
-                              )}
-                              {item.durationMinutes && (
-                                <span>{item.durationMinutes} 分鐘</span>
-                              )}
-                              {transportLabel && <span>{transportLabel}</span>}
-                              {item.travelDurationMinutes !== undefined && (
-                                <span>
-                                  路程約 {item.travelDurationMinutes} 分鐘
-                                  {item.travelDistanceMeters !== undefined &&
-                                    ` · ${formatTravelDistance(item.travelDistanceMeters)}`}
-                                  {cardReferenceArrival
-                                    ? `（${cardReferenceArrival.time}${cardReferenceArrival.dayOffset ? ` 翌日 +${cardReferenceArrival.dayOffset} 天` : ""}）`
-                                    : ""}
-                                </span>
-                              )}
-                            </div>
-                            {placeLabels.length > 0 && (
-                              <div
-                                className="itinerary-item-labels"
-                                aria-label="地點標籤"
-                              >
-                                {placeLabels.slice(0, 3).map((label) => (
-                                  <span
-                                    className="itinerary-item-label"
-                                    key={label.id}
-                                  >
-                                    <i
-                                      style={{ backgroundColor: label.color }}
-                                      aria-hidden="true"
-                                    />
-                                    {label.name}
-                                  </span>
-                                ))}
-                                {placeLabels.length > 3 && (
-                                  <span className="itinerary-item-label-more">
-                                    +{placeLabels.length - 3}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {place?.notes?.trim() && (
-                              <div
-                                className="itinerary-place-note"
-                                id={`place-note-${item.id}`}
-                                hidden={!expandedPlaceNotes.has(item.id)}
-                              >
-                                <span>地點備註</span>
-                                <p>{place.notes}</p>
-                              </div>
-                            )}
-                            {item.note && <p>{item.note}</p>}
-                          </div>
-                          <div className="itinerary-item-actions">
-                            <button
-                              type="button"
-                              aria-label="往前移"
-                              disabled={interactionBusy || !canEditItems || index === 0}
-                              onClick={() => void moveItem(item, -1)}
-                            >
-                              ↑
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="往後移"
-                              disabled={
-                                interactionBusy || !canEditItems || index === dayItems.length - 1
-                              }
-                              onClick={() => void moveItem(item, 1)}
-                            >
-                              ↓
-                            </button>
-                            {previousItem && (
-                              <button
-                                type="button"
-                                className="itinerary-calculate-route"
-                                disabled={interactionBusy || !canEditItems || !routeReady}
-                                title={
-                                  !item.transport
-                                    ? "先編輯此地點並選擇交通方式"
-                                    : !routeReady
-                                      ? "兩個地點都需要 Google Maps 搜尋結果"
-                                      : undefined
-                                }
-                                onClick={() =>
-                                  void handleCalculateTravelDuration(item)
-                                }
-                              >
-                                {calculatingItemId === item.id
-                                  ? "計算中…"
-                                  : item.travelDurationMinutes !== undefined
-                                    ? "重算路程"
-                                    : "計算路程"}
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              aria-label="編輯項目"
-                              disabled={interactionBusy || !canEditItems}
-                              onClick={() => startEditItem(item)}
-                            >
-                              編輯
-                            </button>
-                            <button
-                              type="button"
-                              aria-label="移除項目"
-                              disabled={interactionBusy || !canEditItems}
-                              onClick={() => void handleDeleteItem(item)}
-                            >
-                              移除
-                            </button>
-                          </div>
-                        </li>
-                      );
-                      })}
-                    </ol>
-                  ) : (
-                    !itemFormVisible && (
-                      <div className="itinerary-day-empty">
-                        <span>⌖</span>
-                        <strong>這一天還沒有安排</strong>
-                        <p>從已收藏且屬於此區域的地點中加入第一站。</p>
-                        <button
-                          type="button"
-                          className="itinerary-primary"
-                          disabled={!tripPlaces.length || !canEditItems}
+                          className="itinerary-add-button"
+                          disabled={
+                            interactionBusy || itemFormVisible || !canEditItems
+                          }
                           onClick={startAddItem}
                         >
-                          ＋ 加入地點
+                          ＋地點
                         </button>
                       </div>
-                    )
-                  )}
-                  {!tripPlaces.length && !itemFormVisible && (
-                    <p className="itinerary-region-hint">
-                      請先到地點模組，將地點加入「{selectedRegion?.name}」區域。
-                    </p>
-                  )}
+                    </div>
+                    <div className="itinerary-items-scroll">
+                      {dayItems.length ? (
+                        <ol className="itinerary-item-list">
+                          {dayItems.map((item, index) => {
+                            const place = places.find(
+                              (candidate) => candidate.id === item.placeId,
+                            );
+                            const previousItem = dayItems[index - 1];
+                            const previousPlace = previousItem
+                              ? places.find(
+                                  (candidate) =>
+                                    candidate.id === previousItem.placeId,
+                                )
+                              : undefined;
+                            const cardReferenceArrival = addMinutesToTime(
+                              previousItem
+                                ? (getPreviousReferenceBaseTime(previousItem) ??
+                                    previousItem.arrivalTime)
+                                : undefined,
+                              previousItem?.durationMinutes,
+                            );
+                            const transportLabel = transportOptions.find(
+                              (option) => option.value === item.transport,
+                            )?.label;
+                            const routeReady = Boolean(
+                              previousItem &&
+                              transportLabel &&
+                              previousPlace?.googlePlaceId &&
+                              place?.googlePlaceId,
+                            );
+                            const placeLabels =
+                              place?.labelIds.flatMap((labelId) => {
+                                const label = labelsById.get(labelId);
+                                return label ? [label] : [];
+                              }) ?? [];
+                            const mapUrl = place
+                              ? getPlaceMapUrl(place)
+                              : undefined;
+                            return (
+                              <li className="itinerary-item-row" key={item.id}>
+                                <span className="itinerary-order">
+                                  {String(index + 1).padStart(2, "0")}
+                                </span>
+                                <div className="itinerary-item-copy">
+                                  <div className="itinerary-item-title">
+                                    <strong>
+                                      {place?.icon && (
+                                        <span
+                                          className="itinerary-place-icon"
+                                          aria-hidden="true"
+                                        >
+                                          {place.icon}
+                                        </span>
+                                      )}
+                                      {place?.name ?? "地點已不存在"}
+                                    </strong>
+                                    {mapUrl && (
+                                      <a
+                                        className="itinerary-map-link"
+                                        href={mapUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        aria-label={`在地圖開啟${place?.name}`}
+                                        title="在地圖開啟"
+                                      >
+                                        ⌖ 地圖 ↗
+                                      </a>
+                                    )}
+                                    {place?.notes?.trim() && (
+                                      <button
+                                        className="itinerary-place-note-toggle"
+                                        type="button"
+                                        aria-label={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}${place.name}的地點備註`}
+                                        aria-expanded={expandedPlaceNotes.has(
+                                          item.id,
+                                        )}
+                                        aria-controls={`place-note-${item.id}`}
+                                        title={`${expandedPlaceNotes.has(item.id) ? "收合" : "顯示"}地點備註`}
+                                        onClick={() => togglePlaceNote(item.id)}
+                                      >
+                                        <svg
+                                          aria-hidden="true"
+                                          viewBox="0 0 16 16"
+                                          focusable="false"
+                                        >
+                                          <path d="M5 2.5h8v11H5zM3 4h2M3 7h2M3 10h2M3 13h2M7.5 5h3M7.5 7.5h3M7.5 10h2" />
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                  <div className="itinerary-item-meta">
+                                    {item.arrivalTime && (
+                                      <span>預計抵達 {item.arrivalTime}</span>
+                                    )}
+                                    {item.durationMinutes && (
+                                      <span>{item.durationMinutes} 分鐘</span>
+                                    )}
+                                    {transportLabel && (
+                                      <span>{transportLabel}</span>
+                                    )}
+                                    {item.travelDurationMinutes !==
+                                      undefined && (
+                                      <span>
+                                        路程約 {item.travelDurationMinutes} 分鐘
+                                        {item.travelDistanceMeters !==
+                                          undefined &&
+                                          ` · ${formatTravelDistance(item.travelDistanceMeters)}`}
+                                        {cardReferenceArrival
+                                          ? `（${cardReferenceArrival.time}${cardReferenceArrival.dayOffset ? ` 翌日 +${cardReferenceArrival.dayOffset} 天` : ""}）`
+                                          : ""}
+                                      </span>
+                                    )}
+                                  </div>
+                                  {placeLabels.length > 0 && (
+                                    <div
+                                      className="itinerary-item-labels"
+                                      aria-label="地點標籤"
+                                    >
+                                      {placeLabels.slice(0, 3).map((label) => (
+                                        <span
+                                          className="itinerary-item-label"
+                                          key={label.id}
+                                        >
+                                          <i
+                                            style={{
+                                              backgroundColor: label.color,
+                                            }}
+                                            aria-hidden="true"
+                                          />
+                                          {label.name}
+                                        </span>
+                                      ))}
+                                      {placeLabels.length > 3 && (
+                                        <span className="itinerary-item-label-more">
+                                          +{placeLabels.length - 3}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {place?.notes?.trim() && (
+                                    <div
+                                      className="itinerary-place-note"
+                                      id={`place-note-${item.id}`}
+                                      hidden={!expandedPlaceNotes.has(item.id)}
+                                    >
+                                      <span>地點備註</span>
+                                      <p>{place.notes}</p>
+                                    </div>
+                                  )}
+                                  {item.note && <p>{item.note}</p>}
+                                </div>
+                                <div className="itinerary-item-actions">
+                                  <button
+                                    type="button"
+                                    aria-label="往前移"
+                                    disabled={
+                                      interactionBusy ||
+                                      !canEditItems ||
+                                      index === 0
+                                    }
+                                    onClick={() => void moveItem(item, -1)}
+                                  >
+                                    ↑
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="往後移"
+                                    disabled={
+                                      interactionBusy ||
+                                      !canEditItems ||
+                                      index === dayItems.length - 1
+                                    }
+                                    onClick={() => void moveItem(item, 1)}
+                                  >
+                                    ↓
+                                  </button>
+                                  {previousItem && (
+                                    <button
+                                      type="button"
+                                      className="itinerary-calculate-route"
+                                      disabled={
+                                        interactionBusy ||
+                                        !canEditItems ||
+                                        !routeReady
+                                      }
+                                      title={
+                                        !item.transport
+                                          ? "先編輯此地點並選擇交通方式"
+                                          : !routeReady
+                                            ? "兩個地點都需要 Google Maps 搜尋結果"
+                                            : undefined
+                                      }
+                                      onClick={() =>
+                                        void handleCalculateTravelDuration(item)
+                                      }
+                                    >
+                                      {calculatingItemId === item.id
+                                        ? "計算中…"
+                                        : item.travelDurationMinutes !==
+                                            undefined
+                                          ? "重算路程"
+                                          : "計算路程"}
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    aria-label="編輯項目"
+                                    disabled={interactionBusy || !canEditItems}
+                                    onClick={() => startEditItem(item)}
+                                  >
+                                    編輯
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label="移除項目"
+                                    disabled={interactionBusy || !canEditItems}
+                                    onClick={() => void handleDeleteItem(item)}
+                                  >
+                                    移除
+                                  </button>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : (
+                        !itemFormVisible && (
+                          <div className="itinerary-day-empty">
+                            <span>⌖</span>
+                            <strong>這一天還沒有安排</strong>
+                            <p>從已收藏且屬於此區域的地點中加入第一站。</p>
+                            <button
+                              type="button"
+                              className="itinerary-primary"
+                              disabled={!tripPlaces.length || !canEditItems}
+                              onClick={startAddItem}
+                            >
+                              ＋地點
+                            </button>
+                          </div>
+                        )
+                      )}
+                      {!tripPlaces.length && !itemFormVisible && (
+                        <p className="itinerary-region-hint">
+                          請先到地點模組，將地點加入「{selectedRegion?.name}
+                          」區域。
+                        </p>
+                      )}
                     </div>
                   </>
                 )}
@@ -1833,6 +1920,39 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                     {tripPlaces.length} 個收藏地點
                   </span>
                 )}
+                <RouterLink
+                  className="itinerary-secondary itinerary-link-button itinerary-route-link"
+                  to={routes.routeCalculator}
+                  aria-disabled={
+                    interactionBusy ||
+                    creatingTrip ||
+                    editingTrip ||
+                    addingItem ||
+                    editingItemId !== undefined ||
+                    undefined
+                  }
+                  onClick={(event) => {
+                    if (
+                      interactionBusy ||
+                      creatingTrip ||
+                      editingTrip ||
+                      addingItem ||
+                      editingItemId !== undefined ||
+                      (hasPendingDayReorder &&
+                        !window.confirm(
+                          "尚有未儲存的排序，離開會放棄排序變更。確定前往路程頁面？",
+                        ))
+                    ) {
+                      event.preventDefault();
+                    }
+                  }}
+                >
+                  <svg viewBox="0 0 20 20" aria-hidden="true">
+                    <circle cx="10" cy="10" r="7" />
+                    <path d="M10 5.5v4.8l3.2 1.9" />
+                  </svg>
+                  <span>路程</span>
+                </RouterLink>
                 <button
                   type="button"
                   className="itinerary-secondary itinerary-map-default-button"
@@ -1856,37 +1976,6 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
                   </svg>
                   <span>預設</span>
                 </button>
-                <RouterLink
-                  className="itinerary-secondary itinerary-link-button itinerary-route-link"
-                  to={routes.routeCalculator}
-                  aria-disabled={
-                    interactionBusy ||
-                    creatingTrip ||
-                    editingTrip ||
-                    addingItem ||
-                    editingItemId !== undefined ||
-                    undefined
-                  }
-                  onClick={(event) => {
-                    if (
-                      interactionBusy ||
-                      creatingTrip ||
-                      editingTrip ||
-                      addingItem ||
-                      editingItemId !== undefined ||
-                        (hasPendingDayReorder &&
-                          !window.confirm("尚有未儲存的排序，離開會放棄排序變更。確定前往路程頁面？"))
-                    ) {
-                      event.preventDefault();
-                    }
-                  }}
-                >
-                  <svg viewBox="0 0 20 20" aria-hidden="true">
-                    <circle cx="10" cy="10" r="7" />
-                    <path d="M10 5.5v4.8l3.2 1.9" />
-                  </svg>
-                  <span>路程</span>
-                </RouterLink>
               </span>
             </div>
             <div className="itinerary-map-canvas">
@@ -1968,7 +2057,7 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !saving)
-            closeDeleteTripDialog();
+              closeDeleteTripDialog();
           }}
         >
           <section
@@ -1998,26 +2087,38 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
               <strong aria-hidden="true">!</strong>
               <p>
                 刪除後無法復原。此操作會一併刪除此行程的每日安排及備註；
-                {deleteRouteMapCheck?.status === "ready" && deleteRouteMapCheck.hasRouteMap
+                {deleteRouteMapCheck?.status === "ready" &&
+                deleteRouteMapCheck.hasRouteMap
                   ? "關聯的試算地圖與後加標記也會一起刪除；收藏地點、標籤與區域不受影響。"
                   : "收藏地點、標籤與區域不受影響。"}
               </p>
             </div>
             {deleteRouteMapCheck?.status === "loading" && (
-              <p className="itinerary-feedback" role="status">正在確認是否有關聯的試算地圖…</p>
+              <p className="itinerary-feedback" role="status">
+                正在確認是否有關聯的試算地圖…
+              </p>
             )}
             {deleteRouteMapCheck?.status === "error" && (
               <div className="itinerary-feedback itinerary-error" role="alert">
                 無法確認試算地圖是否存在：{deleteRouteMapCheck.message}
-                <button type="button" disabled={saving} onClick={openDeleteTripDialog}>重試</button>
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={openDeleteTripDialog}
+                >
+                  重試
+                </button>
               </div>
             )}
-            {deleteRouteMapCheck?.status === "ready" && deleteRouteMapCheck.hasRouteMap && (
-              <div className="itinerary-delete-summary">
-                <span>將一併刪除的試算地圖</span>
-                <strong>1 張地圖、{deleteRouteMapCheck.addedPlaceCount} 個後加標記</strong>
-              </div>
-            )}
+            {deleteRouteMapCheck?.status === "ready" &&
+              deleteRouteMapCheck.hasRouteMap && (
+                <div className="itinerary-delete-summary">
+                  <span>將一併刪除的試算地圖</span>
+                  <strong>
+                    1 張地圖、{deleteRouteMapCheck.addedPlaceCount} 個後加標記
+                  </strong>
+                </div>
+              )}
             <div className="itinerary-delete-summary">
               <span>將一併刪除的行程項目</span>
               <strong>{tripItems.length} 個地點</strong>
@@ -2042,8 +2143,11 @@ function ItineraryModule({ sharedNavigation, controller = defaultItineraryContro
               <button
                 type="button"
                 className="itinerary-delete"
-                disabled={saving || deleteRouteMapCheck?.status !== "ready" ||
-                  deleteRouteMapCheck.tripId !== selectedTrip.id}
+                disabled={
+                  saving ||
+                  deleteRouteMapCheck?.status !== "ready" ||
+                  deleteRouteMapCheck.tripId !== selectedTrip.id
+                }
                 onClick={() => void handleDeleteTrip()}
               >
                 {saving ? "刪除中…" : "刪除行程與項目"}

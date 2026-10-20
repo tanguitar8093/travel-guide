@@ -1,6 +1,7 @@
 .trip-collaboration-dialog { width: min(720px, calc(100% - 24px)); max-height: calc(100dvh - 32px); padding: 20px; border: 1px solid #e1e8e2; border-radius: 10px; color: #4f5c52; background: #fff; overflow-y: auto; font: 14px Inter, "Noto Sans TC", sans-serif; }
 .trip-collaboration-dialog::backdrop { background: rgba(31,42,34,.42); }
 .trip-collaboration-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.trip-collaboration-heading-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex: 0 0 auto; }
 .trip-collaboration-heading h2 { margin: 0; font-size: 20px; }
 .trip-collaboration-dialog h3 { font-size: 15px; }
 .trip-collaboration-dialog code { overflow-wrap: anywhere; }

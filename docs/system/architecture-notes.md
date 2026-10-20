@@ -24,25 +24,25 @@
 
 ## 類別圖例
 
-| ID | 現行成員與責任 |
-| --- | --- |
-| N1 | `App`、`usePathname`、routes：依路徑選行程、地點、區域、標籤、資料管理、路程試算。 |
-| N2 | `AuthProvider`／gateway：session、Email/password sign-in/sign-up/sign-out、role gate、hybrid account activation/deactivation；`AuthGate`、`WorkspaceLayout`、`RouterLink`：工作區外殼。 |
-| N3 | `LabelModule` → `LabelController` → `LabelService`：樹、搜尋、地點關聯與批次操作。 |
-| N4 | `PlaceModule` → controller/service；Google Places adapter：私人 place/region/label 查詢與 Maps/Places 即時解析，不持久化 provider 座標。 |
-| N5 | `RegionModule` → controller/service：region 與引用檢查；Google 搜尋及 legacy center。 |
-| N6 | `ItineraryEntry` → 原 `ItineraryModule` → `ItineraryController` → `CollaborativeItineraryService`：同 UI 選私人／shared trip；私人走 `ItineraryService`/facade，共享走 `SharedTripService`/repository。`ItineraryMapService` 解析地圖。 |
-| N7 | `DataManagementModule` → controller/service：個人 JSON、cloud preview/token/apply、明確 overwrite transfer、個人 conflict review；不是增量同步或完整 DB backup。 |
-| N8 | `database/index.ts`／runtime：三路 facade；`TravelDatabase` standalone version 7，`SyncDatabase` account/project version 9（含 outbox/baselines/conflicts/shared cache）。 |
-| N9 | `RouteCalculatorModule` → controller/service → facade 的 `routeMaps`/`routeMapPlaces`：兩點試算、保存端點／額外標記、trip 連動 map；不是 shared saved-map 編輯。 |
-| N10 | `TripCollaborationPanel`／controller/service／repository：Email 邀請、接受、角色、撤權／退出；`SharedTripRepository`：snapshot、draft/save、enable/cancel、resolve。 |
-| N11 | `LocalSyncStore`、`sync-engine`、`hybrid.runtime`、cloud adapter：本機交易與佇列、凍結重試、拉推、帳號 guard、自動排程；`HybridStatus` 區分私人／共享問題。 |
+| ID  | 現行成員與責任                                                                                                                                                                                                                          |
+| --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| N1  | `App`、`usePathname`、routes：依路徑選行程、地點、區域、標籤、資料管理、路程試算。                                                                                                                                                      |
+| N2  | `AuthProvider`／gateway：session、Email/password sign-in/sign-up/sign-out、role gate、hybrid account activation/deactivation；`AuthGate`、`WorkspaceLayout`、`RouterLink`：工作區外殼。                                                 |
+| N3  | `LabelModule` → `LabelController` → `LabelService`：樹、搜尋、地點關聯與批次操作。                                                                                                                                                      |
+| N4  | `PlaceModule` → controller/service；Google Places adapter：私人 place/region/label 查詢與 Maps/Places 即時解析，不持久化 provider 座標。                                                                                                |
+| N5  | `RegionModule` → controller/service：region 與引用檢查；Google 搜尋及 legacy center。                                                                                                                                                   |
+| N6  | `ItineraryEntry` → 原 `ItineraryModule` → `ItineraryController` → `CollaborativeItineraryService`：同 UI 選私人／shared trip；私人走 `ItineraryService`/facade，共享走 `SharedTripService`/repository。`ItineraryMapService` 解析地圖。 |
+| N7  | `DataManagementModule` → controller/service：個人 JSON、cloud preview/token/apply、明確 overwrite transfer、個人 conflict review；不是增量同步或完整 DB backup。                                                                        |
+| N8  | `database/index.ts`／runtime：三路 facade；`TravelDatabase` standalone version 7，`SyncDatabase` account/project version 9（含 outbox/baselines/conflicts/shared cache）。                                                              |
+| N9  | `RouteCalculatorModule` → controller/service → facade 的 `routeMaps`/`routeMapPlaces`：兩點試算、保存端點／額外標記、trip 連動 map；不是 shared saved-map 編輯。                                                                        |
+| N10 | `TripCollaborationPanel`／controller/service／repository：Email 邀請、接受、角色、撤權／退出；`SharedTripRepository`：snapshot、draft/save、enable/cancel、resolve。                                                                    |
+| N11 | `LocalSyncStore`、`sync-engine`、`hybrid.runtime`、cloud adapter：本機交易與佇列、凍結重試、拉推、帳號 guard、自動排程；`HybridStatus` 區分私人／共享問題。                                                                             |
 
 ## 資料邊界與限制
 
 - 個人領域型別：Region、Place、Label、Trip、ItineraryItem、RouteMap、RouteMapPlace。
   個人 JSON 不攜帶授權，不備份完整 shared workspace／members／deliveries／receipts。
-- 啟用共同編輯只複製排入地點的公開欄位与項目，私人筆記／標籤不分享；
+- 啟用協作只複製排入地點的公開欄位与項目，私人筆記／標籤不分享；
   original items 保留但受 legacy guard，取消將最新內容转回 owner 私人行程。
 - region/place 在 shared 行程工作區合成顯示，不是插入協作者私人 collection。
 - 行程刪除原子清除項目與連動 map/markers；不刪其他私人 place。

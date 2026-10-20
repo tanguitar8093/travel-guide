@@ -88,16 +88,16 @@ Node.js 20 曾用上述 websocket 選項；實際 runtime／工具相容性需�
 
 ## 已有測試範圍
 
-| 範圍 | 代表檔案 |
-| --- | --- |
-| facade／模式偏好 | [index](../src/database/index.test.ts)、[runtime](../src/database/runtime.test.ts)、[preference](../src/database/database-mode-preference.test.ts) |
-| 本機交易／帳號／排程 | [store](../src/database/local-sync.store.test.ts)、[hybrid backend](../src/database/hybrid.backend.test.ts) |
-| 個人同步／重試／衝突 | [engine](../src/database/sync-engine.test.ts)、[conflicts](../src/database/sync-conflicts.test.ts)、[automatic SQL integration](../src/database/auto-sync.integration.test.ts) |
-| 資料隔離／備份 | [owner isolation](../src/database/owner-isolation.test.ts)、[backup safety](../src/database/supabase-backup-safety.test.ts)、[data service](../src/modules/data-management/data-management.service.test.ts) |
-| 地圖／cascade | [route-map repository](../src/database/route-map.repository.test.ts)、[route-map SQL](../src/database/route-maps-cloud.test.ts) |
-| 共享生命週期 | [shared SQL integration](../src/database/shared-trip.integration.test.ts)、[shared cloud](../src/database/shared-trip.cloud.test.ts)、[shared repository](../src/database/shared-trip.repository.test.ts) |
-| 邀請與協作操作 | [collaboration SQL](../src/database/trip-collaboration-cloud.test.ts)、[collaborative service](../src/modules/itinerary/collaborative-itinerary.service.test.ts) |
-| 全站提示 | [HybridStatus](../src/common/HybridStatus.test.tsx) |
+| 範圍                 | 代表檔案                                                                                                                                                                                                    |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| facade／模式偏好     | [index](../src/database/index.test.ts)、[runtime](../src/database/runtime.test.ts)、[preference](../src/database/database-mode-preference.test.ts)                                                          |
+| 本機交易／帳號／排程 | [store](../src/database/local-sync.store.test.ts)、[hybrid backend](../src/database/hybrid.backend.test.ts)                                                                                                 |
+| 個人同步／重試／衝突 | [engine](../src/database/sync-engine.test.ts)、[conflicts](../src/database/sync-conflicts.test.ts)、[automatic SQL integration](../src/database/auto-sync.integration.test.ts)                              |
+| 資料隔離／備份       | [owner isolation](../src/database/owner-isolation.test.ts)、[backup safety](../src/database/supabase-backup-safety.test.ts)、[data service](../src/modules/data-management/data-management.service.test.ts) |
+| 地圖／cascade        | [route-map repository](../src/database/route-map.repository.test.ts)、[route-map SQL](../src/database/route-maps-cloud.test.ts)                                                                             |
+| 共享生命週期         | [shared SQL integration](../src/database/shared-trip.integration.test.ts)、[shared cloud](../src/database/shared-trip.cloud.test.ts)、[shared repository](../src/database/shared-trip.repository.test.ts)   |
+| 邀請與協作操作       | [collaboration SQL](../src/database/trip-collaboration-cloud.test.ts)、[collaborative service](../src/modules/itinerary/collaborative-itinerary.service.test.ts)                                            |
+| 全站提示             | [HybridStatus](../src/common/HybridStatus.test.tsx)                                                                                                                                                         |
 
 標籤批次改色已使用逐筆 facade 更新、顯示成功／失敗並保留失敗選擇；
 不是整批原子更新。對應程式是
@@ -108,12 +108,12 @@ Node.js 20 曾用上述 websocket 選項；實際 runtime／工具相容性需�
 
 ## 已跑結果（每批範圍分開）
 
-| 階段 | 結果 | 不代表 |
-| --- | --- | --- |
-| 共享刪除修正 | 4 檔 49 tests 通過；精確 SQL 另經備份、隔離 PostgreSQL 17 演練並安裝 | 當次沒有 live 業務刪除／瀏覽器驗收 |
-| 共享衝突隔離 | 7 檔 96 tests 通過 | 當次未跑型別／build／lint／E2E／live DB |
-| 取消、撤權與重試補強 | 7 檔 90 tests，`tsc -b` 通過；測試 helper 型別修正後 29 項共享整合再通過 | 未跑 build／lint／E2E，沒有本階段線上業務操作 |
-| 線上版本盤點 | 唯讀 catalog：共享核心相符，另有基礎權限／結構差異 | 不是測試套件、不是前端部署比對、不是差異已修正 |
+| 階段                 | 結果                                                                     | 不代表                                         |
+| -------------------- | ------------------------------------------------------------------------ | ---------------------------------------------- |
+| 共享刪除修正         | 4 檔 49 tests 通過；精確 SQL 另經備份、隔離 PostgreSQL 17 演練並安裝     | 當次沒有 live 業務刪除／瀏覽器驗收             |
+| 共享衝突隔離         | 7 檔 96 tests 通過                                                       | 當次未跑型別／build／lint／E2E／live DB        |
+| 取消、撤權與重試補強 | 7 檔 90 tests，`tsc -b` 通過；測試 helper 型別修正後 29 項共享整合再通過 | 未跑 build／lint／E2E，沒有本階段線上業務操作  |
+| 線上版本盤點         | 唯讀 catalog：共享核心相符，另有基礎權限／結構差異                       | 不是測試套件、不是前端部署比對、不是差異已修正 |
 
 上述批次有重疊，不可加總成互不重複總測試數。
 早期 distance、route-map、共享與 Email 更新的 build／测试紀錄，保留於
@@ -171,7 +171,7 @@ AI 不自動跑此真實帳號案例。
 ### 現行 24 步情境摘要
 
 [shared-trip-invitation.e2e.ts](../e2e/shared-trip-invitation.e2e.ts)：
-A 登入 → 建立行程／第一個地點 → 邀請 B／可用時啟用共同編輯 → A 登出 →
+A 登入 → 建立行程／第一個地點 → 邀請 B／可用時啟用協作 → A 登出 →
 B 登入接受 → 等 5 秒並觀察第一個地點 → B 加第二個地點、等 upload、退出、登出 →
 A 登入切 cloud 觀察第二個地點（先記錄，不立即斷言） →
 **切回 hybrid 才刪除本輪行程**、等待 matching cloud acknowledgement、重新整理確認 →
@@ -197,13 +197,13 @@ cleanup 的獨立 timeout 不能保證已關閉 browser 還能操作。
 
 仍需使用者核准並在指定環境驗證，PGlite 不代表 live 已過。
 
-| 檢查 | 預期 | 實際／PASS/FAIL/未跑 |
-| --- | --- | --- |
-| Member replace | preview/apply 成功，counts 與 incoming 一致 | 未記錄 |
-| Member clear | 成功且目前帳號受影響表為 0 | 未記錄 |
-| stale token | preview 後資料變動，apply 被拒絕 | 未記錄 |
-| shared/collaboration guard | replace/clear 被拒絕，其他資料不變 | 未記錄 |
-| Admin account scope | 只影響目前帳號，不動其他 owner | 未記錄 |
+| 檢查                       | 預期                                        | 實際／PASS/FAIL/未跑 |
+| -------------------------- | ------------------------------------------- | -------------------- |
+| Member replace             | preview/apply 成功，counts 與 incoming 一致 | 未記錄               |
+| Member clear               | 成功且目前帳號受影響表為 0                  | 未記錄               |
+| stale token                | preview 後資料變動，apply 被拒絕            | 未記錄               |
+| shared/collaboration guard | replace/clear 被拒絕，其他資料不變          | 未記錄               |
+| Admin account scope        | 只影響目前帳號，不動其他 owner              | 未記錄               |
 
 另填日期、環境、批准範圍與資料復歸結果。舊 bootstrap／phase-2 SQL 不應直接重播；
 現行操作要求見[資料庫規範](database-psql-operations.md)。

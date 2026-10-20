@@ -214,7 +214,7 @@ begin
   if exists(select 1 from public.trip_shared_workspaces w join public.trips t on t.id=w.trip_id
     where w.trip_id=case when tg_op='DELETE' then old.trip_id else new.trip_id end)
     or (tg_op='UPDATE' and exists(select 1 from public.trip_shared_workspaces w where w.trip_id=old.trip_id)) then
-    raise exception '此行程已啟用共同編輯，請使用共享行程；原始安排保留供復原，不再接受寫入。';
+    raise exception '此行程已啟用協作，請使用共享行程；原始安排保留供復原，不再接受寫入。';
   end if;
   return case when tg_op='DELETE' then old else new end;
 end;

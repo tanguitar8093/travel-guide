@@ -11,15 +11,6 @@ import { ItineraryController } from './itinerary.controller'
 import { CollaborativeItineraryService } from './collaborative-itinerary.service'
 import { sharedTripController } from './shared-trip.controller'
 
-function exportDraft(snapshot: SharedTripSnapshot | undefined, pending: SyncTask[], tripId: string) {
-  const url = URL.createObjectURL(new Blob([JSON.stringify({ snapshot, pending }, null, 2)], { type: 'application/json' }))
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.download = `shared-trip-draft-${tripId}.json`
-  anchor.click()
-  setTimeout(() => URL.revokeObjectURL(url), 0)
-}
-
 export default function ItineraryEntry() {
   const { user } = useAuth()
   const mode = useDatabaseMode()
@@ -96,16 +87,13 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
     {error && <p role="alert">{error}</p>}
     {tripIds.map((tripId) => {
       const pending = tasks.filter((task) => task.sharedTrip?.tripId === tripId)
-      const snapshot = snapshots.find((row) => row.id === tripId)
       const conflict = pending.find((task) => task.sharedTrip?.conflict)?.sharedTrip?.conflict
-      return <section key={tripId} aria-label="共享草稿">
-        <AdminInfo>
-          <p role="status">{snapshot?.document?.trip.name ?? '已撤權的共享行程'}：{pending.length} 筆待同步操作。</p>
-        </AdminInfo>
-        {pending[0]?.error && <p role="alert">{pending[0].error}</p>}
-        <button type="button" className="itinerary-secondary" onClick={() => exportDraft(snapshot, pending, tripId)}>匯出共享草稿</button>
-        {conflict && <>
-          <p role="alert">共享內容或權限已改變，已暫停此行程上傳；草稿仍保留。</p>
+      const taskError = pending.find((task) => task.error && !task.sharedTrip?.conflict)?.error
+      if (!taskError && !conflict) return null
+      return <div key={tripId}>
+        {taskError && <p role="alert">{taskError}</p>}
+        {conflict && <section aria-label="共享行程衝突處理">
+          <p role="alert">共享行程或權限已改變，這趟行程的同步已暫停；本機變更仍保留。</p>
           <details><summary>查看雲端版本</summary><pre>{JSON.stringify(conflict.document, null, 2)}</pre></details>
           <details><summary>查看本機草稿</summary><pre>{JSON.stringify(pending.at(-1)?.sharedTrip?.after, null, 2)}</pre></details>
           {(['cloud', 'local'] as const).map((choice) => <button key={choice} type="button" className="itinerary-secondary"
@@ -114,8 +102,8 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
               if (!window.confirm(choice === 'cloud' ? '確定放棄此共享行程的待同步草稿，採用雲端版本？' : '確定以此行程的本機完整草稿重新排入同步？其他人的變更可能被取代。')) return
               void run(() => sharedTripController.resolve(tripId, conflict, choice))
             }}>{choice === 'cloud' ? '採用雲端版本' : '保留本機草稿並重新同步'}</button>)}
-        </>}
-      </section>
+        </section>}
+      </div>
     })}
   </section> : undefined
 

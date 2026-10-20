@@ -39,7 +39,7 @@ begin
   -- The row trigger alone cannot protect an empty day (nor an unchanged row).
   -- Never disable shared_legacy_guard or write the retained private schedule.
   if exists (select 1 from public.trip_shared_workspaces where trip_id = p_trip_id) then
-    raise exception '此行程已啟用共同編輯，請使用共享行程；原始安排保留供復原，不再接受寫入。';
+    raise exception '此行程已啟用協作，請使用共享行程；原始安排保留供復原，不再接受寫入。';
   end if;
   if p_date is null or not pg_catalog.isfinite(p_date)
     or p_date < trip.start_date or p_date > trip.end_date then

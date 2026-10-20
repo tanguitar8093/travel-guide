@@ -1,12 +1,6 @@
-# 2026-10-18 工作準則紀錄（2026-10-20 補充現行邊界）
-
-此紀錄的「不自動驗證、文件先授權、資料異動考慮 hybrid」仍適用。
-新對話接手具體工作請見 [database-version-convergence.md](database-version-convergence.md)。
-需要的線上存取／修改／備份／演練／部署均另取精確批准；
-唯讀連線批准不等於可以寫 DB，不沿用舊對話測試批准。
-
 prompt 開發準則
 不可以自動跑
+
 1. playwright
 2. npm run build
 3. npm run lint
