@@ -18,6 +18,9 @@ const listeners = new Set<() => void>()
 
 export interface HybridStatus {
   ready: boolean
+  syncing?: boolean
+  startupSyncTimedOut?: boolean
+  dataRevision?: number
   summary?: LocalSyncSummary
   error?: string
   lastOperationMs?: number
@@ -94,6 +97,7 @@ async function triggerAutoSync(): Promise<void> {
   clearAutoSyncTimers()
   const generation = autoSyncGeneration
   syncingStore = store
+  publish({ ...status, syncing: true })
   try {
     await syncHybridManually(store)
     if (generation === autoSyncGeneration && activeStore === store) {
@@ -120,6 +124,9 @@ async function triggerAutoSync(): Promise<void> {
     }
   } finally {
     if (syncingStore === store) syncingStore = null
+    if (activeStore === store) {
+      publish({ ...status, syncing: false, startupSyncTimedOut: false, dataRevision: (status.dataRevision ?? 0) + 1 })
+    }
     if (generation === autoSyncGeneration && activeStore === store) {
       scheduleForegroundPoll()
     }
@@ -232,7 +239,8 @@ export async function activateHybridAccount(
     await store.prepareLocal()
     if (generation !== currentGeneration) return
     let startupError: string | undefined
-    if (options.checkCloudOnLogin) {
+    const syncOnLogin = options.checkCloudOnLogin && readSyncModePreference() === 'auto'
+    if (options.checkCloudOnLogin && !syncOnLogin) {
       try {
         await checkHybridOnLogin(store)
       } catch (error) {
@@ -246,9 +254,27 @@ export async function activateHybridAccount(
     if (generation !== currentGeneration) return
     installLifecycleListeners()
     publish({ ready: true, summary, error: startupError })
-    if (readSyncModePreference() === 'auto') {
+    if (syncOnLogin) {
+      let timeout: ReturnType<typeof setTimeout> | undefined
+      try {
+        await Promise.race([
+          triggerAutoSync(),
+          new Promise<void>((resolve) => {
+            timeout = setTimeout(() => {
+              if (generation === currentGeneration && activeStore === store && status.syncing) {
+                publish({ ...status, startupSyncTimedOut: true })
+              }
+              resolve()
+            }, 3000)
+          }),
+        ])
+      } finally {
+        if (timeout !== undefined) clearTimeout(timeout)
+      }
+    } else if (readSyncModePreference() === 'auto') {
       scheduleHybridAutoSync()
     }
+    if (generation !== currentGeneration) return
     subscription = liveQuery(() => store.getSummary()).subscribe({
       next: (summary) => {
         if (generation === currentGeneration) publish({ ...status, summary })

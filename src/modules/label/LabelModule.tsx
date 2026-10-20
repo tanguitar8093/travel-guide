@@ -10,6 +10,7 @@ import { useBulkDelete } from '../../common/useBulkDelete';
 import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar';
 import type { BulkOperationResult } from '../../common/bulk-operation';
 import { BulkColorToolbar } from './BulkColorToolbar';
+import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 
 const labelColors = [
   "#e9905a",
@@ -49,6 +50,7 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
 }
 
 function LabelModule() {
+  const dataRevision = useHybridDataRevision();
   const bulk = useBulkDelete();
   const [bulkMode, setBulkMode] = useState<"delete" | "color">("delete");
   const [bulkColor, setBulkColor] = useState(labelColors[0]);
@@ -79,6 +81,15 @@ function LabelModule() {
 
   const flatLabels = useMemo(() => flattenTree(tree), [tree]);
   const selectedLabel = flatLabels.find((label) => label.id === selectedId);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const reloadBlocked = saving || dialog !== null || Boolean(
+    selectedLabel && (
+      draftName !== selectedLabel.name ||
+      draftColor !== selectedLabel.color ||
+      draftParentId !== (selectedLabel.parentId ?? "")
+    )
+  );
   const visibleTree = useMemo(() => filterTree(tree, search), [tree, search]);
   const descendantIds = useMemo(() => {
     if (!selectedId) return new Set<string>();
@@ -114,12 +125,14 @@ function LabelModule() {
   }
 
   useEffect(() => {
+    if (reloadBlocked) return;
     let active = true;
     Promise.all([labelController.listTree(), labelController.listPlaces()])
       .then(([nextTree, places]) => {
         if (!active) return;
         const labels = flattenTree(nextTree);
-        const firstLabel = labels[0];
+        const firstLabel =
+          labels.find((label) => label.id === selectedIdRef.current) ?? labels[0];
         setTree(nextTree);
         setAllPlaces(places);
         setSelectedId(firstLabel?.id);
@@ -142,7 +155,7 @@ function LabelModule() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [dataRevision, reloadBlocked]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -166,7 +179,7 @@ function LabelModule() {
     return () => {
       active = false;
     };
-  }, [selectedId, includeDescendants]);
+  }, [selectedId, includeDescendants, tree]);
 
   const displayedPlaces = selectedId ? matchingPlaces : [];
   const filteredPreviewPlaces = displayedPlaces.filter((place) => {

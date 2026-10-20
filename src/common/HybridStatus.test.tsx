@@ -6,6 +6,8 @@ const state = vi.hoisted(() => ({
   mode: 'hybrid',
   status: {
     ready: true,
+    syncing: false,
+    startupSyncTimedOut: false,
     summary: {
       pendingCount: 2, failedCount: 0, conflictCount: 0, personalConflictCount: 0,
       sharedConflictCount: 0, lastSyncedAt: '2026-10-18T10:00:00Z',
@@ -25,6 +27,8 @@ beforeEach(() => {
   state.visible = false
   state.mode = 'hybrid'
   state.status.error = undefined
+  state.status.syncing = false
+  state.status.startupSyncTimedOut = false
   state.status.summary.conflictCount = 0
   state.status.summary.personalConflictCount = 0
   state.status.summary.sharedConflictCount = 0
@@ -32,6 +36,34 @@ beforeEach(() => {
 
 it('hides diagnostic information when visibility is denied', () => {
   expect(renderToStaticMarkup(<HybridStatus />)).toBe('')
+})
+
+it('shows only a fixed translucent toast for a slow startup sync', () => {
+  state.status.syncing = true
+  state.status.startupSyncTimedOut = true
+  const html = renderToStaticMarkup(<HybridStatus />)
+  expect(html).toContain('role="status"')
+  expect(html).toContain('同步中..')
+  expect(html).toContain('position:fixed')
+  expect(html).toContain('top:16px;right:16px')
+  expect(html).toContain('rgba(255, 228, 139, 0.82)')
+  expect(html).not.toContain('12.0 ms')
+  state.status.syncing = false
+  expect(renderToStaticMarkup(<HybridStatus />)).toBe('')
+})
+
+it('does not announce fast startup or subsequent background syncs', () => {
+  state.status.syncing = true
+  expect(renderToStaticMarkup(<HybridStatus />)).toBe('')
+})
+
+it('replaces the startup toast with an actionable failure notice', () => {
+  state.status.syncing = true
+  state.status.startupSyncTimedOut = true
+  state.status.error = 'offline'
+  const html = renderToStaticMarkup(<HybridStatus />)
+  expect(html).not.toContain('同步中..')
+  expect(html).toContain('role="alert"')
 })
 
 it('shows diagnostic information only when visibility is allowed', () => {
@@ -47,6 +79,7 @@ it('preserves actionable errors without exposing diagnostic details', () => {
   const html = renderToStaticMarkup(<HybridStatus />)
   expect(html).toContain('role="alert"')
   expect(html).toContain('前往資料管理處理同步問題')
+  expect(html).toContain('資料同步失敗，目前顯示本機資料')
   expect(html).not.toContain('internal diagnostic message')
   expect(html).not.toContain('12.0 ms')
   expect(html).not.toContain('待同步 2')

@@ -10,6 +10,7 @@ import { useBulkDelete } from '../../common/useBulkDelete'
 import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar'
 import type { BulkOperationResult } from '../../common/bulk-operation'
 import { BulkLabelToolbar } from './BulkLabelToolbar'
+import { useHybridDataRevision } from '../../database/useHybridDataRevision'
 
 interface PlaceDraft {
   name: string
@@ -273,6 +274,7 @@ function SearchableMultiSelect({
 }
 
 function PlaceModule() {
+  const dataRevision = useHybridDataRevision()
   const bulk = useBulkDelete()
   const [bulkMode, setBulkMode] = useState<'delete' | 'label'>('delete')
   const [bulkLabelId, setBulkLabelId] = useState('')
@@ -301,6 +303,11 @@ function PlaceModule() {
   const saving = singleSaving || bulk.busy
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
+  const selectedPlaceIdRef = useRef(selectedPlaceId)
+  selectedPlaceIdRef.current = selectedPlaceId
+  const reloadBlocked = editing || creating || saving
+  const searchOptionsRef = useRef({ search: filterText, labelIds: selectedFilterLabelIds, includeDescendants })
+  searchOptionsRef.current = { search: filterText, labelIds: selectedFilterLabelIds, includeDescendants }
 
   const orderedLabels = useMemo(() => flattenLabels(labels), [labels])
   const selectedPlace = places.find((place) => place.id === selectedPlaceId)
@@ -338,10 +345,11 @@ function PlaceModule() {
   }
 
   useEffect(() => {
+    if (reloadBlocked) return
     let active = true
     Promise.all([
       placeController.loadWorkspace(),
-      placeController.search(),
+      placeController.search(searchOptionsRef.current),
     ])
       .then(([workspace, results]) => {
         if (!active) return
@@ -359,8 +367,9 @@ function PlaceModule() {
           url.searchParams.delete('create')
           window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`)
         } else {
-          setSelectedPlaceId(results[0]?.id)
-          if (results[0]) setDraft(toDraft(results[0]))
+          const next = workspace.places.find((place) => place.id === selectedPlaceIdRef.current) ?? results[0]
+          setSelectedPlaceId(next?.id)
+          setDraft(next ? toDraft(next) : emptyDraft)
         }
       })
       .catch((cause: unknown) => {
@@ -374,7 +383,7 @@ function PlaceModule() {
     return () => {
       active = false
     }
-  }, [])
+  }, [dataRevision, reloadBlocked])
 
   useEffect(() => {
     if (!editing || !placeController.isGooglePlacesConfigured()) return
@@ -468,7 +477,7 @@ function PlaceModule() {
     return () => {
       active = false
     }
-  }, [filterText, selectedFilterLabelIds, includeDescendants, selectedPlaceId, creating, editing])
+  }, [filterText, selectedFilterLabelIds, includeDescendants, selectedPlaceId, creating, editing, places])
 
   function selectPlace(place: Place) {
     if (saving) return

@@ -97,6 +97,8 @@ describe('hybrid development backend', () => {
   }
 
   it('waits for the login cloud check before exposing the local workspace', async () => {
+    setSyncMode('manual')
+    window.localStorage.setItem('travel-planner-sync-mode', 'manual')
     const account = { projectId: crypto.randomUUID(), userId: 'login-check' }
     accounts.push(account)
     let release: () => void = () => {}
@@ -117,6 +119,8 @@ describe('hybrid development backend', () => {
   })
 
   it('reports a failed login check while preserving access to local recovery tools', async () => {
+    setSyncMode('manual')
+    window.localStorage.setItem('travel-planner-sync-mode', 'manual')
     const account = { projectId: crypto.randomUUID(), userId: 'login-offline' }
     accounts.push(account)
     const check = vi.spyOn(syncEngine, 'checkHybridOnLogin').mockRejectedValue(new Error('offline'))
@@ -126,6 +130,107 @@ describe('hybrid development backend', () => {
       expect(requireHybridStore()).toBeDefined()
     } finally {
       check.mockRestore()
+    }
+  })
+
+  it('syncs immediately at login and waits for updated local records before returning', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'fresh-login' }
+    accounts.push(account)
+    window.localStorage.setItem('travel-planner-sync-mode', 'auto')
+    let release: () => void = () => {}
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    const sync = vi.spyOn(syncEngine, 'syncHybridManually').mockImplementation(async (store) => {
+      await pending
+      await store.syncTransaction(async (database) => {
+        await database.regions.put({ id: crypto.randomUUID(), name: 'Cloud latest', zoom: 12, googlePlaceId: 'kyoto' })
+      })
+    })
+    try {
+      let returned = false
+      const activation = activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+        .then(() => { returned = true })
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledOnce())
+      expect(returned).toBe(false)
+      expect(getHybridStatus().syncing).toBe(true)
+      release()
+      await activation
+      expect((await hybridBackend.regions.list())[0].name).toBe('Cloud latest')
+      expect(getHybridStatus()).toMatchObject({ syncing: false, dataRevision: 1 })
+    } finally {
+      release()
+      sync.mockRestore()
+    }
+  })
+
+  it('releases login at exactly three seconds and finishes the same sync in the background', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'slow-login' }
+    accounts.push(account)
+    window.localStorage.setItem('travel-planner-sync-mode', 'auto')
+    let release: () => void = () => {}
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    let started: () => void = () => {}
+    const syncStarted = new Promise<void>((resolve) => { started = resolve })
+    const sync = vi.spyOn(syncEngine, 'syncHybridManually').mockImplementation(() => {
+      started()
+      return pending
+    })
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      let returned = false
+      const activation = activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+        .then(() => { returned = true })
+      await syncStarted
+      expect(sync).toHaveBeenCalledOnce()
+      await vi.advanceTimersByTimeAsync(2999)
+      expect(returned).toBe(false)
+      expect(getHybridStatus().startupSyncTimedOut).not.toBe(true)
+      await vi.advanceTimersByTimeAsync(1)
+      await activation
+      expect(getHybridStatus()).toMatchObject({ ready: true, syncing: true, startupSyncTimedOut: true })
+      expect(requireHybridStore()).toBeDefined()
+      release()
+      await vi.waitFor(() => expect(getHybridStatus().syncing).toBe(false))
+      expect(getHybridStatus().startupSyncTimedOut).toBe(false)
+      expect(getHybridStatus().dataRevision).toBe(1)
+      expect(sync).toHaveBeenCalledOnce()
+    } finally {
+      release()
+      sync.mockRestore()
+    }
+  })
+
+  it('reports startup sync failure without blocking local access', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'auto-offline' }
+    accounts.push(account)
+    window.localStorage.setItem('travel-planner-sync-mode', 'auto')
+    const sync = vi.spyOn(syncEngine, 'syncHybridManually').mockRejectedValue(new Error('offline'))
+    try {
+      await activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+      expect(getHybridStatus()).toMatchObject({ ready: true, syncing: false, error: 'offline' })
+      expect(requireHybridStore()).toBeDefined()
+    } finally {
+      sync.mockRestore()
+    }
+  })
+
+  it('does not publish an old login sync into a different account', async () => {
+    const account = { projectId: crypto.randomUUID(), userId: 'old-login' }
+    accounts.push(account)
+    window.localStorage.setItem('travel-planner-sync-mode', 'auto')
+    let release: () => void = () => {}
+    const pending = new Promise<void>((resolve) => { release = resolve })
+    const sync = vi.spyOn(syncEngine, 'syncHybridManually').mockReturnValue(pending)
+    try {
+      const activation = activateHybridAccount(account, 'member', { checkCloudOnLogin: true })
+      await vi.waitFor(() => expect(sync).toHaveBeenCalledOnce())
+      await login('new-login')
+      release()
+      await activation
+      expect(getHybridStatus().dataRevision).toBeUndefined()
+      expect(getHybridStatus().error).toBeUndefined()
+    } finally {
+      release()
+      sync.mockRestore()
     }
   })
 

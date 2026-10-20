@@ -7,6 +7,7 @@ import { placeController } from "../place/place.controller";
 import { regionController } from "./region.controller";
 import type { GooglePlaceDetails } from "../place/google-places.service";
 import "./RegionModule.css";
+import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 
 interface RegionDraft {
   name: string;
@@ -30,6 +31,7 @@ function toDraft(region: Region): RegionDraft {
 }
 
 function RegionModule() {
+  const dataRevision = useHybridDataRevision();
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
@@ -54,6 +56,9 @@ function RegionModule() {
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
 
   const selectedRegion = regions.find((region) => region.id === selectedId);
+  const selectedIdRef = useRef(selectedId);
+  selectedIdRef.current = selectedId;
+  const reloadBlocked = creating || editing || saving || deleteDialogOpen;
   const linkedPlaces =
     selectedRegion && places.filter((place) => place.regionIds.includes(selectedRegion.id));
   const linkedTrips =
@@ -96,6 +101,7 @@ function RegionModule() {
   }
 
   useEffect(() => {
+    if (reloadBlocked) return;
     let active = true;
     regionController
       .loadWorkspace()
@@ -121,7 +127,9 @@ function RegionModule() {
             ]),
           ),
         });
-        const firstRegion = workspace.regions[0];
+        const firstRegion =
+          workspace.regions.find((region) => region.id === selectedIdRef.current) ??
+          workspace.regions[0];
         setSelectedId(firstRegion?.id);
         setDraft(firstRegion ? toDraft(firstRegion) : emptyDraft);
       })
@@ -137,7 +145,7 @@ function RegionModule() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [dataRevision, reloadBlocked]);
 
   useEffect(() => {
     if (!editing || !regionController.isGooglePlacesConfigured()) return;

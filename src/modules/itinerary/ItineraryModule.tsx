@@ -28,6 +28,7 @@ import {
   transportOptions,
 } from "../../common/route-estimate";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
+import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
@@ -173,6 +174,7 @@ function ItineraryModule({
   onRefreshSharedTrips?(): Promise<void>;
 }) {
   const itineraryController = controller;
+  const hybridDataRevision = useHybridDataRevision();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -455,6 +457,7 @@ function ItineraryModule({
     saving,
     calculatingItemId,
     refreshingSharedTrip,
+    hybridDataRevision,
   ]);
 
   useEffect(() => {

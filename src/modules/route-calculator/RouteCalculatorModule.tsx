@@ -11,11 +11,13 @@ import { RouteEndpointField } from './RouteEndpointField'
 import { RoutePreviewMap } from './RoutePreviewMap'
 import { isTripMarker, markerEndpoint, visibleRouteMarkers } from './route-markers'
 import './RouteCalculatorModule.css'
+import { useHybridDataRevision } from '../../database/useHybridDataRevision'
 
 type Target = 'origin' | 'destination'
 const activeRouteMapStorageKey = 'travel-planner:route-calculator:active-map-id'
 
 export default function RouteCalculatorModule() {
+  const dataRevision = useHybridDataRevision()
   const [controller] = useState(() => new RouteCalculatorController())
   const [places, setPlaces] = useState<Place[]>([])
   const [trips, setTrips] = useState<Trip[]>([])
@@ -74,7 +76,7 @@ export default function RouteCalculatorModule() {
       if (active) setPlacesError(cause instanceof Error ? cause.message : '載入已存地點失敗。')
     }).finally(() => { if (active) setLoading(false) })
     return () => { active = false }
-  }, [controller, placesAttempt])
+  }, [controller, placesAttempt, dataRevision])
 
   useEffect(() => {
     let active = true
@@ -84,7 +86,7 @@ export default function RouteCalculatorModule() {
       .catch((cause: unknown) => { if (active) setTripsError(cause instanceof Error ? cause.message : '載入行程失敗。') })
       .finally(() => { if (active) setTripsLoading(false) })
     return () => { active = false }
-  }, [controller, tripsAttempt])
+  }, [controller, tripsAttempt, dataRevision])
 
   useEffect(() => () => {
     generation.current += 1
@@ -92,6 +94,17 @@ export default function RouteCalculatorModule() {
     endpointGeneration.current.destination += 1
     tripGeneration.current += 1
   }, [])
+
+  useEffect(() => {
+    if (!tripId || tripLoading || tripSettingsOpen) return
+    let active = true
+    void controller.loadTripMarkers(tripId).then((records) => {
+      if (active) setTripData(records)
+    }).catch((cause: unknown) => {
+      if (active) setTripError(cause instanceof Error ? cause.message : '更新行程地圖失敗。')
+    })
+    return () => { active = false }
+  }, [controller, tripId, tripLoading, tripSettingsOpen, dataRevision])
 
   const invalidate = useCallback(() => {
     generation.current += 1
