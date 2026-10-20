@@ -1,5 +1,28 @@
 # Trip collaboration: staged rollout and recovery
 
+## Database convergence update — NEW VERSION WRITTEN / NOT TESTED / NOT INSTALLED
+
+The approved narrowed source package retains the exact supabase_admin public
+default matrix (PG17: 24 cells/3 rows, or absent platform rows), converges only
+postgres defaults and inventoried existing app ACLs, and adds private reorder.
+Unknown/partial/global/PUBLIC/inherited/grant-option/type/grantor drift still blocks.
+No local/cloud/hybrid application redesign, outbox clearing, RLS or shared API
+change is included. Platform-created future objects still require ACL review.
+
+Capture/recovery v2 guards database owner, raw/semantic database ACL, connection
+attributes, effective schema/database rights, role graph, unchanged platform raw
+defaults, original functions and exact reorder source/owner/config/ACL. Restore
+first reproduces the captured database owner; postgres already has public CREATE
+via pg_database_owner. The old bootstrap-owned synthetic rehearsal missed this.
+All three migrations and frozen recovery must run as the equivalent non-superuser
+operator, without extra platform membership or temporary CREATE grants.
+
+No checks/tests/commands, Git, live connections/writes, backup/rehearsal or install
+ran this round. Old 51-test/type results and synthetic-platform rehearsal are not
+new-version evidence. Old captures missing v2 metadata fail closed; fresh capture,
+focused validation, isolated rehearsal and installation require separate approval.
+Platform support is not a required next step for the approved narrowed scope.
+
 ## Status and scope
 
 The original collaboration **preview** provides invitation/member management

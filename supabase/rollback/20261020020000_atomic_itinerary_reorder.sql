@@ -2,6 +2,9 @@
 -- its former privileges. Retain data, sync events, triggers, and all old APIs.
 -- Permission denial intentionally does not activate the client's missing-RPC
 -- fallback. Re-enabling/replacing the RPC requires a separately reviewed change.
+-- This is not the package's exact recovery. That private frozen candidate drops
+-- only the source/owner/config/ACL-guarded new RPC and restores captured postgres
+-- grants, while guarding unchanged platform defaults and database authority.
 begin;
 set local lock_timeout = '10s';
 set local statement_timeout = '60s';

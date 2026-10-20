@@ -71,7 +71,7 @@ async function state(tripId: string) {
 }
 
 beforeAll(async () => {
-  await db.exec(`create role anon; create role authenticated; create schema auth;
+  await db.exec(`create role anon; create role authenticated; create role service_role bypassrls; create schema auth;
     create table auth.users(id uuid primary key,email text);
     create function auth.uid() returns uuid language sql stable as
       $$select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid$$;
@@ -81,6 +81,14 @@ beforeAll(async () => {
   expect(paths.some((path) => path.endsWith('/20261020020000_atomic_itinerary_reorder.sql'))).toBe(true)
   expect(paths.some((path) => path.endsWith('/20261020010000_privilege_convergence.sql'))).toBe(true)
   for (const path of paths) {
+    if (path.endsWith('/20261020005000_public_default_privilege_convergence.sql')) {
+      // Inject only AFTER historical object creation; retained platform defaults
+      // must not contaminate existing RPC ACLs or require platform membership.
+      await db.exec(`create role supabase_admin;
+        alter default privileges for role supabase_admin in schema public grant all on tables to anon,authenticated;
+        alter default privileges for role supabase_admin in schema public grant usage,select,update on sequences to anon,authenticated;
+        alter default privileges for role supabase_admin in schema public grant execute on functions to anon,authenticated;`)
+    }
     // PGlite has native gen_random_uuid but does not ship pgcrypto.
     await db.exec(migrations[path].replace('create extension if not exists pgcrypto;', ''))
   }
@@ -95,6 +103,41 @@ beforeAll(async () => {
 afterAll(async () => { await db.close() })
 
 describe('atomic private itinerary reorder on the current migration chain', () => {
+  it('rejects unreviewed RPC grant options on reinstall without changing the retained platform matrix', async () => {
+    const path = Object.keys(migrations).find(name => name.endsWith('/20261020020000_atomic_itinerary_reorder.sql'))!
+    const platform = async () => (await db.query(`select to_jsonb(d) as row from pg_default_acl d
+      where d.defaclrole='supabase_admin'::regrole order by oid`)).rows
+    const before = await platform()
+    await db.exec(`grant execute on function public.app_reorder_itinerary_items(uuid,date,uuid[])
+      to authenticated with grant option`)
+    try {
+      await expect(db.exec(migrations[path])).rejects.toThrow('Atomic reorder blocked: unapproved RPC owner/ACL source')
+      await db.exec('rollback')
+      expect(await platform()).toEqual(before)
+      expect((await db.query(`select a.is_grantable from pg_proc p
+        cross join lateral aclexplode(p.proacl) a
+        where p.oid='public.app_reorder_itinerary_items(uuid,date,uuid[])'::regprocedure
+          and a.grantee='authenticated'::regrole`)).rows).toEqual([{ is_grantable: true }])
+    } finally {
+      await db.exec(`rollback; revoke grant option for execute on function
+        public.app_reorder_itinerary_items(uuid,date,uuid[]) from authenticated`)
+      await db.exec(migrations[path])
+    }
+  })
+
+  it('preserves retained platform defaults and memberships on reorder reinstall', async () => {
+    const snapshot = async () => ({
+      defaults: (await db.query(`select to_jsonb(d) as row from pg_default_acl d
+        where d.defaclrole='supabase_admin'::regrole order by oid`)).rows,
+      memberships: (await db.query('select to_jsonb(m) as row from pg_auth_members m order by roleid,member,grantor')).rows,
+    })
+    const before = await snapshot()
+    expect(before.defaults).toHaveLength(3)
+    const path = Object.keys(migrations).find(name => name.endsWith('/20261020020000_atomic_itinerary_reorder.sql'))!
+    await db.exec(migrations[path])
+    expect(await snapshot()).toEqual(before)
+  })
+
   it('also installs when the cloud RPC is absent, without replaying historical migrations', async () => {
     const path = Object.keys(migrations).find((name) => name.endsWith('/20261020020000_atomic_itinerary_reorder.sql'))
     if (!path) throw new Error('Missing atomic reorder migration')

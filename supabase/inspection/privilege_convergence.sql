@@ -6,6 +6,19 @@ begin transaction isolation level repeatable read read only;
 set local lock_timeout = '10s';
 set local statement_timeout = '60s';
 
+-- Database ownership contributes implicit pg_database_owner privileges; role
+-- memberships alone do not prove an equivalent installer. No database name.
+select current_user as operator,session_user as session_operator,
+  pg_catalog.pg_get_userbyid(d.datdba) as database_owner,
+  d.datdba=(select oid from pg_catalog.pg_roles where rolname=current_user) as operator_is_database_owner,
+  pg_catalog.pg_has_role(current_user,'pg_database_owner','USAGE') as database_owner_usage,
+  case when current_setting('server_version_num')::integer >= 160000
+    then pg_catalog.pg_has_role(current_user,'pg_database_owner','SET')
+    else pg_catalog.pg_has_role(current_user,'pg_database_owner','MEMBER') end as database_owner_set,
+  pg_catalog.has_schema_privilege(current_user,'public','USAGE') as public_usage,
+  pg_catalog.has_schema_privilege(current_user,'public','CREATE') as public_create
+from pg_catalog.pg_database d where d.datname=current_database();
+
 -- Exact raw ACLs (NULL vs explicit), identity, owner; include public schema ACL
 -- for diagnosis only. The migration NEVER revokes schema-wide privileges.
 with objects as (

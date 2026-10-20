@@ -1,3 +1,5 @@
+-- Narrowed package: postgres defaults/existing ACLs precede this RPC. Retained
+-- platform defaults are untouched; future platform objects still need review.
 -- Incremental repair only: do not replay the repository baseline.
 begin;
 set local lock_timeout = '10s';
@@ -122,6 +124,29 @@ begin
 end;
 $$;
 
-revoke all on function public.app_reorder_itinerary_items(uuid, date, uuid[]) from public, anon;
+-- The captured postgres nonclient default grants service_role EXECUTE too.
+-- Keep that default untouched; this new RPC has an explicit two-role contract.
+-- Unknown grantees/options still fail the exact source gate below.
+revoke all on function public.app_reorder_itinerary_items(uuid, date, uuid[]) from public, anon, service_role;
 grant execute on function public.app_reorder_itinerary_items(uuid, date, uuid[]) to authenticated;
+-- Reinstallation must not silently preserve an unreviewed grantee, grantor or
+-- grant option on an already-existing RPC. Never repair arbitrary parent roles.
+do $$
+begin
+  if not exists (select 1 from pg_catalog.pg_proc p
+      where p.oid='public.app_reorder_itinerary_items(uuid,date,uuid[])'::regprocedure
+        and p.proowner='postgres'::regrole)
+    or (select count(*) from pg_catalog.pg_proc p
+      cross join lateral pg_catalog.aclexplode(p.proacl) a
+      where p.oid='public.app_reorder_itinerary_items(uuid,date,uuid[])'::regprocedure) <> 2
+    or exists (select 1 from pg_catalog.pg_proc p
+      cross join lateral pg_catalog.aclexplode(p.proacl) a
+      where p.oid='public.app_reorder_itinerary_items(uuid,date,uuid[])'::regprocedure
+        and (a.grantor <> 'postgres'::regrole or a.is_grantable
+          or a.privilege_type <> 'EXECUTE'
+          or a.grantee not in ('postgres'::regrole,'authenticated'::regrole))) then
+    raise exception 'Atomic reorder blocked: unapproved RPC owner/ACL source' using errcode='42501';
+  end if;
+end;
+$$;
 commit;

@@ -20,7 +20,7 @@ const account = { projectId: crypto.randomUUID(), userId: uid }
 beforeAll(async () => {
   setDatabaseModeRole('admin')
   await sql.exec(`
-    create role anon; create role authenticated;
+    create role anon; create role authenticated; create role service_role bypassrls;
     create schema auth; create table auth.users(id uuid primary key, email text);
     create function auth.uid() returns uuid language sql stable as
       $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
@@ -28,8 +28,19 @@ beforeAll(async () => {
     grant execute on function auth.uid() to authenticated;
   `)
   for (const path of Object.keys(migrations).sort()) {
+    if (path.endsWith('/20261020005000_public_default_privilege_convergence.sql')) {
+      await sql.exec(`create role supabase_admin;
+        alter default privileges for role supabase_admin in schema public grant all on tables to anon,authenticated;
+        alter default privileges for role supabase_admin in schema public grant usage,select,update on sequences to anon,authenticated;
+        alter default privileges for role supabase_admin in schema public grant execute on functions to anon,authenticated;`)
+    }
     await sql.exec(migrations[path].replace('create extension if not exists pgcrypto;', ''))
   }
+  expect((await sql.query(`select defaclobjtype from pg_default_acl
+    where defaclrole='supabase_admin'::regrole and defaclnamespace='public'::regnamespace`)).rows).toHaveLength(3)
+  expect((await sql.query(`select 1 from pg_default_acl d cross join lateral aclexplode(d.defaclacl) a
+    where d.defaclrole='postgres'::regrole and d.defaclnamespace='public'::regnamespace
+      and a.grantee in ('anon'::regrole,'authenticated'::regrole)`)).rows).toEqual([])
   await sql.exec(`insert into auth.users values ('${uid}', 'admin@example.com');
     update public.user_roles set role='admin' where user_id='${uid}';`)
 }, 120000)

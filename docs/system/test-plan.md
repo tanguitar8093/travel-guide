@@ -13,10 +13,24 @@
 
 ## 優先 A：資料庫權限與版本收斂（增量與測試程式已寫，未執行）
 
+**NEW VERSION WRITTEN／NOT TESTED／NOT INSTALLED。** 已批准保留精確平台 defaults，
+不是等待支援單才能繼續；postgres 確有 public CREATE（database owner 的隱含權限）。
+本輪沒有任何測試／檢查／指令／連線或安裝，舊 51 tests 與合成演練非新版證據。
+
 本輪新增 [權限回歸](../../src/database/privilege-convergence-cloud.test.ts)
 及 [排序回歸](../../src/database/itinerary-reorder-cloud.test.ts)。
-default ACL 的精確建立者專屬修補與反向權限定義仍待新 catalog 盤點及決策；
-現有權限 migration 會阻擋未批准 defaults／繼承來源，不把阻擋當修復成功。
+default ACL 現只清 postgres；保留完整 supabase_admin public 矩陣（PG17 24 cells／3 rows）
+或接受全無平台 rows。部分矩陣／未知來源／grantor／grant option／PUBLIC／global／type
+與繼承來源仍阻擋。精確 recovery generator 只恢復改過的 postgres defaults／app ACL，
+守住平台 raw defaults、database context、原函式與新 RPC；仍須新鮮 capture 及獨立演練。
+
+- 聚焦回歸：default／privilege／reorder／auto-sync 四檔，及
+  [capture/recovery fixture](../../scripts/convergence-capture.test.mjs)；語法／型別檢查另含於批准範圍。
+- v2 capture 必須含 database owner／ACL／連線屬性、有效 database／schema 權限及完整
+  migration／rollback／tooling 雜湊；舊 capture 缺項即停，另請新鮮擷取批准，不猜值。
+- 隔離還原先重現 database owner／既有 ACL，再比較角色圖與 pg_database_owner 隱含權限；
+  三份 migration／凍結 recovery 全用等效 NOSUPERUSER postgres，不加平台角色或 CREATE。
+- 平台 raw defaults、資料指紋、收據、原函式、schema／column ACL 與 owner 皆需前後守衛。
 
 - 隔離重現 live catalog 的額外 grants/default privileges，確認增量修正只影響批准物件。
 - anon/basic 拒絕、member 自有 CRUD、admin 既有管理、跨 owner 引用拒絕。

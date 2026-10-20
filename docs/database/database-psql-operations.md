@@ -6,6 +6,34 @@ Do not copy the connection string into source, chat, logs, or this document.
 
 ## Current handoff — 2026-10-20
 
+### NEW VERSION WRITTEN / NOT TESTED / NOT INSTALLED
+
+The approved narrowed package preserves the exact supabase_admin public matrix
+(PG17: 24 cells, 3 rows; absent platform rows also supported). It clears only
+postgres client defaults, converges the inventoried existing app ACLs and adds
+the private reorder RPC. Unknown/global/PUBLIC/inherited/grant-option/grantor/type
+drift still blocks; no platform role access or temporary CREATE grant is added.
+
+Capture v2 records database owner, raw/semantic database ACL, connection attributes,
+effective database/schema rights and implicit pg_database_owner access, without
+database names/connection identifiers. Restore reproduces that initial context
+before comparisons. The actual postgres owns the database and has public CREATE;
+the old bootstrap-owned rehearsal missed this. Only the equivalent NOSUPERUSER
+operator may execute all three migrations and frozen exact recovery.
+
+Recovery changes only captured postgres defaults/app ACLs and drops the guarded
+new RPC. It guards platform raw defaults, database authority, role graph, original
+function source/config, schema/column ACLs, RPC source/owner/config/ACL and version.
+Complete migration, rollback and tooling hashes must match; old captures lacking
+v2 metadata fail closed and require separately approved fresh capture, not guessing.
+
+No commands, checks, tests, Git, connections, writes, backup/rehearsal or installation
+ran in this implementation round. Old 51-test and synthetic-platform results are
+historical only. Next obtain focused offline validation approval; fresh read-only
+capture/backup, isolated equivalent-operator rehearsal and exact installation each
+need separate approval. Platform support is not a prerequisite for this narrowed
+scope; future platform-created public objects still need explicit ACL review.
+
 The next work is [database version convergence](database-version-convergence.md),
 not reinstalling collaboration. Its independent handoff prompt, exact drift
 objects, approval gates, estimates and acceptance criteria are recorded there.
@@ -23,7 +51,8 @@ observations below are historical, not current business inventory.
 
 ### A/B source implementation — not validated or installed
 
-Two incremental migrations now exist in the working tree:
+Three incremental migrations now exist in the working tree:
+[postgres default convergence](../../supabase/migrations/20261020005000_public_default_privilege_convergence.sql),
 [permission convergence](../../supabase/migrations/20261020010000_privilege_convergence.sql)
 and [atomic private reorder](../../supabase/migrations/20261020020000_atomic_itinerary_reorder.sql).
 Their focused isolated tests are written but have not been run. No new live
@@ -33,8 +62,8 @@ The [catalog-only inventory](../../supabase/inspection/privilege_convergence.sql
 requires separate live-read approval. Capture its complete output privately,
 including raw ACLs, grantors, memberships and creator/global/schema default ACLs.
 The permission migration intentionally blocks unapproved defaults or unexpected
-effective/inherited grants. It does NOT fix default privileges: reconcile the
-inventory and approve a creator-specific patch before considering installation.
+effective/inherited grants. The preceding creator-specific patch now clears only
+approved postgres defaults, retaining the exact allowlisted platform matrix.
 Do not remove that gate just to make installation pass.
 
 The permission rollback is a blocked recovery template, not an executable exact

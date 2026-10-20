@@ -3,6 +3,28 @@
 更新日期：2026-10-20。測試計畫見 [test-plan.md](test-plan.md)，
 新對話交接與線上差異見 [database-version-convergence.md](database-version-convergence.md)。
 
+## 最新縮限版：NEW VERSION WRITTEN／NOT TESTED／NOT INSTALLED
+
+目前保留精確平台 public defaults（PG17 24 cells／3 rows，或完全不存在），只收斂
+postgres defaults／既有 app ACL／reorder。部分平台矩陣、未知來源、PUBLIC／global／
+繼承／grant option／grantor／type 漂移仍阻擋。應用 CRUD、RLS、private/shared、
+standalone local／cloud／hybrid outbox 路徑不重設。
+
+已更新 default／privilege／reorder 案例及
+[擷取復原 fixtures](../../scripts/convergence-capture.test.mjs)：postgres-only recovery、
+平台 raw defaults 不變、無平台 USAGE／SET 的 NOSUPERUSER operator、隱含
+pg_database_owner／public CREATE、v2 database ACL／屬性／有效權限、舊 capture 拒絕、
+空 global row、來源／rollback 雜湊守門與 RPC 重裝未知 ACL 回滾。
+既有 [hybrid engine→SQL 整合](../../src/database/auto-sync.integration.test.ts)仍為聚焦回歸範圍。
+
+**本輪未執行任何指令、檢查、測試、Git、連線、讀寫或安裝。下方 51 tests／型別通過
+僅屬舊版，不是最新證據；舊合成平台演練亦不適用。**
+建議一次批准上述四份回歸與 capture fixture、Node 語法及 TypeScript 型別檢查；
+不包含 build／lint／Playwright／Git／live DB。新鮮一致快照備份與無網路隔離還原須另准：
+先還原 database owner／ACL／連線屬性，再比對有效權限與角色圖；三份 migration 及
+凍結 recovery 全由等效 postgres 執行，不加角色或 CREATE grants。缺 v2 metadata 的
+舊 capture 不得補值／升級冒充。正式安裝仍須獨立批准。
+
 ## 授權與工具
 
 - 實作完成後先列出針對性範圍，取得批准再執行。
@@ -12,24 +34,31 @@
 - `npm run build` 包含 TypeScript 與 Vite 打包；`npx --no-install tsc -b`
   只做型別／project 檢查，不等於 production build。
 - 套件與命令以 [package.json](../package.json) 為準。存在命令不表示獲准執行。
-- 本輪 A／B 增量與測試程式已寫，沒有執行新測試、型別檢查、build、lint、Git 或 live DB 檢查。
+- 歷史批次經批准的 Vitest 48 檔／393 項全部通過，後續 `tsc -b` 通過。
+  另批准完成 catalog-only READ ONLY 盤點；未執行 build、lint、Git、Playwright 或線上寫入。
 
-## 收斂 A／B：待批准的針對性驗證
+## 歷史收斂 A／B：舊版驗證與限制（不涵蓋目前縮限版）
+
+**舊版驗證通過**：當時依 catalog 決策新增 default ACL 修補與 MAINTAIN 撤權後，
+經本輪批准執行 [default-privileges-cloud.test.ts](../../src/database/default-privileges-cloud.test.ts)、
+privilege／reorder／auto-sync 共四檔 **51 項全數通過**，`tsc -b` exit 0。
+較早 48 檔／393 項屬另一批次，不可相加成不重複總數。本輪沒有新線上存取。
 
 新增 [privilege-convergence-cloud.test.ts](../../src/database/privilege-convergence-cloud.test.ts)
 及 [itinerary-reorder-cloud.test.ts](../../src/database/itinerary-reorder-cloud.test.ts)，
 均使用 synthetic PGlite 與目前排序的 migration 鏈，不使用線上連線。
-**測試程式已寫，結果尚不存在。**
+本輪整套 Vitest 48 檔／393 項通過，型別檢查通過；仍不代表線上安裝通過。
 
 建議本輪批准範圍：上述兩檔，以及既有
 [auto-sync.integration.test.ts](../../src/database/auto-sync.integration.test.ts)、
 [shared-trip.integration.test.ts](../../src/database/shared-trip.integration.test.ts)、
 [shared-trip.service.test.ts](../../src/modules/itinerary/shared-trip.service.test.ts)、
 [hybrid.backend.test.ts](../../src/database/hybrid.backend.test.ts)，另加 `tsc -b`。
-既有套件仍依其 fixture 載入 SQL；新增兩檔才是本輪 A／B migration 的直接證據。
+自動同步整合已改載入完整排序 migration 鏈，並模擬 session／HTTP 邊界，
+共享 RPC 同樣在 PGlite 執行；其他既有套件仍依其 fixture 載入 SQL。
 這不是 full suite、build、lint、Playwright、Git 或任何線上存取的授權。
 
-default ACL 修補未完成，權限 migration 刻意阻擋未批准 defaults；
+default ACL 修補已寫且隔離驗證通過，權限 migration 仍刻意阻擋未批准 defaults；
 synthetic 通過仍不代表實際線上可安裝。多連線競爭、備份還原演練與安裝各需新批准。
 
 獲准後可使用：
@@ -45,14 +74,15 @@ npx --no-install tsc -b
 同步相關歷次針對性測試使用：
 
 ```bash
-VITE_TRIP_COLLABORATION_ENABLED=false \
-VITE_TRIP_SHARED_EDITING_ENABLED=false \
+VITE_SUPABASE_URL=http://127.0.0.1:9 \
+VITE_SUPABASE_ANON_KEY=test-only-placeholder \
 NODE_OPTIONS=--experimental-websocket \
 npm run test:run -- <approved-test-files>
 ```
 
-共享 SQL 整合會自行注入隔離 adapter；停用 flags 是避免私人回歸測試
-意外呼叫真實 Supabase，不表示沒有測共享 SQL。
+協作／共同編輯已正式開放，舊旗標不再控制功能，也不能當測試隔離措施。
+測試使用不可連線的本機 Supabase 位址及 synthetic key；SQL 整合自行注入
+隔離 adapter／模擬登入，不能依賴開關掩蓋缺漏的測試邊界。
 Node.js 20 曾用上述 websocket 選項；實際 runtime／工具相容性需按環境確認，
 不能直接把缺工具視為測試通過。
 
