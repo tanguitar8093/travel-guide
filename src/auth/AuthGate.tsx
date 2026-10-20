@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { useAuth } from './useAuth'
+import { TourGuideAnimation } from '../common/TourGuideAnimation'
 import './AuthGate.css'
 
 interface AuthGateProps {
@@ -75,31 +76,13 @@ export function AuthGate({ children }: AuthGateProps) {
       <div className="auth-shell">
         <section className="auth-panel auth-panel-loading" role="status" aria-label="正在確認登入狀態" aria-live="polite">
           <p className="auth-eyebrow">TRAVEL PLANNER</p>
-          <svg className="auth-guide" viewBox="0 0 200 160" aria-hidden="true">
-            <ellipse cx="96" cy="143" rx="42" ry="5" fill="#dce7dc" />
-            <path className="auth-guide-trail" d="M35 143h16m99 0h15" />
-            <g className="auth-guide-walk">
-              <g className="auth-guide-leg auth-guide-leg-back">
-                <path d="M94 99l-9 23-13 14" />
-                <path className="auth-guide-shoe" d="M72 136l-8 2" />
-              </g>
-              <g className="auth-guide-leg auth-guide-leg-front">
-                <path d="M94 99l10 22 11 15" />
-                <path className="auth-guide-shoe" d="M115 136h9" />
-              </g>
-              <path d="M79 70q-14 0-14 17v14h13V79" fill="#d7b16c" />
-              <path d="M91 69q-11 0-12 13l-2 24h29l-3-24q-1-13-12-13" fill="#648a74" />
-              <path className="auth-guide-arm" d="M84 80l-9 16-10 5" />
-              <path className="auth-guide-arm" d="M100 80l13 11 17-11" />
-              <path className="auth-guide-pole" d="M130 109V26" />
-              <path className="auth-guide-flag" d="M131 27q14-8 31 0l-5 12 5 11q-17-8-31 0Z" fill="#e7b64d" />
-              <circle cx="92" cy="53" r="14" fill="#edc6a0" />
-              <path d="M77 49q0-18 15-18t15 18Z" fill="#648a74" />
-              <path d="M73 49h39" stroke="#456951" strokeWidth="5" strokeLinecap="round" />
-              <circle cx="100" cy="55" r="1.6" fill="#465447" />
-              <path d="M96 62q3 2 6-1" fill="none" stroke="#a77959" strokeWidth="1.5" strokeLinecap="round" />
-            </g>
-          </svg>
+          <TourGuideAnimation />
+          <p className="auth-loading-caption">
+            載入中
+            <span className="auth-loading-dots" aria-hidden="true">
+              <span>.</span><span>.</span><span>.</span>
+            </span>
+          </p>
         </section>
       </div>
     )
@@ -133,14 +116,14 @@ export function AuthGate({ children }: AuthGateProps) {
 
   return (
     <div className="auth-shell">
-      <section className="auth-panel" aria-labelledby="auth-title">
+      <section className="auth-panel" aria-label={mode === 'signIn' ? '登入' : '建立新帳號'}>
         <p className="auth-eyebrow">TRAVEL PLANNER</p>
-        <h1 id="auth-title">{mode === 'signIn' ? '登入後才能使用資料' : '建立新帳號'}</h1>
-        <p className="auth-copy">
-          {mode === 'signIn'
-            ? '若你已經有帳號，請直接登入。'
-            : '註冊完成後會寄出驗證信，完成驗證後才能登入。'}
-        </p>
+        {mode === 'signIn' ? <TourGuideAnimation /> : (
+          <>
+            <h1 id="auth-title">建立新帳號</h1>
+            <p className="auth-copy">註冊完成後會寄出驗證信，完成驗證後才能登入。</p>
+          </>
+        )}
 
         <form className="auth-form" onSubmit={handleSubmit}>
           <label className="auth-field">

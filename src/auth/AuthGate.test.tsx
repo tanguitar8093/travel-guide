@@ -38,9 +38,28 @@ describe('AuthGate role access control', () => {
     const html = renderGate()
     expect(html).toContain('role="status"')
     expect(html).toContain('aria-label="正在確認登入狀態"')
-    expect(html).toContain('class="auth-guide"')
-    expect(html).toContain('class="auth-guide-flag"')
+    expect(html).toContain('class="tour-guide"')
+    expect(html).toContain('class="tour-guide-flag"')
+    expect(html).toContain('載入中')
+    expect(html).toContain('class="auth-loading-dots"')
     expect(html).not.toContain('<h1>正在確認登入狀態</h1>')
+  })
+
+  it('uses the shared guide instead of the sign-in heading and introduction', () => {
+    mockAuth.value = {
+      ...mockAuth.value,
+      status: 'unauthenticated',
+      hasWorkspaceAccess: false,
+      userRole: null,
+    }
+    const html = renderGate()
+    expect(html).not.toContain('登入後才能使用資料')
+    expect(html).toContain('aria-label="登入"')
+    expect(html).toContain('class="tour-guide"')
+    expect(html).not.toContain('若你已經有帳號，請直接登入。')
+    expect(html).not.toContain('class="auth-loading-caption"')
+    expect(html).toContain('name="email"')
+    expect(html).toContain('name="password"')
   })
 
   it('renders workspace for authenticated member/admin', () => {

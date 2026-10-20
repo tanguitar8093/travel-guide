@@ -1,0 +1,24 @@
+.tour-guide {
+  display: block;
+  width: 200px;
+  max-width: 100%;
+  height: 160px;
+  margin: 12px auto 0;
+}
+
+.tour-guide-walk { animation: tour-guide-bob .65s ease-in-out infinite; }
+.tour-guide-leg { fill: none; stroke: #52685b; stroke-width: 9; stroke-linecap: round; transform-origin: 94px 100px; animation: tour-guide-step .65s ease-in-out infinite alternate; }
+.tour-guide-leg-back { stroke: #91a595; animation-delay: -.65s; }
+.tour-guide-shoe { stroke: #3f5145; stroke-width: 7; }
+.tour-guide-arm { fill: none; stroke: #edc6a0; stroke-width: 7; stroke-linecap: round; stroke-linejoin: round; }
+.tour-guide-pole { fill: none; stroke: #627265; stroke-width: 3; stroke-linecap: round; }
+.tour-guide-flag { transform-origin: 131px 27px; animation: tour-guide-wave .8s ease-in-out infinite alternate; }
+.tour-guide-trail { fill: none; stroke: #c6d5c7; stroke-width: 3; stroke-linecap: round; }
+
+@keyframes tour-guide-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-3px); } }
+@keyframes tour-guide-step { from { transform: rotate(-18deg); } to { transform: rotate(18deg); } }
+@keyframes tour-guide-wave { from { transform: skewY(-5deg) scaleX(.92); } to { transform: skewY(5deg) scaleX(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-guide-walk, .tour-guide-leg, .tour-guide-flag { animation: none; }
+}
