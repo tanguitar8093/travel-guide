@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>公開行程・分享與套用 UI 設計稿</title>
-<meta name="description" content="2026-10-20 核准的公開行程 UI POC；公開列表、覆蓋層唯讀預覽、套用副本及發佈流程。">
+<meta name="description" content="2026-10-20 核准的公開行程 UI POC；2026-10-21 補充更新與下架流程，待確認。">
 <style>:root {
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
@@ -331,6 +331,19 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .itinerary-heading p { margin: 8px 0 0; color: #8b958d; font-size: 10px; }
 .itinerary-heading p i { width: 3px; height: 3px; display: inline-block; margin: 0 7px 2px; border-radius: 50%; background: #a8b3aa; }
 .itinerary-heading-actions { display: flex; align-items: center; gap: 7px; }
+.itinerary-action-menu { position: relative; }
+.itinerary-action-menu summary { display: flex; align-items: center; gap: 8px; list-style: none; cursor: pointer; }
+.itinerary-action-menu summary::-webkit-details-marker { display: none; }
+.itinerary-menu-chevron { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; color: #849087; transition: transform .15s; }
+details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
+.itinerary-action-menu summary:focus-visible,.itinerary-dropdown button:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.itinerary-dropdown { position: absolute; top: calc(100% + 10px); z-index: 40; box-sizing: border-box; padding: 6px; border: 1px solid #dfe7df; border-radius: 12px; background: #fff; box-shadow: 0 12px 32px rgba(36,57,42,.14); }
+.itinerary-dropdown button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 10px; border: 0; border-radius: 7px; color: #526057; background: transparent; text-align: left; cursor: pointer; font-size: 12px; }
+.itinerary-dropdown button:hover:not(:disabled) { background: #f1f5f0; }
+.itinerary-action-options { right: 0; width: 170px; }
+.itinerary-action-options hr { margin: 5px 4px; border: 0; border-top: 1px solid #edf0ed; }
+.itinerary-action-options .itinerary-action-danger { color: #b5675b; }
+.itinerary-action-options .itinerary-action-danger:hover { background: #fff0ed; }
 .itinerary-trip-select { display: flex; align-items: center; gap: 6px; color: #849087; font-size: 9px; }
 .itinerary-trip-select select { max-width: 150px; padding: 8px; border: 1px solid #e4e9e4; border-radius: 6px; color: #647068; background: #fff; font-size: 10px; }
 .itinerary-primary,.itinerary-secondary,.itinerary-delete,.itinerary-add-button { min-height: 35px; padding: 0 12px; border: 1px solid transparent; border-radius: 6px; cursor: pointer; font-size: 11px; text-decoration: none; }
@@ -567,6 +580,10 @@ div.workspace-layout > main.itinerary-main { height: 100dvh; min-height: 100dvh;
 .public-trip-name small { display: block; font-size: 10px; color: #95a096; margin-top: 7px; }
 .public-region-pill { padding: 6px 9px; background: #f3f5f0; border: 1px solid #e8ece3; border-radius: 5px; color: #7f8c72; font-size: 10px; }
 .public-created-date { color: #8d988f; font-size: 11px; }
+.public-created-date small { display: block; margin-top: 7px; color: #6e8976; font-size: 10px; }
+.public-withdraw { color: #a16357; border-color: #e8d3cc; }
+.public-withdraw:hover { background: #fbf1ed; }
+.public-dialog-actions .public-withdraw { background: #a16357; border-color: #a16357; color: #fff; }
 .public-list-footer { display: flex; justify-content: space-between; gap: 12px; padding: 17px 24px; color: #95a097; font-size: 10px; }
 .public-demo-footnote { margin: 16px 0; color: #97a097; font-size: 10px; }
 .public-apply-notice { display: flex; align-items: center; gap: 12px; border: 1px solid #d8e7dc; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; color: #587860; background: #f0f7f1; font-size: 12px; }
@@ -649,7 +666,6 @@ button,input,select,textarea{font:inherit}button,a{touch-action:manipulation}but
 <div id="app"></div><div id="layers"></div>
 <script>
 'use strict';
-"use strict";
 const kyoto = { id: 'demo-kyoto', name: '日本・京都', zoom: 13 };
 const taipei = { id: 'demo-taipei', name: '台灣・台北', zoom: 13 };
 const privateLabel = { id: 'demo-private', name: '我的必訪清單', color: '#bd9670' };
@@ -680,8 +696,8 @@ const taipeiTrip = seed('demo-public-taipei', '台北週末・老街與城市散
 // UI POC only: snapshots live in memory and reset when the page reloads.
 const personal = [structuredClone(kyotoTrip)];
 let publicTrips = [
-    { ...publicCopy(kyotoTrip), id: 'demo-public-kyoto', createdAt: '2026-10-19' },
-    { ...publicCopy(taipeiTrip), id: 'demo-public-taipei', createdAt: '2026-10-18' },
+    { ...publicCopy(kyotoTrip), id: 'demo-public-kyoto', sourceTripId: kyotoTrip.trip.id, createdAt: '2026-10-19' },
+    { ...publicCopy(taipeiTrip), id: 'demo-public-taipei', sourceTripId: taipeiTrip.trip.id, createdAt: '2026-10-18' },
 ];
 let revision = 0;
 const listeners = new Set();
@@ -691,11 +707,28 @@ const publicDemoStore = {
     getRevision: () => revision,
     list: () => publicTrips,
     personal: () => personal,
+    findBySource: tripId => publicTrips.find(row => row.sourceTripId === tripId),
     publish(snapshot) {
-        const record = { ...publicCopy(snapshot), id: crypto.randomUUID(), createdAt: new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date()) };
+        if (this.findBySource(snapshot.trip.id)) throw new Error('此行程已發佈，請使用更新公開版本。');
+        const record = { ...publicCopy(snapshot), id: crypto.randomUUID(), sourceTripId: snapshot.trip.id, createdAt: today() };
         publicTrips = [record, ...publicTrips];
         emit();
         return record;
+    },
+    update(publicId, snapshot) {
+        const index = publicTrips.findIndex(row => row.id === publicId && row.sourceTripId === snapshot.trip.id);
+        if (index < 0) throw new Error('找不到此行程的公開版本。');
+        const previous = publicTrips[index];
+        const record = { ...publicCopy(snapshot), id: previous.id, sourceTripId: previous.sourceTripId, createdAt: previous.createdAt, updatedAt: today() };
+        publicTrips[index] = record;
+        emit();
+        return record;
+    },
+    withdraw(publicId, sourceTripId) {
+        const index = publicTrips.findIndex(row => row.id === publicId && row.sourceTripId === sourceTripId);
+        if (index < 0) throw new Error('找不到此行程的公開版本。');
+        publicTrips.splice(index, 1);
+        emit();
     },
     apply(snapshot) {
         const copy = publicCopy(snapshot);
@@ -715,9 +748,18 @@ const publicDemoStore = {
 function publicCopy(snapshot) {
     const copy = structuredClone({ trip: snapshot.trip, region: snapshot.region, places: snapshot.places, items: snapshot.items, labels: [] });
     const used = new Set(copy.items.map((item) => item.placeId));
-    copy.places = copy.places.filter((place) => used.has(place.id)).map((place) => ({ ...place, regionIds: [copy.region.id], labelIds: [] }));
+    const tripId = crypto.randomUUID(), regionId = crypto.randomUUID();
+    const placeIds = new Map(copy.places.filter(place => used.has(place.id)).map(place => [place.id, crypto.randomUUID()]));
+    copy.trip = { ...copy.trip, id: tripId, regionId };
+    copy.region = { ...copy.region, id: regionId };
+    copy.places = copy.places.filter(place => used.has(place.id)).map(place => {
+        const { notes, ...publicPlace } = place;
+        return { ...publicPlace, id: placeIds.get(place.id), regionIds: [regionId], labelIds: [] };
+    });
+    copy.items = copy.items.map(item => ({ ...item, id: crypto.randomUUID(), tripId, placeId: placeIds.get(item.placeId) }));
     return copy;
 }
+function today() { return new Intl.DateTimeFormat('sv-SE', { timeZone: 'Asia/Taipei' }).format(new Date()); }
 
 let section = 'public', selectedId = personal[0].trip.id, selectedDay = 0, sidebarOpen = false;
 let search = '', regionFilter = '', notice = '', modal = null, modalDay = 0, previousFocus;
@@ -728,40 +770,66 @@ function dateAt(row, day) { const date = new Date(row.trip.startDate+'T00:00:00Z
 function action(name, text, classes = 'itinerary-secondary', attributes = '') { return '<button type="button" class="'+classes+'" data-action="'+name+'" '+attributes+'>'+text+'</button>'; }
 function shell(content, itinerary = false) {
  const items = [['◎','區域'],['⌖','地點'],['◈','標籤'],['▤','行程','itinerary'],['◉','公開行程','public'],['↔','路程試算'],['⇅','資料']];
- return '<div class="workspace-layout" data-sidebar-open="'+sidebarOpen+'"><aside class="workspace-sidebar" aria-label="工作區側欄" '+(!sidebarOpen?'inert':'')+'><div class="workspace-brand"><span><strong>行程規劃</strong><small>TRAVEL PLANNER</small></span></div><div class="workspace-nav-caption">工作區</div><nav class="workspace-nav" aria-label="主要導覽">'+items.map(([icon,label,target])=>target?'<a href="#" class="workspace-nav-item" data-action="navigate" data-section="'+target+'" '+(section===target?'aria-current="page"':'')+'><span class="workspace-nav-icon">'+icon+'</span><span>'+label+'</span></a>':'<span class="workspace-nav-item" aria-disabled="true"><span class="workspace-nav-icon">'+icon+'</span>'+label+'</span>').join('')+'</nav><div class="workspace-sidebar-foot"><div class="workspace-session-card"><div class="workspace-session-status">UI 設計稿</div><strong>公開分享功能</strong><p class="archive-side-note">畫面核准日期：2026-10-20<br>此檔可離線開啟，操作為示意。<br>重新整理會重置所有變更。</p></div></div></aside>'+action('sidebar','☰','workspace-sidebar-toggle','aria-label="切換工作區側欄" aria-expanded="'+sidebarOpen+'"')+'<main class="workspace-main '+(itinerary?'itinerary-main archive-itinerary-main':'public-itinerary-main')+'">'+content+'</main></div>';
+ return '<div class="workspace-layout" data-sidebar-open="'+sidebarOpen+'"><aside class="workspace-sidebar" aria-label="工作區側欄" '+(!sidebarOpen?'inert':'')+'><div class="workspace-brand"><span><strong>行程規劃</strong><small>TRAVEL PLANNER</small></span></div><div class="workspace-nav-caption">工作區</div><nav class="workspace-nav" aria-label="主要導覽">'+items.map(([icon,label,target])=>target?'<a href="#" class="workspace-nav-item" data-action="navigate" data-section="'+target+'" '+(section===target?'aria-current="page"':'')+'><span class="workspace-nav-icon">'+icon+'</span><span>'+label+'</span></a>':'<span class="workspace-nav-item" aria-disabled="true"><span class="workspace-nav-icon">'+icon+'</span>'+label+'</span>').join('')+'</nav><div class="workspace-sidebar-foot"><div class="workspace-session-card"><div class="workspace-session-status">UI 設計稿</div><strong>公開分享功能</strong><p class="archive-side-note">原畫面核准：2026-10-20<br>更新／下架修訂：2026-10-21（待確認）<br>此檔可離線開啟，操作為示意。<br>重新整理會重置所有變更。</p></div></div></aside>'+action('sidebar','☰','workspace-sidebar-toggle','aria-label="切換工作區側欄" aria-expanded="'+sidebarOpen+'"')+'<main class="workspace-main '+(itinerary?'itinerary-main archive-itinerary-main':'public-itinerary-main')+'">'+content+'</main></div>';
 }
 function publicPage() {
  const filtered = publicTrips.filter(row => (!regionFilter || row.region.name===regionFilter) && (row.trip.name+' '+row.region.name).toLowerCase().includes(search.trim().toLowerCase()));
- return '<div class="public-itinerary-content"><header class="public-page-heading"><div class="workspace-page-heading-title"><span class="public-eyebrow">旅行靈感，從這裡開始</span><h1>公開行程</h1><p>看看別人的安排，把喜歡的行程變成下一趟旅行。</p></div>'+action('mine','我的行程 ↗','itinerary-secondary public-link-button')+'</header><div class="public-intro"><span class="public-intro-icon">◉</span><div><strong>預覽靈感，套用後自由調整</strong><p>公開行程提供區域、地點與每日安排。套用會建立自己的副本，私人標籤不會分享。</p></div><span class="public-demo-badge">UI DEMO</span></div>'+noticeHtml()+'<section class="public-list-card" aria-label="公開行程列表"><div class="public-list-toolbar"><div><h2>探索行程 <span>'+publicTrips.length+'</span></h2><p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div class="public-list-filters"><label><span class="public-sr-only">搜尋公開行程</span><input type="search" id="search" value="'+escapeHtml(search)+'" placeholder="搜尋行程名稱或區域"></label><label><span class="public-sr-only">篩選區域</span><select id="region"><option value="">所有區域</option>'+[...new Set(publicTrips.map(row=>row.region.name))].map(name=>'<option '+(name===regionFilter?'selected':'')+'>'+escapeHtml(name)+'</option>').join('')+'</select></label></div></div><div class="public-table-scroll"><table class="public-trip-table"><thead><tr>'+['行程名稱','區域','新增日期','預覽','使用行程'].map(text=>'<th scope="col">'+text+'</th>').join('')+'</tr></thead><tbody>'+filtered.map(row=>'<tr><td><div class="public-trip-name"><span class="public-trip-symbol">▤</span><div><strong>'+escapeHtml(row.trip.name)+'</strong><small>'+days(row)+' 天 · '+row.places.length+' 個地點</small></div></div></td><td><span class="public-region-pill">'+escapeHtml(row.region.name)+'</span></td><td class="public-created-date">'+row.createdAt+'</td><td>'+action('preview','預覽','itinerary-secondary','data-id="'+row.id+'" aria-label="預覽 '+escapeHtml(row.trip.name)+'"')+'</td><td>'+action('apply','使用行程','itinerary-primary','data-id="'+row.id+'" aria-label="使用行程 '+escapeHtml(row.trip.name)+'"')+'</td></tr>').join('')+'</tbody></table></div>'+(!filtered.length?'<div class="public-empty"><strong>找不到符合條件的行程</strong><p>試試其他名稱或區域。</p>'+action('clear','清除篩選')+'</div>':'')+'<footer class="public-list-footer">顯示 '+filtered.length+' 個行程<span>在「行程」按下「發佈」，即可分享你的安排。</span></footer></section><p class="public-demo-footnote">此頁為 UI 示意；發佈與套用結果會保留至本次頁面重新整理。</p></div>';
+ return '<div class="public-itinerary-content"><header class="public-page-heading"><div class="workspace-page-heading-title"><span class="public-eyebrow">旅行靈感，從這裡開始</span><h1>公開行程</h1><p>看看別人的安排，把喜歡的行程變成下一趟旅行。</p></div>'+action('mine','我的行程 ↗','itinerary-secondary public-link-button')+'</header><div class="public-intro"><span class="public-intro-icon">◉</span><div><strong>預覽靈感，套用後自由調整</strong><p>公開行程提供區域、地點與每日安排。套用會建立自己的副本，私人標籤不會分享。</p></div><span class="public-demo-badge">UI DEMO</span></div>'+noticeHtml()+'<section class="public-list-card" aria-label="公開行程列表"><div class="public-list-toolbar"><div><h2>探索行程 <span>'+publicTrips.length+'</span></h2><p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div class="public-list-filters"><label><span class="public-sr-only">搜尋公開行程</span><input type="search" id="search" value="'+escapeHtml(search)+'" placeholder="搜尋行程名稱或區域"></label><label><span class="public-sr-only">篩選區域</span><select id="region"><option value="">所有區域</option>'+[...new Set(publicTrips.map(row=>row.region.name))].map(name=>'<option '+(name===regionFilter?'selected':'')+'>'+escapeHtml(name)+'</option>').join('')+'</select></label></div></div><div class="public-table-scroll"><table class="public-trip-table"><thead><tr>'+['行程名稱','區域','新增日期','預覽','使用行程'].map(text=>'<th scope="col">'+text+'</th>').join('')+'</tr></thead><tbody>'+filtered.map(row=>'<tr><td><div class="public-trip-name"><span class="public-trip-symbol">▤</span><div><strong>'+escapeHtml(row.trip.name)+'</strong><small>'+days(row)+' 天 · '+row.places.length+' 個地點</small></div></div></td><td><span class="public-region-pill">'+escapeHtml(row.region.name)+'</span></td><td class="public-created-date">'+row.createdAt+(row.updatedAt?'<small>更新日期 '+row.updatedAt+'</small>':'')+'</td><td>'+action('preview','預覽','itinerary-secondary','data-id="'+row.id+'" aria-label="預覽 '+escapeHtml(row.trip.name)+'"')+'</td><td>'+action('apply','使用行程','itinerary-primary','data-id="'+row.id+'" aria-label="使用行程 '+escapeHtml(row.trip.name)+'"')+'</td></tr>').join('')+'</tbody></table></div>'+(!filtered.length?'<div class="public-empty"><strong>找不到符合條件的行程</strong><p>試試其他名稱或區域。</p>'+action('clear','清除篩選')+'</div>':'')+'<footer class="public-list-footer">顯示 '+filtered.length+' 個行程<span>在「行程」按下「發佈」，即可分享你的安排。</span></footer></section><p class="public-demo-footnote">此頁為 UI 示意；發佈、更新、下架與套用結果會保留至本次頁面重新整理。</p></div>';
 }
 function noticeHtml() { return notice?'<div class="public-apply-notice" role="status"><span>✓</span><p>'+escapeHtml(notice)+'</p>'+action('mine','前往行程 →')+action('dismiss','×','public-close','aria-label="關閉通知"')+'</div>':''; }
 function map(row, items) {
  const positions = [[24,28],[58,48],[39,73]];
  return '<div class="demo-route-map" aria-label="'+escapeHtml(row.region.name)+'路線示意"><div class="demo-map-water"></div><div class="demo-map-park demo-map-park-one"></div><div class="demo-map-park demo-map-park-two"></div><span class="demo-map-region">'+escapeHtml(row.region.name)+'</span><svg class="demo-map-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M 24 28 L 58 48 L 39 73" fill="none" stroke="#648a74" stroke-width=".6" stroke-dasharray="1.3 1"/></svg>'+items.map((item,index)=>{const place=row.places.find(place=>place.id===item.placeId),[left,top]=positions[index%3];return '<div class="demo-map-stop" style="left:'+left+'%;top:'+top+'%"><span>'+(index+1)+'</span><strong>'+escapeHtml(place.icon)+' '+escapeHtml(place.name)+'</strong></div>';}).join('')+'<div class="demo-map-caption"><span>⌖</span> 當日行程路線示意 <small>地點順序依行程排列</small></div></div>';
 }
+function publicationActions(row) {
+ const published = publicDemoStore.findBySource(row.trip.id);
+ return published
+  ? action('update-public','更新','')+action('withdraw-public','下架','itinerary-action-danger')
+  : action('publish','發佈','');
+}
+function tripActionMenu(row) {
+ return '<details class="itinerary-action-menu"><summary class="itinerary-secondary">行程操作<svg class="itinerary-menu-chevron" viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg></summary><div class="itinerary-dropdown itinerary-action-options">'+action('edit-trip','編輯行程','')+'<hr>'+publicationActions(row)+'</div></details>';
+}
+function publicationDialog(type, row, published) {
+ const updating = type === 'update', withdrawing = type === 'withdraw';
+ const title = withdrawing ? '下架公開行程' : updating ? '更新公開版本' : '發佈到公開行程';
+ const summary = withdrawing ? published : row;
+ const copy = withdrawing
+  ? '下架後，此行程不再出現在公開列表，無法預覽或套用。原始行程與已套用的個人副本都會保留。'
+  : updating
+   ? '將以目前行程的區域、地點與每日安排，完整覆蓋公開版本。原始行程與已套用的個人副本不受影響。'
+   : '發佈當下會複製一份完整行程，其他人可以預覽或套用為自己的行程。之後修改原始行程，公開內容不會自動改變。';
+ const details = withdrawing
+  ? '<p><span>✓</span> 已套用的副本仍可自由編輯</p><p><span>↗</span> 再次發佈會建立新的公開記錄</p>'
+  : '<p><span>✓</span> 公開內容：區域、'+new Set(row.items.map(item=>item.placeId)).size+' 個地點、每日行程安排與行程備註</p><p><span>⌑</span> 私人標籤與地點備註不會公開</p>'+(updating?'<p><span>✓</span> 保留新增日期，記錄本次更新日期</p>':'');
+ return '<div class="public-dialog-heading"><div><span class="public-eyebrow">管理你的公開行程</span><h2 id="dialog-title">'+title+'</h2></div>'+action('close','×','public-close','aria-label="關閉'+title+'視窗"')+'</div><div class="public-publish-summary"><span>▤</span><div><strong>'+escapeHtml(summary.trip.name)+'</strong><p>'+escapeHtml(summary.region.name)+' · '+summary.trip.startDate+' — '+summary.trip.endDate+'</p></div></div><p class="public-dialog-copy">'+copy+'</p><div class="public-sharing-details">'+details+'</div><div class="public-dialog-actions">'+action('close','取消')+action(withdrawing?'confirm-withdraw':updating?'confirm-update':'confirm-publish',withdrawing?'確認下架':updating?'確認更新':'確認發佈',withdrawing?'itinerary-primary public-withdraw':'itinerary-primary')+'</div>';
+}
 function itineraryPage(row, readonly = false, day = selectedDay) {
  const date = dateAt(row,day), items = row.items.filter(item=>item.date===date).sort((a,b)=>a.order-b.order);
  const formattedDate = new Intl.DateTimeFormat('zh-TW',{month:'long',day:'numeric',weekday:'short',timeZone:'UTC'}).format(new Date(date+'T00:00:00Z'));
- return '<div class="itinerary-content"><section class="itinerary-heading"><div class="workspace-page-heading-title"><h1>'+escapeHtml(row.trip.name)+'</h1><p>'+row.trip.startDate+' — '+row.trip.endDate+' <i></i> '+days(row)+' 天</p></div>'+(!readonly?'<div class="itinerary-heading-actions"><label class="itinerary-trip-select"><span>切換行程</span><select id="trip-select">'+personal.map(item=>'<option value="'+item.trip.id+'" '+(item.trip.id===selectedId?'selected':'')+'>'+escapeHtml(item.trip.name)+'</option>').join('')+'</select></label>'+action('publish','發佈')+action('edit-trip','編輯行程')+action('public','公開行程 →')+'</div>':'')+'</section>'+(!readonly?noticeHtml():'')+'<section class="itinerary-workspace"><aside class="itinerary-plan-card"><div class="itinerary-plan-title"><div><span>每日行程</span><strong>第 '+(day+1)+' 天 <small>・'+escapeHtml(row.region.name)+'</small></strong></div><span class="itinerary-day-count">'+formattedDate+' · '+days(row)+' 天</span></div><div class="itinerary-day-strip" aria-label="選擇行程日期">'+Array.from({length:days(row)},(_,index)=>{const d=dateAt(row,index);return action(readonly?'preview-day':'day','<small>'+new Intl.DateTimeFormat('zh-TW',{weekday:'short',timeZone:'UTC'}).format(new Date(d+'T00:00:00Z'))+'</small><strong>'+d.slice(8)+'</strong>',index===day?'selected':'','data-day="'+index+'" aria-pressed="'+(index===day)+'"');}).join('')+'</div><div class="itinerary-items-heading"><div><h3>當日安排</h3><span>'+items.length+' 個地點</span></div></div><div class="itinerary-items-scroll"><ol class="itinerary-item-list">'+items.map((item,index)=>{const place=row.places.find(place=>place.id===item.placeId);return '<li class="itinerary-item-row"><span class="itinerary-order">'+(index+1)+'</span><div class="itinerary-item-copy"><div class="itinerary-item-title"><strong><span class="itinerary-place-icon">'+escapeHtml(place.icon)+'</span>'+escapeHtml(place.name)+'</strong></div><div class="itinerary-item-meta"><span>預計抵達 '+escapeHtml(item.arrivalTime)+'</span><span>'+item.durationMinutes+' 分鐘</span>'+(index?'<span>步行</span><span>路程約 20 分鐘 · 1.2 公里</span>':'')+'</div>'+(!readonly && place.labelIds.length?'<div class="itinerary-item-labels" aria-label="地點標籤">'+row.labels.map(label=>'<span class="itinerary-item-label"><i style="background:'+label.color+'"></i>'+escapeHtml(label.name)+'</span>').join('')+'</div>':'')+'<p>'+escapeHtml(item.note)+'</p></div>'+(!readonly?'<div class="itinerary-item-actions">'+action('edit-item','編輯','','data-id="'+item.id+'"')+'</div>':'')+'</li>';}).join('')+'</ol></div></aside><section class="itinerary-map-panel" aria-label="行程區域地圖"><div class="itinerary-map-heading"><div><span>旅行範圍</span><strong>'+escapeHtml(row.region.name)+'</strong></div><span class="itinerary-map-place-count">'+row.places.length+' 個收藏地點</span></div><div class="itinerary-map-canvas">'+map(row,items)+'</div><div class="itinerary-map-footer"><span><i class="itinerary-map-legend-dot numbered"></i> 當日行程順序</span><span>'+items.length+' 個行程地點 · 路線示意</span></div></section></section></div>';
+ return '<div class="itinerary-content"><section class="itinerary-heading"><div class="workspace-page-heading-title"><h1>'+escapeHtml(row.trip.name)+'</h1><p>'+row.trip.startDate+' — '+row.trip.endDate+' <i></i> '+days(row)+' 天</p></div>'+(!readonly?'<div class="itinerary-heading-actions"><label class="itinerary-trip-select"><span>切換行程</span><select id="trip-select">'+personal.map(item=>'<option value="'+item.trip.id+'" '+(item.trip.id===selectedId?'selected':'')+'>'+escapeHtml(item.trip.name)+'</option>').join('')+'</select></label>'+tripActionMenu(row)+'</div>':'')+'</section>'+(!readonly?noticeHtml():'')+'<section class="itinerary-workspace"><aside class="itinerary-plan-card"><div class="itinerary-plan-title"><div><span>每日行程</span><strong>第 '+(day+1)+' 天 <small>・'+escapeHtml(row.region.name)+'</small></strong></div><span class="itinerary-day-count">'+formattedDate+' · '+days(row)+' 天</span></div><div class="itinerary-day-strip" aria-label="選擇行程日期">'+Array.from({length:days(row)},(_,index)=>{const d=dateAt(row,index);return action(readonly?'preview-day':'day','<small>'+new Intl.DateTimeFormat('zh-TW',{weekday:'short',timeZone:'UTC'}).format(new Date(d+'T00:00:00Z'))+'</small><strong>'+d.slice(8)+'</strong>',index===day?'selected':'','data-day="'+index+'" aria-pressed="'+(index===day)+'"');}).join('')+'</div><div class="itinerary-items-heading"><div><h3>當日安排</h3><span>'+items.length+' 個地點</span></div></div><div class="itinerary-items-scroll"><ol class="itinerary-item-list">'+items.map((item,index)=>{const place=row.places.find(place=>place.id===item.placeId);return '<li class="itinerary-item-row"><span class="itinerary-order">'+(index+1)+'</span><div class="itinerary-item-copy"><div class="itinerary-item-title"><strong><span class="itinerary-place-icon">'+escapeHtml(place.icon)+'</span>'+escapeHtml(place.name)+'</strong></div><div class="itinerary-item-meta"><span>預計抵達 '+escapeHtml(item.arrivalTime)+'</span><span>'+item.durationMinutes+' 分鐘</span>'+(index?'<span>步行</span><span>路程約 20 分鐘 · 1.2 公里</span>':'')+'</div>'+(!readonly && place.labelIds.length?'<div class="itinerary-item-labels" aria-label="地點標籤">'+row.labels.map(label=>'<span class="itinerary-item-label"><i style="background:'+label.color+'"></i>'+escapeHtml(label.name)+'</span>').join('')+'</div>':'')+'<p>'+escapeHtml(item.note)+'</p></div>'+(!readonly?'<div class="itinerary-item-actions">'+action('edit-item','編輯','','data-id="'+item.id+'"')+'</div>':'')+'</li>';}).join('')+'</ol></div></aside><section class="itinerary-map-panel" aria-label="行程區域地圖"><div class="itinerary-map-heading"><div><span>旅行範圍</span><strong>'+escapeHtml(row.region.name)+'</strong></div><span class="itinerary-map-place-count">'+row.places.length+' 個收藏地點</span></div><div class="itinerary-map-canvas">'+map(row,items)+'</div><div class="itinerary-map-footer"><span><i class="itinerary-map-legend-dot numbered"></i> 當日行程順序</span><span>'+items.length+' 個行程地點 · 路線示意</span></div></section></section></div>';
 }
 function render() { app.innerHTML=shell(section==='public'?publicPage():itineraryPage(personal.find(row=>row.trip.id===selectedId)),section==='itinerary'); app.inert=!!modal; }
-function openModal(next) { previousFocus=document.activeElement; modal=next; modalDay=0; renderModal(); }
+function openModal(next) { previousFocus=document.activeElement?.closest('.itinerary-action-menu')?.querySelector('summary') || document.activeElement; modal=next; modalDay=0; renderModal(); }
 function closeModal() { modal=null; layers.innerHTML=''; app.inert=false; document.body.style.overflow=''; previousFocus?.focus(); }
 function renderModal() {
  let body = '', wide=false;
  if(modal.type==='preview') { wide=true; const row=modal.row; body='<div class="public-preview-bar"><div><span class="public-readonly-badge">⌑ 唯讀預覽</span><h2 id="dialog-title">'+escapeHtml(row.trip.name)+'</h2></div>'+action('close','關閉預覽 ×')+'</div><div class="archive-modal-itinerary itinerary-app-shell public-itinerary-readonly"><main class="itinerary-main">'+itineraryPage(row,true,modalDay)+'</main></div>'; }
- else if(modal.type==='publish') { const row=modal.row; body='<div class="public-dialog-heading"><div><span class="public-eyebrow">分享你的旅行靈感</span><h2 id="dialog-title">發佈到公開行程</h2></div>'+action('close','×','public-close','aria-label="關閉發佈視窗"')+'</div><div class="public-publish-summary"><span>▤</span><div><strong>'+escapeHtml(row.trip.name)+'</strong><p>'+escapeHtml(row.region.name)+' · '+row.trip.startDate+' — '+row.trip.endDate+'</p></div></div><p class="public-dialog-copy">發佈當下會複製一份行程。其他人可以預覽，或套用為自己的行程；之後編輯你的原始行程，公開版本會保留發佈時的內容。</p><div class="public-sharing-details"><p><span>✓</span> 公開內容：區域、'+new Set(row.items.map(item=>item.placeId)).size+' 個地點、每日行程安排與行程備註</p><p><span>⌑</span> 私人標籤不會出現在公開版本</p></div><div class="public-dialog-actions">'+action('close','取消')+action('confirm-publish','確認發佈','itinerary-primary')+'</div>'; }
+ else if(['publish','update','withdraw'].includes(modal.type)) { body=publicationDialog(modal.type,modal.row,modal.published); }
  else { const item=modal.item; body='<div class="public-dialog-heading"><h2 id="dialog-title">'+(item?'編輯行程地點':'編輯行程')+'</h2>'+action('close','×','public-close','aria-label="關閉編輯視窗"')+'</div><form id="edit-form" class="archive-edit-form">'+(item?'<label>預計抵達<input name="arrivalTime" type="time" value="'+escapeHtml(item.arrivalTime)+'" required></label><label>行程備註<textarea name="note" rows="4">'+escapeHtml(item.note)+'</textarea></label>':'<label>行程名稱<input name="name" value="'+escapeHtml(modal.row.trip.name)+'" required maxlength="120"></label>')+'<div class="public-dialog-actions">'+action('close','取消')+'<button type="submit" class="itinerary-primary">儲存變更</button></div></form>'; }
  layers.innerHTML='<div class="public-demo-backdrop"><div class="public-demo-dialog '+(wide?'public-demo-dialog-wide':'')+'" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">'+body+'</div></div>';app.inert=true;document.body.style.overflow='hidden';layers.querySelector('[role="dialog"]').focus();
 }
 document.addEventListener('click',event=>{
  if(event.target.classList.contains('public-demo-backdrop')) return closeModal();
  const button=event.target.closest('[data-action]'); if(!button)return;event.preventDefault();
+ const menu=button.closest('.itinerary-action-menu');if(menu)menu.open=false;
  const name=button.dataset.action, row=personal.find(row=>row.trip.id===selectedId);
  if(name==='close')return closeModal();
  if(name==='preview-day'){modalDay=Number(button.dataset.day);return renderModal();}
  if(name==='preview')return openModal({type:'preview',row:publicTrips.find(row=>row.id===button.dataset.id)});
  if(name==='publish')return openModal({type:'publish',row});
+ if(name==='update-public')return openModal({type:'update',row,published:publicDemoStore.findBySource(row.trip.id)});
+ if(name==='withdraw-public')return openModal({type:'withdraw',row,published:publicDemoStore.findBySource(row.trip.id)});
  if(name==='edit-trip')return openModal({type:'edit',row});
  if(name==='edit-item')return openModal({type:'edit',row,item:row.items.find(item=>item.id===button.dataset.id)});
  if(name==='sidebar')sidebarOpen=!sidebarOpen;
@@ -771,12 +839,15 @@ document.addEventListener('click',event=>{
  if(name==='day')selectedDay=Number(button.dataset.day);
  if(name==='apply'){const copy=publicDemoStore.apply(publicTrips.find(row=>row.id===button.dataset.id));notice='套用成功！「'+copy.name+'」已加入行程，前往行程即可從選單選取並編輯。';}
  if(name==='confirm-publish'){publicDemoStore.publish(modal.row);notice='「'+modal.row.trip.name+'」已發佈至公開行程。';closeModal();}
+ if(name==='confirm-update'){publicDemoStore.update(modal.published.id,modal.row);notice='「'+modal.row.trip.name+'」的公開版本已更新；已套用的個人副本不受影響。';closeModal();}
+ if(name==='confirm-withdraw'){publicDemoStore.withdraw(modal.published.id,modal.row.trip.id);notice='「'+modal.published.trip.name+'」已下架；原始行程與已套用的個人副本已保留。';closeModal();}
  render();
 });
 document.addEventListener('input',event=>{if(event.target.id!=='search')return;const position=event.target.selectionStart;search=event.target.value;render();const input=document.getElementById('search');input.focus();try{input.setSelectionRange(position,position);}catch{}});
 document.addEventListener('change',event=>{if(event.target.id==='region'){regionFilter=event.target.value;render();}if(event.target.id==='trip-select'){selectedId=event.target.value;selectedDay=0;notice='';render();}});
 document.addEventListener('submit',event=>{if(event.target.id!=='edit-form')return;event.preventDefault();const data=new FormData(event.target);if(modal.item){modal.item.arrivalTime=String(data.get('arrivalTime'));modal.item.note=String(data.get('note'));}else{const name=String(data.get('name')).trim();if(!name)return;modal.row.trip.name=name;}notice='行程變更已儲存。';closeModal();render();});
-document.addEventListener('keydown',event=>{if(!modal)return;if(event.key==='Escape'){event.preventDefault();closeModal();return;}if(event.key!=='Tab')return;const dialog=layers.querySelector('[role="dialog"]');const nodes=[...dialog.querySelectorAll('button,input,textarea,select,a[href]')].filter(node=>!node.disabled&&node.getClientRects().length);const first=nodes[0],last=nodes.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialog)){event.preventDefault();last?.focus();}else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===dialog)){event.preventDefault();first?.focus();}});
+document.addEventListener('pointerdown',event=>{document.querySelectorAll('.itinerary-action-menu[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;});});
+document.addEventListener('keydown',event=>{if(!modal){if(event.key==='Escape'){document.querySelectorAll('.itinerary-action-menu[open]').forEach(menu=>{menu.open=false;menu.querySelector('summary').focus();});}return;}if(event.key==='Escape'){event.preventDefault();closeModal();return;}if(event.key!=='Tab')return;const dialog=layers.querySelector('[role="dialog"]');const nodes=[...dialog.querySelectorAll('button,input,textarea,select,a[href]')].filter(node=>!node.disabled&&node.getClientRects().length);const first=nodes[0],last=nodes.at(-1);if(event.shiftKey&&(document.activeElement===first||document.activeElement===dialog)){event.preventDefault();last?.focus();}else if(!event.shiftKey&&(document.activeElement===last||document.activeElement===dialog)){event.preventDefault();first?.focus();}});
 render();
 </script>
 </body>
