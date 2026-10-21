@@ -1,13 +1,16 @@
-import { useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { PublicItinerary, Region, Trip } from './models'
-import { publicItineraryController } from './public-itinerary.controller'
+import { createPublicItineraryController } from './public-itinerary.controller'
 import { SharingDialog } from './SharingDialog'
 import { sharingErrorMessage } from './messages'
+import { useAuth } from '../../auth/useAuth'
 
 export function PublicationDialog({ operation, trip, regionName, published, onClose, onSuccess }: {
   operation: 'publish' | 'update' | 'withdraw'; trip: Trip; regionName: Region['name']; published?: PublicItinerary
   onClose(): void; onSuccess(message: string): void
 }) {
+  const { user } = useAuth()
+  const publicItineraryController = useMemo(() => createPublicItineraryController(user?.id ?? ''), [user?.id])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const running = useRef(false)

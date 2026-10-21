@@ -45,16 +45,6 @@ export function createPublicItineraryCore(db: PublicItineraryStorage): PublicIti
     return row
   }
 
-  async function snapshotSource(sourceTripId: string): Promise<PublicSnapshot> {
-    const trip = await db.trips.get(sourceTripId)
-    if (!trip) throw new SharingError('SOURCE_NOT_FOUND')
-    const region = await db.regions.get(trip.regionId)
-    if (!region || !trip.id || !trip.regionId) throw new SharingError('INVALID_SOURCE')
-    const items = await db.itineraryItems.where('tripId').equals(sourceTripId).toArray()
-    const places = await db.places.bulkGet([...new Set(items.map(item => item.placeId))])
-    if (places.some(place => !place)) throw new SharingError('INVALID_SOURCE')
-    return cloneGraph(region, trip, places.map(place => place!), items)
-  }
 
   return {
     async list(query = {}) {
@@ -79,7 +69,7 @@ export function createPublicItineraryCore(db: PublicItineraryStorage): PublicIti
         if (await db.publicItineraries.where('sourceTripId').equals(sourceTripId).first()) {
           throw new SharingError('ALREADY_PUBLISHED')
         }
-        const snapshot = await snapshotSource(sourceTripId)
+        const snapshot = await snapshotSource(db, sourceTripId)
         const row: PublicItinerary = {
           id: crypto.randomUUID(), sourceTripId,
           createdAt: new Date().toISOString(), updatedAt: null, snapshot,
@@ -91,7 +81,7 @@ export function createPublicItineraryCore(db: PublicItineraryStorage): PublicIti
     async update(publicId, sourceTripId) {
       return db.transaction('rw', sourceTables, async () => {
         const existing = await requirePublic(publicId, sourceTripId)
-        const snapshot = await snapshotSource(sourceTripId)
+        const snapshot = await snapshotSource(db, sourceTripId)
         const row = { ...existing, snapshot, updatedAt: new Date().toISOString() }
         await db.publicItineraries.put(row)
         return structuredClone(row)
@@ -106,26 +96,42 @@ export function createPublicItineraryCore(db: PublicItineraryStorage): PublicIti
     async apply(publicId) {
       return db.transaction('rw', [...sourceTables, db.labels], async () => {
         const { snapshot } = await requirePublic(publicId)
-        const copy = cloneGraph(snapshot.region, snapshot.trip, snapshot.places, snapshot.items)
-        copy.region.name = `${snapshot.region.name}(分享)`
-        // Each application owns its label, even when another copy has the same name.
-        const colors = ['#e9905a', '#d97768', '#c4809b', '#8b80b5', '#758dab', '#6c9a79', '#b77a53', '#5f9b9b']
-        const label = {
-          id: crypto.randomUUID(), name: `${snapshot.trip.name}(分享)`,
-          color: colors[Math.floor(Math.random() * colors.length)],
-        }
-        const names = new Set((await db.trips.toArray()).map(trip => trip.name))
-        let suffix = 1
-        const copyName = () => `${snapshot.trip.name}（副本${suffix === 1 ? '' : ` ${suffix}`}）`
-        while (names.has(copyName())) suffix++
-        copy.trip.name = copyName()
-        await db.regions.add(copy.region)
-        await db.labels.add(label)
-        await db.places.bulkAdd(copy.places.map(place => ({ ...place, labelIds: [label.id] })))
-        await db.trips.add(copy.trip)
-        await db.itineraryItems.bulkAdd(copy.items)
-        return structuredClone(copy.trip)
+        return applySnapshot(db, snapshot)
       })
     },
   }
+}
+
+export async function snapshotSource(db: PublicItineraryStorage, sourceTripId: string): Promise<PublicSnapshot> {
+    const trip = await db.trips.get(sourceTripId)
+    if (!trip) throw new SharingError('SOURCE_NOT_FOUND')
+    const region = await db.regions.get(trip.regionId)
+    if (!region || !trip.id || !trip.regionId) throw new SharingError('INVALID_SOURCE')
+    const items = await db.itineraryItems.where('tripId').equals(sourceTripId).toArray()
+    const places = await db.places.bulkGet([...new Set(items.map(item => item.placeId))])
+    if (places.some(place => !place)) throw new SharingError('INVALID_SOURCE')
+    return cloneGraph(region, trip, places.map(place => place!), items)
+  }
+
+
+export async function applySnapshot(db: PublicItineraryStorage, snapshot: PublicSnapshot): Promise<Trip> {
+  const copy = cloneGraph(snapshot.region, snapshot.trip, snapshot.places, snapshot.items)
+  copy.region.name = `${snapshot.region.name}(分享)`
+  // Each application owns its label, even when another copy has the same name.
+  const colors = ['#e9905a', '#d97768', '#c4809b', '#8b80b5', '#758dab', '#6c9a79', '#b77a53', '#5f9b9b']
+  const label = {
+    id: crypto.randomUUID(), name: `${snapshot.trip.name}(分享)`,
+    color: colors[Math.floor(Math.random() * colors.length)],
+  }
+  const names = new Set((await db.trips.toArray()).map(trip => trip.name))
+  let suffix = 1
+  const copyName = () => `${snapshot.trip.name}（副本${suffix === 1 ? '' : ` ${suffix}`}）`
+  while (names.has(copyName())) suffix++
+  copy.trip.name = copyName()
+  await db.regions.add(copy.region)
+  await db.labels.add(label)
+  await db.places.bulkAdd(copy.places.map(place => ({ ...place, labelIds: [label.id] })))
+  await db.trips.add(copy.trip)
+  await db.itineraryItems.bulkAdd(copy.items)
+  return structuredClone(copy.trip)
 }

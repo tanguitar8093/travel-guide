@@ -1,36 +1,72 @@
-import { liveQuery } from 'dexie'
+import Dexie, { liveQuery } from 'dexie'
 import { database } from '../../database/database'
 import { getDatabaseMode } from '../../database/runtime'
 import { requireHybridStore, runHybridTask } from '../../database/hybrid.runtime'
-import { createPublicItineraryCore } from './core'
-import type { PublicItineraryCore } from './models'
+import { createSharedCatalogCore, migrateLegacyPublications, PublicItineraryCatalog } from './shared-catalog'
+import type { SharingWorkspace } from './shared-catalog'
+import type { PublicItinerary, PublicItineraryCore } from './models'
 
+const catalog = new PublicItineraryCatalog()
 export function publicSharingAvailable() { return getDatabaseMode() !== 'supabase' }
 
-async function read<Result>(work: (core: PublicItineraryCore) => Promise<Result>): Promise<Result> {
-  const mode = getDatabaseMode()
-  if (mode === 'supabase') throw new Error('請切換至本機工作區使用公開行程。')
-  return mode === 'indexeddb' ? work(createPublicItineraryCore(database))
-    : requireHybridStore().readDatabase(db => work(createPublicItineraryCore(db)))
+async function migrateExistingCatalog() {
+  const names = await Dexie.getDatabaseNames()
+  for (const name of names.filter(name => name === database.name || name.startsWith('travel-planner-hybrid:'))) {
+    const old = new Dexie(name)
+    try {
+      await old.open()
+      if (!old.tables.some(table => table.name === 'publicItineraries')) continue
+      const ownerId = name.startsWith('travel-planner-hybrid:') ? decodeURIComponent(name.split(':').at(-1)!) : ''
+      // Legacy standalone records have no provable owner; expose them read-only rather than assigning them to whoever logs in.
+      await migrateLegacyPublications(catalog, name, ownerId, await old.table<PublicItinerary>('publicItineraries').toArray())
+    } finally { old.close() }
+  }
 }
-async function write<Result>(operation: string, work: (core: PublicItineraryCore) => Promise<Result>): Promise<Result> {
-  const mode = getDatabaseMode()
-  if (mode === 'supabase') throw new Error('請切換至本機工作區使用公開行程。')
-  return mode === 'indexeddb' ? work(createPublicItineraryCore(database))
-    : runHybridTask(store => store.mutateDatabase(`publicItineraries.${operation}`, db => work(createPublicItineraryCore(db))))
-}
-export const publicItineraryController: PublicItineraryCore & {
-  subscribe(next: (rows: Awaited<ReturnType<PublicItineraryCore['list']>>) => void, error: (cause: unknown) => void): () => void
-} = {
-  list: query => read(core => core.list(query)),
-  readSnapshot: id => read(core => core.readSnapshot(id)),
-  findBySource: id => read(core => core.findBySource(id)),
-  publish: id => write('publish', core => core.publish(id)),
-  update: (id, sourceId) => write('update', core => core.update(id, sourceId)),
-  withdraw: (id, sourceId) => write('withdraw', core => core.withdraw(id, sourceId)),
-  apply: id => write('apply', core => core.apply(id)),
-  subscribe(next, error) {
-    const subscription = liveQuery(() => read(core => core.list())).subscribe({ next, error })
-    return () => subscription.unsubscribe()
-  },
+
+export function createPublicItineraryController(userId: string): PublicItineraryCore & {
+  subscribe(next: (rows: PublicItinerary[]) => void, error: (cause: unknown) => void): () => void
+} {
+  function currentCore() {
+    const mode = getDatabaseMode()
+    if (mode === 'supabase') throw new Error('請切換至本機工作區套用或發佈行程。')
+    if (mode === 'indexeddb') {
+      const workspace: SharingWorkspace = { id: database.name,
+        read: work => database.transaction('r', database.tables, () => work(database)),
+        write: work => work(database) }
+      return createSharedCatalogCore(catalog, userId, workspace)
+    }
+    const store = requireHybridStore()
+    if (store.getWorkspaceOwnerId() !== userId) throw new Error('帳號已切換，請重新操作。')
+    const assertCurrent = store.captureAccount()
+    const workspace: SharingWorkspace = { id: store.getSyncLockName(),
+      read: work => store.readDatabase(work),
+      write: work => runHybridTask(active => {
+        if (active !== store) throw new Error('帳號已切換，請重新操作。')
+        return active.mutateDatabase('publicItineraries.apply', work)
+      }) }
+    return createSharedCatalogCore(catalog, userId, workspace, assertCurrent)
+  }
+  // Catalog browsing never depends on the current account's private workspace.
+  const browsing = createSharedCatalogCore(catalog, '', { id: '',
+    read: async () => { throw new Error('No personal workspace') }, write: async () => { throw new Error('No personal workspace') } })
+  async function prepared() { await migrateExistingCatalog() }
+  return {
+    async list(query) { await prepared(); return browsing.list(query) },
+    async readSnapshot(id) { await prepared(); return browsing.readSnapshot(id) },
+    async findBySource(id) { await prepared(); return currentCore().findBySource(id) },
+    async publish(id) { await prepared(); return currentCore().publish(id) },
+    async update(id, sourceId) { await prepared(); return currentCore().update(id, sourceId) },
+    async withdraw(id, sourceId) { await prepared(); return currentCore().withdraw(id, sourceId) },
+    async apply(id) { await prepared(); return currentCore().apply(id) },
+    subscribe(next, error) {
+      let active = true
+      let unsubscribe = () => {}
+      void prepared().then(() => {
+        if (!active) return
+        const subscription = liveQuery(() => browsing.list()).subscribe({ next, error })
+        unsubscribe = () => subscription.unsubscribe()
+      }).catch(error)
+      return () => { active = false; unsubscribe() }
+    },
+  }
 }

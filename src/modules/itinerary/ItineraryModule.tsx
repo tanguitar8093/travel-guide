@@ -30,8 +30,10 @@ import {
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import { useDatabaseMode } from '../../database/useDatabaseMode';
-import { publicItineraryController, publicSharingAvailable } from '../public-itinerary/public-itinerary.controller';
+import { createPublicItineraryController, publicSharingAvailable } from '../public-itinerary/public-itinerary.controller';
 import type { PublicItinerary } from '../public-itinerary/models';
+import { useAuth } from '../../auth/useAuth';
+import type { SharedPublicItinerary } from '../public-itinerary/shared-catalog';
 import { PublicationDialog } from '../public-itinerary/PublicationDialog';
 
 function PreviewLayout({ children }: ComponentProps<typeof WorkspaceLayout>) {
@@ -186,6 +188,8 @@ function ItineraryModule({
   const itineraryController = controller;
   const Layout = readonly ? PreviewLayout : WorkspaceLayout;
   const databaseMode = useDatabaseMode();
+  const { user } = useAuth();
+  const publicItineraryController = useMemo(() => createPublicItineraryController(user?.id ?? ''), [user?.id]);
   const [publications, setPublications] = useState<PublicItinerary[]>([]);
   const [publicationOperation, setPublicationOperation] = useState<'publish' | 'update' | 'withdraw'>();
   const [publicationTarget, setPublicationTarget] = useState<PublicItinerary>();
@@ -451,14 +455,14 @@ function ItineraryModule({
     }
   }
 
-  const selectedPublication = publications.find(row => row.sourceTripId === selectedTripId);
+  const selectedPublication = publications.find(row => row.sourceTripId === selectedTripId && (row as SharedPublicItinerary).ownerId === user?.id);
   const sharingEnabled = !readonly && publicSharingAvailable() && !sharedTripIds.includes(selectedTripId ?? '');
   useEffect(() => {
     if (readonly || !publicSharingAvailable()) return;
     return publicItineraryController.subscribe(setPublications, (cause) => {
       setError(cause instanceof Error ? cause.message : '載入公開版本失敗。');
     });
-  }, [readonly, databaseMode, hybridDataRevision]);
+  }, [readonly, databaseMode, hybridDataRevision, publicItineraryController]);
 
   const hasOpenDraft =
     creatingTrip ||

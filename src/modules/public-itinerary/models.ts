@@ -27,6 +27,7 @@ export interface PublicListQuery {
 }
 
 export type SharingErrorCode =
+  | 'FORBIDDEN'
   | 'NOT_IMPLEMENTED'
   | 'SOURCE_NOT_FOUND'
   | 'PUBLIC_NOT_FOUND'

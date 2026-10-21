@@ -157,6 +157,11 @@ export class LocalSyncStore {
     return this.context.capture(this.database.account)
   }
 
+  getWorkspaceOwnerId(): string {
+    this.captureAccount()()
+    return this.database.account.userId
+  }
+
   getSyncLockName(): string {
     this.captureAccount()()
     return this.database.name
