@@ -125,6 +125,20 @@ export class LocalSyncStore {
     })
   }
 
+  async readDatabase<Result>(work: (database: SyncDatabase) => Promise<Result>): Promise<Result> {
+    const assertCurrent = this.captureAccount()
+    return this.database.transaction('r', this.database.tables, async () => {
+      assertCurrent()
+      const result = await work(this.database)
+      assertCurrent()
+      return result
+    })
+  }
+
+  async mutateDatabase<Result>(operation: string, work: (database: SyncDatabase) => Promise<Result>): Promise<Result> {
+    return this.mutate(operation, () => work(this.database))
+  }
+
   async listTasks(): Promise<SyncTask[]> {
     const assertCurrent = this.context.capture(this.database.account)
     const tasks = await this.database.outbox.orderBy('sequence').toArray()

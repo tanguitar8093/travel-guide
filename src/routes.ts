@@ -3,6 +3,7 @@ export const routes = {
   places: '/places',
   regions: '/regions',
   itinerary: '/itinerary',
+  publicItinerary: '/public-itineraries',
   routeCalculator: '/route-calculator',
   dataManagement: '/data',
 } as const

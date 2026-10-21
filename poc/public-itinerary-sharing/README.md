@@ -209,3 +209,8 @@ PoC 直接引用 `src/index.css`、`src/common/WorkspaceLayout.css`、`src/modul
 ## 本版 UI 核准與設計稿保存
 
 2026-10-21 使用者確認目前 UI 可接受，要求先更新設計稿。已將當前 UI、核心程式與專案 CSS 內嵌保存至 [public-itinerary-sharing-workflow.html](../ui/public-itinerary-sharing-workflow.html)。設計稿資料庫名稱獨立於本 POC，不變更本 POC 現存資料。本次核准不代表完整手動 E2E 通過或正式整合完成。
+
+
+## 正式整合入口
+
+公開行程已整合至真正專案：使用 `npm run dev` 的 `/public-itineraries` 與既有行程操作選單；詳見 [正式整合說明](../../src/modules/public-itinerary/README.md)。本 POC 的核心與型別改為引用正式實作，獨立 POC 資料庫與凍結的核准設計稿保留，不搬移範例至正式資料。

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ComponentProps, FormEvent, ReactNode } from "react";
 import type {
   ItineraryItem,
   Label,
@@ -29,6 +29,14 @@ import {
 } from "../../common/route-estimate";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
+import { useDatabaseMode } from '../../database/useDatabaseMode';
+import { publicItineraryController, publicSharingAvailable } from '../public-itinerary/public-itinerary.controller';
+import type { PublicItinerary } from '../public-itinerary/models';
+import { PublicationDialog } from '../public-itinerary/PublicationDialog';
+
+function PreviewLayout({ children }: ComponentProps<typeof WorkspaceLayout>) {
+  return <div className="itinerary-app-shell sharing-readonly"><main className="itinerary-main">{children}</main></div>;
+}
 
 type DeleteRouteMapCheck =
   | { tripId: string; status: "loading" }
@@ -157,6 +165,7 @@ function getTripDates(trip: Trip): string[] {
 }
 
 function ItineraryModule({
+  readonly = false,
   sharedNavigation,
   controller = defaultItineraryController,
   sourceRevision = "",
@@ -165,6 +174,7 @@ function ItineraryModule({
   sharedSyncBusy = false,
   onRefreshSharedTrips,
 }: {
+  readonly?: boolean;
   sharedNavigation?: ReactNode;
   controller?: ItineraryController;
   sourceRevision?: string;
@@ -174,6 +184,11 @@ function ItineraryModule({
   onRefreshSharedTrips?(): Promise<void>;
 }) {
   const itineraryController = controller;
+  const Layout = readonly ? PreviewLayout : WorkspaceLayout;
+  const databaseMode = useDatabaseMode();
+  const [publications, setPublications] = useState<PublicItinerary[]>([]);
+  const [publicationOperation, setPublicationOperation] = useState<'publish' | 'update' | 'withdraw'>();
+  const [publicationTarget, setPublicationTarget] = useState<PublicItinerary>();
   const hybridDataRevision = useHybridDataRevision();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [regions, setRegions] = useState<Region[]>([]);
@@ -266,11 +281,11 @@ function ItineraryModule({
 
   const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
   const canEditItems =
-    !selectedTripId ||
-    itineraryController.getAccess(selectedTripId) !== "viewer";
+    !readonly && (!selectedTripId ||
+    itineraryController.getAccess(selectedTripId) !== "viewer");
   const canManageTrip =
-    !selectedTripId ||
-    itineraryController.getAccess(selectedTripId) === "owner";
+    !readonly && (!selectedTripId ||
+    itineraryController.getAccess(selectedTripId) === "owner");
   const selectedTripIdRef = useRef(selectedTripId);
   selectedTripIdRef.current = selectedTripId;
   const selectedRegionId = selectedTrip?.regionId;
@@ -376,7 +391,7 @@ function ItineraryModule({
   const tripDates = selectedTrip ? getTripDates(selectedTrip) : [];
   const startEditItem = useCallback(
     (item: ItineraryItem) => {
-      if (itineraryController.getAccess(item.tripId) === "viewer") return;
+      if (readonly || itineraryController.getAccess(item.tripId) === "viewer") return;
       itineraryController.beginEdit(item.tripId);
       setItemDraft(toItemDraft(item));
       setEditingItemId(item.id);
@@ -384,7 +399,7 @@ function ItineraryModule({
       setError("");
       setNotice("");
     },
-    [itineraryController],
+    [itineraryController, readonly],
   );
   const scheduledPlaceSequence = useMemo(() => {
     const sequence = new Map<string, number>();
@@ -402,18 +417,18 @@ function ItineraryModule({
         return {
           ...marker,
           sequence: scheduledPlaceSequence.get(marker.id),
-          ...(matchingItem
+          ...(matchingItem && !readonly
             ? { onClick: () => startEditItem(matchingItem) }
             : {}),
         };
       }),
-    [dayItems, scheduledPlaceSequence, startEditItem, visibleMapData],
+    [dayItems, scheduledPlaceSequence, startEditItem, visibleMapData, readonly],
   );
 
   async function refreshWorkspace(preferredTripId = selectedTripId) {
     const [workspace, labelTree] = await Promise.all([
       itineraryController.loadWorkspace(preferredTripId),
-      labelController.listTree(),
+      readonly ? Promise.resolve([]) : labelController.listTree(),
     ]);
     setTrips(workspace.trips);
     setRegions(workspace.regions);
@@ -436,6 +451,15 @@ function ItineraryModule({
     }
   }
 
+  const selectedPublication = publications.find(row => row.sourceTripId === selectedTripId);
+  const sharingEnabled = !readonly && publicSharingAvailable() && !sharedTripIds.includes(selectedTripId ?? '');
+  useEffect(() => {
+    if (readonly || !publicSharingAvailable()) return;
+    return publicItineraryController.subscribe(setPublications, (cause) => {
+      setError(cause instanceof Error ? cause.message : '載入公開版本失敗。');
+    });
+  }, [readonly, databaseMode, hybridDataRevision]);
+
   const hasOpenDraft =
     creatingTrip ||
     editingTrip ||
@@ -449,7 +473,7 @@ function ItineraryModule({
     let active = true;
     Promise.all([
       itineraryController.loadWorkspace(selectedTripIdRef.current),
-      labelController.listTree(),
+      readonly ? Promise.resolve([]) : labelController.listTree(),
     ])
       .then(([workspace, labelTree]) => {
         if (!active) return;
@@ -497,6 +521,7 @@ function ItineraryModule({
     calculatingItemId,
     refreshingSharedTrip,
     hybridDataRevision,
+    readonly,
   ]);
 
   useEffect(() => {
@@ -533,7 +558,7 @@ function ItineraryModule({
       try {
         const [workspace, labelTree, nextItems] = await Promise.all([
           itineraryController.loadWorkspace(tripId),
-          labelController.listTree(),
+          readonly ? Promise.resolve([]) : labelController.listTree(),
           itineraryController.listItems(tripId),
         ]);
         if (!active) return;
@@ -562,7 +587,7 @@ function ItineraryModule({
       active = false;
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, [addingItem, selectedTripId, itineraryController]);
+  }, [addingItem, selectedTripId, itineraryController, readonly]);
 
   useEffect(() => {
     if (!hasOpenDraft) return;
@@ -1093,12 +1118,17 @@ function ItineraryModule({
   }
 
   return (
-    <WorkspaceLayout
+    <Layout
       active="itinerary"
       shellClassName="itinerary-app-shell"
       mainClassName="itinerary-main"
     >
       {sharedNavigation}
+      {publicationOperation && selectedTrip && selectedRegion && (
+        <PublicationDialog operation={publicationOperation} trip={selectedTrip} regionName={selectedRegion.name}
+          published={publicationTarget} onClose={() => setPublicationOperation(undefined)}
+          onSuccess={(message) => { setPublicationOperation(undefined); setNotice(message); }} />
+      )}
       {placePickerOpen && itemFormVisible && (
         <SearchableSelectDialog
           label="地點"
@@ -1194,7 +1224,7 @@ function ItineraryModule({
               </p>
             )}
           </div>
-          <div className="itinerary-heading-actions">
+          {!readonly && <div className="itinerary-heading-actions">
             {selectedTripId &&
               sharedTripIds.includes(selectedTripId) &&
               onRefreshSharedTrips && (
@@ -1266,6 +1296,16 @@ function ItineraryModule({
                     >
                       編輯行程
                     </button>
+                    {sharingEnabled && <>
+                      <hr />
+                      <button type="button" disabled={interactionBusy || hasOpenDraft || loading || !selectedRegion}
+                        onClick={() => runTripAction(() => { setPublicationTarget(selectedPublication); setPublicationOperation(selectedPublication ? 'update' : 'publish'); })}>
+                        {selectedPublication ? '更新公開版本' : '發佈到公開行程'}
+                      </button>
+                      {selectedPublication && <button type="button" className="itinerary-action-danger"
+                        disabled={interactionBusy || hasOpenDraft || loading}
+                        onClick={() => runTripAction(() => { setPublicationTarget(selectedPublication); setPublicationOperation('withdraw'); })}>下架公開版本</button>}
+                    </>}
                     <hr />
                     <button
                       type="button"
@@ -1279,7 +1319,7 @@ function ItineraryModule({
                 )}
               </div>
             </details>
-          </div>
+          </div>}
         </section>
         {error && !deleteTripDialogOpen && (
           <div className="itinerary-feedback itinerary-error" role="alert">
@@ -1488,7 +1528,7 @@ function ItineraryModule({
                     <span className="itinerary-day-count">
                       {formatDate(selectedDate)} · {totalDays} 天
                     </span>
-                    {(focusMode || (!itemFormVisible && !editingTrip)) && (
+                    {!readonly && (focusMode || (!itemFormVisible && !editingTrip)) && (
                       <button
                         ref={
                           focusMode ? focusModeCloseRef : focusModeTriggerRef
@@ -1953,7 +1993,7 @@ function ItineraryModule({
                                   )}
                                   {item.note && <p>{item.note}</p>}
                                 </div>
-                                <div className="itinerary-item-actions">
+                                {!readonly && <div className="itinerary-item-actions">
                                   <button
                                     type="button"
                                     aria-label="往前移"
@@ -2022,7 +2062,7 @@ function ItineraryModule({
                                   >
                                     移除
                                   </button>
-                                </div>
+                                </div>}
                               </li>
                             );
                           })}
@@ -2044,7 +2084,7 @@ function ItineraryModule({
                           </div>
                         )
                       )}
-                      {!tripPlaces.length && !itemFormVisible && (
+                      {!readonly && !tripPlaces.length && !itemFormVisible && (
                         <p className="itinerary-region-hint">
                           請先到地點模組，將地點加入「{selectedRegion?.name}
                           」區域。
@@ -2339,7 +2379,7 @@ function ItineraryModule({
           </section>
         </div>
       )}
-    </WorkspaceLayout>
+    </Layout>
   );
 }
 

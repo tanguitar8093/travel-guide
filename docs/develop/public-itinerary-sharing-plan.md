@@ -1,7 +1,7 @@
 # 公開行程：補齊更新、下架與獨立快照流程
 
 - 日期：2026-10-21（Asia/Taipei）
-- 狀態：核心操作與獨立 POC UI 已實作，29 項測試通過；待使用者手動 E2E 驗收。
+- 狀態：公開行程已整合至正式 UI 與 IndexedDB；107 項針對性測試與 29 項 PoC 契約通過，待使用者手動驗收。
 - UI 設計稿：[public-itinerary-sharing-workflow.html](../../poc/ui/public-itinerary-sharing-workflow.html)
 - UI 說明文件：[README.md](../../poc/ui/README.md)
 - POC 流程準則：[poc.md](../../.agents/skills/poc.md)
@@ -111,3 +111,12 @@ POC 側欄提供區域、地點與標籤列表；地點可依區域／標籤篩�
 ## 2026-10-21：目前 UI 核准並更新設計稿
 
 使用者確認「這 ui 可以，先把這版更新至設計稿」。已更新 [設計稿](../../poc/ui/public-itinerary-sharing-workflow.html)，內嵌目前核准的 UI、核心及專案 CSS，含分享區域命名、地點標籤與正式 UI 對齊版本；設計稿使用獨立 IndexedDB，與 POC 實作資料分開。同步重寫 [設計稿說明](../../poc/ui/README.md)，本版取代先前待確認版本。本次完成 UI 核准與設計稿保存；完整手動 E2E、E2E 程式與正式整合尚未完成。
+
+
+## 2026-10-21：正式專案 UI 與 IndexedDB 整合
+
+依使用者同意開始正式整合，新增 `/public-itineraries` 與側欄入口，分享操作加入現有行程選單，公開預覽重用真正的 ItineraryModule。TravelDatabase／帳號本機工作區新增版本 10 公開快照 store，不寫入範例、不搬移 PoC 資料；PoC 與正式專案共用核心。套用使用目前本機工作區的交易機制，公開快照留在本機，不新增雲端設計。
+
+保留既有編輯、刪除、路線圖與協作流程，來源刪除後可從公開列表下架。跨模組刷新使用 Dexie 交易完成通知，未儲存的草稿仍沿用現有保護。完整資料與驗收方式見 [正式整合說明](../../src/modules/public-itinerary/README.md)。既有個人備份維持原格式；公開快照不包含在個人備份，單機清空所有資料包含公開快照。
+
+目前已通過核心契約、正式資料庫升級／repository、帳號工作區交易／回滾及刷新來源隔離的自動測試；正式整合的瀏覽器手動 E2E 尚未完成。

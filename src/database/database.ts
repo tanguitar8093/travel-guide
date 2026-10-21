@@ -1,3 +1,4 @@
+import type { PublicItinerary } from '../modules/public-itinerary/models'
 import Dexie, { type Table } from 'dexie'
 import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
 
@@ -9,6 +10,7 @@ export class TravelDatabase extends Dexie {
   itineraryItems!: Table<ItineraryItem, string>
   routeMaps!: Table<RouteMap, string>
   routeMapPlaces!: Table<RouteMapPlace, string>
+  publicItineraries!: Table<PublicItinerary, string>
 
   constructor(name = 'travel-planner') {
     super(name)
@@ -59,6 +61,9 @@ export class TravelDatabase extends Dexie {
       labels: '&id, name, parentId',
       trips: '&id, regionId, startDate, endDate',
       itineraryItems: '&id, tripId, placeId, date, [tripId+date+order]',
+    })
+    this.version(10).stores({
+      publicItineraries: '&id, &sourceTripId, createdAt, updatedAt',
     })
     this.version(7).stores({
       routeMaps: '&id, &tripId',

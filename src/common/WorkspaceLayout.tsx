@@ -9,7 +9,7 @@ import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 import { useAdminLayoutDebug } from './useAdminLayoutDebug';
 import { startLayoutDebug } from './layout-debug';
 
-type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "route-calculator" | "data";
+type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "public-itinerary" | "route-calculator" | "data";
 
 interface WorkspaceLayoutProps {
   active: WorkspaceSection;
@@ -29,6 +29,7 @@ const navigationItems: {
   { id: "places", label: "地點", icon: "⌖", path: routes.places },
   { id: "labels", label: "標籤", icon: "◈", path: routes.labels },
   { id: "itinerary", label: "行程", icon: "▤", path: routes.itinerary },
+  { id: "public-itinerary", label: "公開行程", icon: "◉", path: routes.publicItinerary },
   { id: "route-calculator", label: "路程試算", icon: "↔", path: routes.routeCalculator },
   { id: "data", label: "資料", icon: "⇅", path: routes.dataManagement },
 ];
@@ -41,6 +42,7 @@ const debugLayoutBreakpoints: Record<
   places: { mobile: 650, compact: 1050, narrow: 480 },
   labels: { mobile: 650, compact: 1000, narrow: 480 },
   itinerary: { mobile: 680, compact: 1000 },
+  "public-itinerary": { mobile: 680, compact: 1000 },
   "route-calculator": { mobile: 680, compact: 1000, narrow: 480 },
   data: { mobile: 800, compact: 800, narrow: 560 },
 };

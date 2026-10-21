@@ -320,6 +320,7 @@ export class BackupRepository {
       'rw',
       database.tables,
       async () => {
+        await database.publicItineraries.clear()
         await database.routeMapPlaces.clear()
         await database.routeMaps.clear()
         await database.itineraryItems.clear()

@@ -1,4 +1,5 @@
 import './App.css'
+import { PublicItineraryModule } from './modules/public-itinerary/PublicItineraryModule'
 import { LabelModule } from './modules/label'
 import { PlaceModule } from './modules/place'
 import { RegionModule } from './modules/region'
@@ -11,6 +12,8 @@ import { useDatabaseMode } from './database/useDatabaseMode'
 
 function RoutedApp() {
   const pathname = usePathname().replace(/\/+$/, '') || '/'
+
+  if (pathname === routes.publicItinerary) return <PublicItineraryModule />
 
   if (pathname === routes.routeCalculator) {
     return <RouteCalculatorModule />
