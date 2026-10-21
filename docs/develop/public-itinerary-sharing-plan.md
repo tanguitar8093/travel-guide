@@ -1,7 +1,7 @@
 # 公開行程：補齊更新、下架與獨立快照流程
 
 - 日期：2026-10-21（Asia/Taipei）
-- 狀態：計畫已確認，尚未實作。
+- 狀態：核心操作與獨立 POC UI 已實作，29 項測試通過；待使用者手動 E2E 驗收。
 - UI 設計稿：[public-itinerary-sharing-workflow.html](../../poc/ui/public-itinerary-sharing-workflow.html)
 - UI 說明文件：[README.md](../../poc/ui/README.md)
 - POC 流程準則：[poc.md](../../.agents/skills/poc.md)
@@ -67,4 +67,47 @@
 - 日期沿用來源行程，套用不自動改期。
 - 每次套用建立不同副本；沿用設計稿的「（副本）」「（副本 2）」命名示意。
 - POC 以本機示意資料呈現公開瀏覽；未來跨帳號使用時，來源 ID 比對之外仍須另行設計發佈者權限。
-- 本文件保存完整開發計畫，不代表 UI 修訂、測項或 IndexedDB 已完成。
+- 各階段完成狀態以本文交付紀錄為準；測試契約與資料庫定義完成不代表商業邏輯或 UI 串接完成。
+
+## 2026-10-21：TDD 與資料庫定義交付
+
+依使用者要求先完成定義階段，不將此要求記為新增 UI workflow 已核准：
+
+- [POC 定義與欄位／範例 key-value](../../poc/public-itinerary-sharing/README.md)：型別、stores／索引、獨立快照、操作契約、交易與初始化。
+- [Vitest 行為契約](../../poc/public-itinerary-sharing/core.contract.ts)：18 項待實作測試；核心入口目前回傳 `NOT_IMPLEMENTED`，保留 TDD RED。
+- [IndexedDB 結構及初始化](../../poc/public-itinerary-sharing/database.ts) 與 [範例資料](../../poc/public-itinerary-sharing/fixtures.ts)：使用獨立資料庫，不變更正式資料庫或 Supabase。
+- [資料庫測試](../../poc/public-itinerary-sharing/database.test.ts)：6 項通過，含持久性、唯一來源、初始化與失敗回滾。
+- 獨立驗證指令：`npm run test:poc:public-itinerary:db`、`npm run test:poc:public-itinerary`、`npm run typecheck:poc:public-itinerary`。完整 POC 測試在定義階段預期退出碼 1，待核心實作後轉 GREEN。
+
+UI 設計稿仍為記憶體示意；商業邏輯、POC UI 串接、手動 E2E 與 E2E 程式均尚未完成。
+
+
+## 2026-10-21：UI 與核心實作交付
+
+依使用者「現在測項 ui 稿, db 都好了, 開始實作 ui, 和核心內容吧」進入實作：
+
+- [核心操作](../../poc/public-itinerary-sharing/core.ts) 完成列表、快照讀取、來源查詢、發佈、更新、下架與套用；交易內完整 clone／驗證，失敗回滾。
+- [POC UI](../../poc/public-itinerary-sharing/index.html) 沿用設計稿版面，接入獨立 IndexedDB；支援個人編輯、公開管理確認／取消、搜尋篩選、跨日預覽及套用通知。liveQuery 同步跨分頁變更與下架預覽狀態。
+- `npm run dev:poc:public-itinerary`，開啟 `http://localhost:5174/`；驗收請固定同一 origin，資料在重新整理後保留。
+- `npm run test:poc:public-itinerary`：26 項通過；新增地圖欄位、空字串／零值、併發套用與第一個空缺副本名稱的驗證。
+- `npm run build:poc:public-itinerary` 與針對性 lint 通過。全專案 lint 有既有 E2E hooks 錯誤，詳見 POC README。
+- 原始 UI 設計稿保持記憶體示意，實作位於獨立 POC 目錄。瀏覽器手動驗收與 E2E 程式尚未完成；下一步依 POC 流程交付使用者手動驗收。
+
+
+## 分享副本管理修訂
+
+使用者要求套用時能辨識並統一管理複製資料：套用區域命名為 `<公開區域名稱>(分享)`；每次套用新增獨立標籤 `<公開行程名稱>(分享)`，隨機選色，所有複製地點使用該標籤。標籤加入套用交易，建立標籤或後續寫入失敗均完整回滾。公開快照排除來源私人標籤的規則維持不變。
+
+POC 側欄提供區域、地點與標籤列表；地點可依區域／標籤篩選，標籤列表顯示所屬副本行程。27 項測試涵蓋套用命名、每份副本獨立標籤與失敗回滾。舊副本不自動改名或補標籤，請以新套用副本驗收。
+
+
+## UI 對齊與既有功能保留
+
+依使用者要求，PoC 的既有畫面直接引用專案現行 CSS，改齊區域／地點左右欄、標籤分類與地點預覽、行程標題下拉選單及操作樣式。PoC 可省略既有功能，正式整合必須使用現有模組、controller 與 repository，保留原本編輯、刪除、批次管理、路線圖與協作權限。
+
+新增 2 項相容性測試直接使用正式 TripRepository 刪除原始來源與套用副本，驗證既有項目／路線清理、保留區域／地點／標籤，且公開快照保持獨立。共 29 項通過。完整正式 UI 整合仍待後續階段；來源刪除後的公開版本需保留發佈者下架管理入口。詳見 POC README 的整合邊界。
+
+
+## 2026-10-21：目前 UI 核准並更新設計稿
+
+使用者確認「這 ui 可以，先把這版更新至設計稿」。已更新 [設計稿](../../poc/ui/public-itinerary-sharing-workflow.html)，內嵌目前核准的 UI、核心及專案 CSS，含分享區域命名、地點標籤與正式 UI 對齊版本；設計稿使用獨立 IndexedDB，與 POC 實作資料分開。同步重寫 [設計稿說明](../../poc/ui/README.md)，本版取代先前待確認版本。本次完成 UI 核准與設計稿保存；完整手動 E2E、E2E 程式與正式整合尚未完成。
