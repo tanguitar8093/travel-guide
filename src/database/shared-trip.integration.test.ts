@@ -216,7 +216,7 @@ it('enables one trip without changing private rows and never resets shared edits
   await asUser(owner, () => rpc('enable', ids.tripId))
   expect(doc(await snapshot(owner, ids.tripId)).items).toHaveLength(2)
   expect((await sql.query('select to_jsonb(i) as row from public.itinerary_items i where id=$1', [ids.itemId])).rows).toEqual(before)
-  await expect(asUser(owner, () => sql.query("update public.itinerary_items set note='lost' where id=$1", [ids.itemId]))).rejects.toThrow('共同編輯')
+  await expect(asUser(owner, () => sql.query("update public.itinerary_items set note='lost' where id=$1", [ids.itemId]))).rejects.toThrow(/已啟用協作.*請使用共享行程/)
   await asUser(owner, () => sql.query('update public.itinerary_items set travel_duration_minutes=null,travel_distance_meters=null where id=$1', [ids.itemId]))
 })
 
@@ -490,7 +490,7 @@ it('repairs a frozen child-first trip deletion, survives a lost response and rev
   ])
   await sql.exec(originalSyncPush)
   try {
-    await expect(syncHybridManually(ownerDevice.store, adapter, lock)).rejects.toThrow('共同編輯')
+    await expect(syncHybridManually(ownerDevice.store, adapter, lock)).rejects.toThrow(/已啟用協作.*請使用共享行程/)
     expect(doc(await snapshot(owner, ids.tripId)).items).toHaveLength(1)
     expect((await sql.query('select id from public.itinerary_items where id=$1', [ids.itemId])).rows).toHaveLength(1)
     expect((await sql.query('select id from public.route_maps where id=$1', [linked.mapId])).rows).toHaveLength(1)

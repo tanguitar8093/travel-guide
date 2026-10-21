@@ -33,6 +33,10 @@ function cloneGraph(region: Region, trip: Trip, places: PublicPlace[], items: It
   })
 }
 
+export function clonePublicSnapshot(snapshot: PublicSnapshot): PublicSnapshot {
+  return cloneGraph(snapshot.region, snapshot.trip, snapshot.places, snapshot.items)
+}
+
 export function createPublicItineraryCore(db: PublicItineraryStorage): PublicItineraryCore {
   const sourceTables = [db.trips, db.regions, db.places, db.itineraryItems, db.publicItineraries]
 

@@ -270,7 +270,7 @@ describe('A privilege convergence on the full sorted synthetic chain', () => {
       db = baselineDb
       await isolated.close()
     }
-  })
+  }, 30000) // Cloning and replaying the schema can exceed 5s during the full parallel suite.
 
   it('is idempotent; preserves exact owner/platform/unrelated ACLs, memberships and role/data rows', async () => {
     const before = await aclState(), protectedBefore = await protectedState()

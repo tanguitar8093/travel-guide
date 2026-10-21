@@ -258,7 +258,7 @@ describe('atomic private itinerary reorder on the current migration chain', () =
     const shared = (await db.query('select to_jsonb(w) as row from public.trip_shared_workspaces w where trip_id=$1', [f.tripId])).rows
     for (const uid of [owner, admin]) {
       for (const [date, ids] of [[day, f.ids], ['2026-10-21', []]] as const) {
-        await expect(asUser(uid, () => reorder(f.tripId, [...ids], date))).rejects.toThrow('共同編輯')
+        await expect(asUser(uid, () => reorder(f.tripId, [...ids], date))).rejects.toThrow(/已啟用協作.*請使用共享行程/)
         expect(await state(f.tripId)).toEqual(before)
       }
     }

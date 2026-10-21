@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { setPublicCatalogAccount } from '../modules/public-itinerary/catalog-runtime'
 import { activateHybridAccount, deactivateHybridAccount } from '../database/hybrid.runtime'
 import { setDatabaseModeRole } from '../database/mode-access'
 import { getDatabaseMode } from '../database/runtime'
@@ -40,6 +41,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (!active) return
       const generation = ++sessionGeneration.current
       deactivateHybridAccount()
+      setPublicCatalogAccount(null)
       setDatabaseModeRole(null)
 
       setSession(nextSession)
@@ -99,6 +101,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         }
       }
       if (!active || generation !== sessionGeneration.current) return
+      setPublicCatalogAccount(nextSession.user.id)
       setHasWorkspaceAccess(role === 'member' || role === 'admin')
       setStatus('authenticated')
     }
@@ -154,6 +157,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       active = false
       sessionGeneration.current += 1
       deactivateHybridAccount()
+      setPublicCatalogAccount(null)
       setDatabaseModeRole(null)
       unsubscribe()
     }
@@ -162,6 +166,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   function clearLocalAuthState() {
     sessionGeneration.current += 1
     deactivateHybridAccount()
+    setPublicCatalogAccount(null)
     setDatabaseModeRole(null)
     setSession(null)
     setStatus('unauthenticated')

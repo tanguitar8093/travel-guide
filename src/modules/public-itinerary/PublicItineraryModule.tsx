@@ -14,6 +14,7 @@ import { sharingErrorMessage } from './messages'
 import type { PublicItinerary } from './models'
 import './PublicItineraryModule.css'
 import { useAuth } from '../../auth/useAuth'
+import { usePublicCatalogStatus, refreshPublicCatalog, acceptPublicCloudVersion } from './catalog-runtime'
 import type { SharedPublicItinerary } from './shared-catalog'
 
 function days(row: PublicItinerary) {
@@ -31,6 +32,7 @@ function Preview({ row, onClose }: { row: PublicItinerary; onClose(): void }) {
 export function PublicItineraryModule() {
   const { user } = useAuth()
   const publicItineraryController = useMemo(() => createPublicItineraryController(user?.id ?? ''), [user?.id])
+  const sync = usePublicCatalogStatus()
   const mode = useDatabaseMode()
   const hybrid = useHybridStatus()
   const available = publicSharingAvailable()
@@ -71,7 +73,9 @@ export function PublicItineraryModule() {
       <span className="public-eyebrow">旅行靈感，從這裡開始</span><h1>公開行程</h1><p>看看已分享的安排，把喜歡的行程變成下一趟旅行。</p>
     </div><RouterLink to={routes.itinerary} className="itinerary-secondary public-link-button">我的行程 ↗</RouterLink></header>
     <div className="public-intro"><span className="public-intro-icon">◉</span><div><strong>預覽靈感，套用後自由調整</strong>
-      <p>套用會複製區域與地點，建立分享標籤，方便統一管理。同一瀏覽器的所有帳號都能查看這裡的公開內容。</p></div></div>
+      <p>套用會複製區域與地點，建立分享標籤，方便統一管理。公開內容同步至雲端後，所有帳號與裝置都能查看。</p></div></div>
+    <div className="public-list-toolbar"><p role="status">{sync.syncing ? '正在同步公開行程…' : sync.pending ? `${sync.pending} 筆公開行程操作待同步` : '公開行程已同步'}{sync.error && ` · ${sync.error}`}</p><button className="itinerary-secondary" disabled={sync.syncing} onClick={() => void refreshPublicCatalog()}>同步公開行程</button></div>
+    {sync.conflicts.map(conflict => <p key={conflict.id} className="itinerary-feedback itinerary-error" role="alert">「{conflict.name}」的雲端版本已變更，本機操作保留中。<button className="itinerary-secondary" disabled={sync.syncing} onClick={() => { if (window.confirm('放棄此公開行程的待同步操作，改用雲端版本？個人來源行程不受影響。')) void acceptPublicCloudVersion(conflict.id) }}>採用雲端版本</button></p>)}
     {!available && <p className="itinerary-feedback itinerary-error">請切換至本機工作區使用公開行程。</p>}
     {available && !ready && <p role="status">正在準備本機工作區…</p>}
     {error && <p className="itinerary-feedback itinerary-error" role="alert">{error}</p>}

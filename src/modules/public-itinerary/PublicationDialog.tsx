@@ -24,7 +24,7 @@ export function PublicationDialog({ operation, trip, regionName, published, onCl
       if (operation === 'publish') await publicItineraryController.publish(trip.id)
       else if (operation === 'update') await publicItineraryController.update(published!.id, trip.id)
       else await publicItineraryController.withdraw(published!.id, trip.id)
-      onSuccess(`「${trip.name}」${operation === 'publish' ? '已發佈' : operation === 'update' ? '的公開版本已更新' : '已下架'}。`)
+      onSuccess(`「${trip.name}」${operation === 'publish' ? '已在本機發佈' : operation === 'update' ? '的本機公開版本已更新' : '已在本機下架'}，已排入雲端同步；可在公開行程頁確認進度。`)
     } catch (cause) { setError(sharingErrorMessage(cause)) }
     finally { running.current = false; setBusy(false) }
   }

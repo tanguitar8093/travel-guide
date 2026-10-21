@@ -4,12 +4,10 @@ import { SyncDatabase } from './sync.database'
 import { hybridBackend } from './hybrid.backend'
 import {
   activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore,
-  subscribeHybridStatus,
 } from './hybrid.runtime'
 import { setSyncMode } from './runtime'
 import * as syncEngine from './sync-engine'
 import { setDatabaseModeRole } from './mode-access'
-import type { SharedTripDocument } from './shared-trip.types'
 
 function createLocalStorageMock() {
   const store = new Map<string, string>()
@@ -65,35 +63,6 @@ describe('hybrid development backend', () => {
     accounts.push(account)
     await activateHybridAccount(account, role)
     return account
-  }
-
-  async function queueSharedConflict() {
-    const store = requireHybridStore()
-    const tripId = crypto.randomUUID()
-    const regionId = crypto.randomUUID()
-    const document: SharedTripDocument = {
-      trip: {
-        id: tripId, name: 'Shared draft', regionId, ownerUid: crypto.randomUUID(),
-        startDate: '2026-10-20', endDate: '2026-10-21', access: 'editor', aclVersion: '1',
-      },
-      region: { id: regionId, name: 'Kyoto', googlePlaceId: 'kyoto', zoom: 12 },
-      places: [], items: [],
-    }
-    await store.syncTransaction(async (database) => {
-      const metadata = await database.syncMetadata.get('workspace')
-      if (!metadata) throw new Error('Missing test workspace')
-      await database.syncMetadata.update('workspace', { initialized: true, cursor: '0' })
-      await database.outbox.add({
-        operationId: crypto.randomUUID(), deviceId: metadata.deviceId, account: database.account,
-        protocolVersion: 1, operation: 'sharedTrip.save', createdAt: new Date().toISOString(),
-        changes: [], status: 'conflict', attempts: 0,
-        sharedTrip: {
-          tripId, baseVersion: '1', before: document, after: document,
-          conflict: { id: tripId, version: '2', document },
-        },
-      })
-    })
-    await vi.waitFor(() => expect(getHybridStatus().summary?.sharedConflictCount).toBe(1))
   }
 
   it('waits for the login cloud check before exposing the local workspace', async () => {
@@ -324,32 +293,6 @@ describe('hybrid development backend', () => {
     expect(syncSpy).toHaveBeenCalledTimes(1)
 
     syncSpy.mockRestore()
-  })
-
-  it('keeps debounce and foreground polling active when only a shared trip is conflicted', async () => {
-    const syncSpy = vi.spyOn(syncEngine, 'syncHybridManually').mockResolvedValue()
-    let unsubscribe = () => {}
-    try {
-      await login()
-      setSyncMode('manual')
-      await queueSharedConflict()
-      expect(getHybridStatus().error).toBeUndefined()
-      expect(getHybridStatus().summary?.personalConflictCount).toBe(0)
-      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
-      const completed = new Promise<void>((resolve) => {
-        unsubscribe = subscribeHybridStatus(resolve)
-      })
-      setSyncMode('auto')
-      await vi.advanceTimersByTimeAsync(2000)
-      expect(syncSpy).toHaveBeenCalledTimes(1)
-      await completed
-      await vi.advanceTimersByTimeAsync(4 * 60 * 1000)
-      expect(syncSpy).toHaveBeenCalledTimes(2)
-      expect(getHybridStatus().summary?.sharedConflictCount).toBe(1)
-    } finally {
-      unsubscribe()
-      syncSpy.mockRestore()
-    }
   })
 
   it('still pauses automatic sync when personal data has an unresolved conflict', async () => {

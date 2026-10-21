@@ -2,16 +2,28 @@ import Dexie, { liveQuery } from 'dexie'
 import { database } from '../../database/database'
 import { getDatabaseMode } from '../../database/runtime'
 import { requireHybridStore, runHybridTask } from '../../database/hybrid.runtime'
-import { createSharedCatalogCore, migrateLegacyPublications, PublicItineraryCatalog } from './shared-catalog'
+import { createSharedCatalogCore, migrateLegacyPublications } from './shared-catalog'
 import type { SharingWorkspace } from './shared-catalog'
 import type { PublicItinerary, PublicItineraryCore } from './models'
+import { createCloudWorkspaceCore } from './cloud-workspace'
+import { capturePublicCatalogAccount, refreshPublicCatalog } from './catalog-runtime'
 
-const catalog = new PublicItineraryCatalog()
-export function publicSharingAvailable() { return getDatabaseMode() !== 'supabase' }
+import { publicCatalog as catalog } from './catalog-instance'
+export function publicSharingAvailable() { return true }
 
 async function migrateExistingCatalog() {
   const names = await Dexie.getDatabaseNames()
-  for (const name of names.filter(name => name === database.name || name.startsWith('travel-planner-hybrid:'))) {
+  if (names.includes('travel-planner-public-catalog')) {
+    const legacy = new Dexie('travel-planner-public-catalog')
+    try {
+      await legacy.open()
+      const rows = await legacy.table<import('./shared-catalog').SharedPublicItinerary>('publicItineraries').toArray()
+      for (const owner of new Set(rows.map(row => row.ownerId))) {
+        await migrateLegacyPublications(catalog, `legacy-catalog:${owner}`, owner, rows.filter(row => row.ownerId === owner))
+      }
+    } finally { legacy.close() }
+  }
+  for (const name of names.filter(name => name === database.name || name.startsWith(`travel-planner-hybrid:${encodeURIComponent(new URL(import.meta.env.VITE_SUPABASE_URL!).origin)}:`))) {
     const old = new Dexie(name)
     try {
       await old.open()
@@ -28,12 +40,12 @@ export function createPublicItineraryController(userId: string): PublicItinerary
 } {
   function currentCore() {
     const mode = getDatabaseMode()
-    if (mode === 'supabase') throw new Error('請切換至本機工作區套用或發佈行程。')
+    if (mode === 'supabase') return createCloudWorkspaceCore(catalog, userId)
     if (mode === 'indexeddb') {
       const workspace: SharingWorkspace = { id: database.name,
         read: work => database.transaction('r', database.tables, () => work(database)),
         write: work => work(database) }
-      return createSharedCatalogCore(catalog, userId, workspace)
+      return createSharedCatalogCore(catalog, userId, workspace, capturePublicCatalogAccount(userId), true)
     }
     const store = requireHybridStore()
     if (store.getWorkspaceOwnerId() !== userId) throw new Error('帳號已切換，請重新操作。')
@@ -44,7 +56,7 @@ export function createPublicItineraryController(userId: string): PublicItinerary
         if (active !== store) throw new Error('帳號已切換，請重新操作。')
         return active.mutateDatabase('publicItineraries.apply', work)
       }) }
-    return createSharedCatalogCore(catalog, userId, workspace, assertCurrent)
+    return createSharedCatalogCore(catalog, userId, workspace, assertCurrent, true)
   }
   // Catalog browsing never depends on the current account's private workspace.
   const browsing = createSharedCatalogCore(catalog, '', { id: '',
@@ -54,17 +66,19 @@ export function createPublicItineraryController(userId: string): PublicItinerary
     async list(query) { await prepared(); return browsing.list(query) },
     async readSnapshot(id) { await prepared(); return browsing.readSnapshot(id) },
     async findBySource(id) { await prepared(); return currentCore().findBySource(id) },
-    async publish(id) { await prepared(); return currentCore().publish(id) },
-    async update(id, sourceId) { await prepared(); return currentCore().update(id, sourceId) },
-    async withdraw(id, sourceId) { await prepared(); return currentCore().withdraw(id, sourceId) },
+    async publish(id) { await prepared(); const row = await currentCore().publish(id); void refreshPublicCatalog(); return row },
+    async update(id, sourceId) { await prepared(); const row = await currentCore().update(id, sourceId); void refreshPublicCatalog(); return row },
+    async withdraw(id, sourceId) { await prepared(); await currentCore().withdraw(id, sourceId); void refreshPublicCatalog() },
     async apply(id) { await prepared(); return currentCore().apply(id) },
     subscribe(next, error) {
       let active = true
+      const refresh = () => { void refreshPublicCatalog() }
       let unsubscribe = () => {}
       void prepared().then(() => {
         if (!active) return
         const subscription = liveQuery(() => browsing.list()).subscribe({ next, error })
         unsubscribe = () => subscription.unsubscribe()
+        refresh()
       }).catch(error)
       return () => { active = false; unsubscribe() }
     },
