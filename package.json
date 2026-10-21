@@ -1,0 +1,16 @@
+{
+  "name": "osm-local-map-demo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "python3 server.py",
+    "setup": "python3 scripts/download-data.py",
+    "test": "node scripts/smoke.mjs"
+  },
+  "dependencies": {
+    "maplibre-gl": "6.15.0"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
+}

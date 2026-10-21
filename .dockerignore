@@ -1,0 +1,8 @@
+node_modules
+data
+artifacts
+.git
+.codex
+.agents
+.aws
+__pycache__

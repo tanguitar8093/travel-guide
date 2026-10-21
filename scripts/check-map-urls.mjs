@@ -1,0 +1,12 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+const base=process.env.DEMO_URL||'http://127.0.0.1:3001';
+const browser=await chromium.launch({executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE||undefined,args:['--no-sandbox','--enable-unsafe-swiftshader']});
+try{const page=await browser.newPage({viewport:{width:1440,height:960}});const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto(base);await page.waitForFunction(()=>Boolean(window.demoMap),{},{timeout:60000});
+async function paste(url,expected){await page.locator('#search').fill(url);await page.locator('#search').press('Enter');await page.waitForFunction(text=>document.querySelector('#result-count').textContent===text,expected,{timeout:30000});}
+await paste('https://www.google.com/maps/place/Oniku+no+Isshin/@26.2138897,127.6749745,17z/data=!3d26.2138849!4d127.6775494','已解析 1 個地點');assert.equal(await page.locator('#places .place').count(),1);assert.ok(await page.getByRole('button',{name:'Oniku no Isshin',exact:true}).isVisible());await page.getByRole('button',{name:'加入 Oniku no Isshin',exact:true}).click();assert.equal(await page.locator('#itinerary li').count(),4);
+await paste('https://www.google.com/maps?q=25.033964,121.564468','不在此範圍');assert.equal(await page.locator('#places .place').count(),0);assert.ok((await page.locator('#search-note').textContent()).includes('不在目前沖繩'));
+await paste('https://www.google.com/maps/@26.21,127.68,17z','已解析 1 個地點');assert.ok((await page.locator('#search-note').textContent()).includes('中心點'));await page.getByRole('button',{name:'加入 未命名地點',exact:true}).click();assert.ok(await page.locator('#add-dialog').isVisible());assert.equal(await page.locator('#custom-name').inputValue(),'');await page.locator('#custom-name').fill('我的地點');await page.locator('#add-form [type=submit]').click();assert.equal(await page.locator('#itinerary li').count(),5);
+await paste('https://www.google.com/maps?q=restaurant','搜尋失敗');assert.ok((await page.locator('#search-note').textContent()).includes('無法取得地址'));
+await page.locator('#search').fill('中本天婦羅');await page.locator('#search').press('Enter');await page.waitForFunction(()=>document.querySelector('#result-count').textContent.includes('個結果'));assert.ok((await page.locator('#places').textContent()).includes('中本'));
+assert.deepEqual(errors,[]);console.log('PASS: URL pin displayed, added to trip, out-of-bounds warning, center-point notice, unnamed-place form, no-coordinate error, OSM search preserved.');}finally{await browser.close()}
