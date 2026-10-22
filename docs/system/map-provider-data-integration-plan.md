@@ -2,7 +2,7 @@
 
 日期：2026-10-23（Asia/Taipei）。
 
-狀態：**程式碼評估與建議方案，尚未實作、遷移或完成運行驗證。** 本次僅新增本文件，沒有修改正式功能、既有設計稿、IndexedDB、Supabase、環境或依賴。
+狀態：**整合評估與 IndexedDB 實作設計，正式資料層尚未實作或遷移。** 後續已另完成中立契約及隔離雙 renderer 核心；第三階段的先行測試已獲確認並完成首次基準執行，結果見第 13.8 節。新增設計見第 13 節；不代表已授權修改正式資料庫或部署雲端。
 
 ## 1. 範圍與結論
 
@@ -25,7 +25,7 @@
 | [OSM UI](../../poc/osm-ui/main.tsx) | 用預覽插件替換正式元件的 controller／renderer；範例資料在記憶體 | 正式 facade、業務驗證、同步或雙 provider 已整合 |
 | [設定 UI](../../poc/map-provider-settings/MapProviderSettingsDemo.tsx) | React 下拉選單切換 SVG 地圖風格；不儲存、不呼叫地圖服務 | Google／MapLibre 真實 renderer 可在正式資料上切換 |
 | [靜態設計稿](../../poc/ui/map-provider-osm.html) | 保存 UI 外觀與流程 | 搜尋、路線、儲存或部署可用 |
-| 共用 geo 模組 | 目前未有正式共用模組 | 今天的介面草案已是可直接使用的 API |
+| 共用 geo 模組 | 後續已實作中立契約、Google／MapLibre renderer 及隔離 PoC | 正式資料／UI、搜尋與路線已接線 |
 
 ## 2. 現有程式對資料設計的約束
 
@@ -68,7 +68,7 @@ Travel UI → controller → service → geo 中立契約
 
 初期一個下拉選單選一組 provider 能力，不新增三個分開選的產品設定；但內部 renderer、search、routing 仍是三個小接面。dataset 是 OSM 的配置，不是第三種 provider。導航維持 Google Maps 外連，不等於使用 Google SDK。
 
-沿用第一階段計畫中的方法，不新增大型 plugin framework。預計的新檔案集中於 geo 的 contracts、服務組合、MapView 與兩組 adapters；現在仍是預計位置，未新增實作。
+沿用第一階段計畫中的方法，不新增大型 plugin framework。後續已實作 geo contracts、MapView 與兩組 renderer adapters；搜尋／resolve／routing 與正式應用組合仍待接線。
 
 ### 3.2 必須修正的 Google 邊界
 
@@ -104,16 +104,19 @@ Travel UI → controller → service → geo 中立契約
 
 ### 4.1 可保存位置與即時位置分開
 
-建議新增可保存的 `StoredLocation` 概念：
+已完成的中立契約以 [contracts.ts](../../src/geo/contracts.ts) 為準，資料層直接引用型別，不另造平行版本：
 
 ```ts
 type Coordinate = { latitude: number; longitude: number };
-type LocationMetadata = {
-  source: 'user' | 'osm' | 'legacy-user';
-  kind: 'point' | 'approximate-center' | 'map-center' | 'user-picked';
-  osmReference?: string; // 完整 node/123、way/123 或 relation/123
-  datasetVersion?: string;
-};
+type LocationKind = 'point' | 'approximate-center' | 'map-center' | 'user-picked';
+type LocationMetadata =
+  | { source: 'user' | 'legacy-user'; kind: LocationKind }
+  | {
+      source: 'osm';
+      kind: LocationKind;
+      reference: { provider: 'osm'; id: `node/${string}` | `way/${string}` | `relation/${string}` };
+      datasetVersion?: string;
+    };
 type StoredLocation = LocationMetadata & { coordinate: Coordinate };
 ```
 
@@ -122,7 +125,7 @@ type StoredLocation = LocationMetadata & { coordinate: Coordinate };
 - Google details 的座標／地址／viewport 只在受允許的 Google runtime 使用，不寫入 `StoredLocation`，也不自動拿到 OSM 畫圖。
 - `source: user` 代表真正獨立輸入／選位，不是把 Google 回傳結果按「確認」就換標籤規避來源限制。
 - 區域沿用 `center`，新增 `centerMetadata?: LocationMetadata`，避免另存一份相同位置。舊 center 可標 `legacy-user`，但批次轉換前仍需確認其實際來源。
-- `osmReference` 不含 datasetVersion 作為身分；資料更新不應使同一 OSM feature 變成另一個收藏。
+- `reference.id` 不含 datasetVersion 作為身分；資料更新不應使同一 OSM feature 變成另一個收藏。執行期另驗證正整數 ID，不能只靠 TypeScript template literal。
 
 目前已查閱 [Google Places 政策](https://developers.google.com/maps/documentation/places/web-service/policies)：place ID 有保存例外，但一般 Places content 的儲存及跨非 Google 地圖呈現受限制。正式 Google SDK 路徑、區域條款與 Routes 結果保存仍須實作前核對；本文件不是完整授權或法律判定。
 
@@ -167,7 +170,7 @@ Place 驗證改為「有效 location、有效 Google ID、有效 mapsUrl 至少�
 | domain／validation | 新增位置與來源驗證；新舊端點 normalize；保留未定位舊資料 |
 | Dexie schema | 建議基底下一版 11；需先核對開工時最高版本，且同時演練 standalone、帳號 DB 的升級路徑 |
 | routeMapPlaces 索引 | 保留既有 Google 複合唯一索引供有 ID 的舊資料使用；Google ID 變 optional，不再視為每筆必有 |
-| OSM 去重 | 建議增 unique compound `[routeMapId+location.osmReference]`；無 reference 的座標地點不以座標硬去重 |
+| OSM 去重 | 建議增 unique compound `[routeMapId+location.reference.id]`；無 reference 的座標地點不以座標硬去重 |
 | Region／Place 新欄位 | 非索引欄位不需要單獨為每欄升版；統一隨此批 schema 發布，不加沒有查詢需求的座標索引 |
 | repository | 建立／修改／刪除端點引用驗證；位置變動與路程失效置於同交易 |
 | shared cache | 共享文件及 before／after／conflict 都能讀取新版位置 |
@@ -334,3 +337,112 @@ P3 的 schema／協定修改可以先準備，但不推定已獲授權套用至�
 - [Supabase changelog](https://supabase.com/changelog.md)：近期索引提及 TLS cipher 停用，屬連線相容性議題，非本次地圖 schema 需求；未據此修改環境。
 - [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security.md)：確認 grants 與 RLS 是不同層，新增／修改 API 不能只靠前端 gate。
 - [Google Places policies](https://developers.google.com/maps/documentation/places/web-service/policies)：確認 place ID 例外與一般 content 的保存／呈現限制；其他 Google SDK／Routes 的具體選型仍待實作階段核對。
+
+## 13. 第三階段 IndexedDB 實作設計與測試先行
+
+本節的「第三階段」指使用者確認的「最小共用契約 → renderer 核心 → IndexedDB 資料相容層」，不是第 10 節原評估表的整體 P3 全部內容。測試規格與開始設計已獲確認；後續另獲准執行第 13.8 節限定基準，**不修改正式 model／repository／schema、不連線雲端**。
+
+### 13.1 不可破壞的相容邊界
+
+1. 新欄位 optional；舊 Google-only、URL-only、Region.center、試算端點原欄位全部保留。缺少新欄位時走既有 Google 行為，不改原 SDK loader、key 讀取及正式頁面。
+2. 不從 Google ID、Google details、地圖 URL 或名稱自動補座標；不把舊 center 擅自標成已驗證的 user 來源。來源不明的 legacy center 保持原樣，跨 provider 呈現另由 operation 層決定。
+3. 不更換 UUID、不複製成兩套收藏、不改標籤、行程日期、順序、trip-region 關係或原刪除限制。切 renderer 不寫業務資料，也不清 outbox。
+4. repository 接受的新增欄位必須真的驗證；「附帶有效 Google ID 所以忽略非法 location」不可接受。未知位置欄位也不能直接展開保存。
+5. 瀏覽器 schema 能存不代表雲端可同步；正式 OSM 新寫入必須等整條資料路徑就緒，不能靠剝除 location 降級成成功。
+
+### 13.2 型別、驗證及寫入安排
+
+| 位置 | 設計 |
+|---|---|
+| [models.ts](../../src/database/models.ts) | Place 增 `location?: StoredLocation`；Region 增 `centerMetadata?: LocationMetadata`，繼續只有一份 center；型別從 geo contracts 以 type-only import 引入，不從含 renderer runtime 的 geo barrel 引入 |
+| [validation.ts](../../src/database/validation.ts) | 抽共用位置／metadata validator；CRUD 與備份共用。座標須為有限 number，緯度 [-90,90]、經度 [-180,180]；不把 OSM dataset 覆蓋限制當作業務資料合法範圍 |
+| 位置 shape | 拒絕 null、陣列、缺座標、未知 source／kind／欄位；OSM 必須有 `reference.provider = osm` 及完整 `node/…`、`way/…`、`relation/…` 正整數字串；不轉 number 以免 ID 精度流失；可選 datasetVersion 若提供須為非空字串 |
+| 來源 | user／legacy-user 不接受偽造的 provider reference 或 datasetVersion；Google runtime location 不可寫入 StoredLocation。合法來源標籤是驗證條件，不是能證明輸入實際來源的授權機制 |
+| Place 必要位置資訊 | googlePlaceId、mapsUrl、location 至少一項有效；每個「已提供」欄位仍須各自合法。舊 records 沒有 location 時不補預設值 |
+| Region | 有 metadata 必須同時有合法 center；Google-only 無 center 仍合法；舊 center 無 metadata 仍可讀寫。不得因擴充提高舊資料保存門檻 |
+| [repositories.ts](../../src/database/repositories.ts) | 在既有 Place update 交易內比對位置、寫 record、清除受影響估算；保留 injected DB 與 singleton 兩種使用方式，不新增第二套資料 API |
+
+不在這個相容層保存 provider response、Google 地址／viewport、全量 OSM tags 或 routing geometry。Location 的更新採整個小物件取代，不把不完整 nested patch 合成不明來源資料。
+
+### 13.3 位置變動與估算交易
+
+- 保留現有 Google ID 變更的失效行為；加入 StoredLocation 的新增、移除及有效位置變更。
+- 比對明確欄位，不靠物件 reference 或 JSON key 順序：Google ID、座標、source、kind、OSM reference。相同值重新傳入不算移動。
+- name、notes、icon、labels 的變更不清估算；只更新 datasetVersion 不代表座標改變，不因此背景覆寫或重算。
+- 對所有引用該 Place 的 itinerary items，各清「本站 incoming leg」與同 trip／date 排序的下一站；用 Set 去重，不跨天，不漏掉其他行程中的相同 Place。
+- 同交易清 travelDurationMinutes／travelDistanceMeters，未來若有 estimate context 也一併清；arrivalTime、durationMinutes、note、order 不動。任一寫入失敗，Place 和所有 items 全部回滾。
+- hybrid 仍透過既有 facade → LocalSyncStore.mutate；上述 Place 與 items 都必須出現在同一個 outbox task，不能只 queue Place。
+
+`travelEstimateContext`、路線結果 stale guard、OSM routing 本身不在這批 IndexedDB 實作內；不為了地點可存而提前增加未接線的估算格式。
+
+### 13.4 Dexie v11 與升級策略
+
+開工時重新核對最高版本；目前基底與帳號庫最高為 10，預計下一版為 11：
+
+```ts
+this.version(11).stores({
+  routeMapPlaces:
+    '&id, routeMapId, &[routeMapId+googlePlaceId], &[routeMapId+location.reference.id]',
+})
+```
+
+此為完整 route-map marker 擴充階段的目標 schema，不是已套用程式碼。Place／Region 的非索引欄位本身不需要改索引；若先實作這兩者而 marker 規格未定，不提前宣稱 v11 已完成。
+
+- 保留所有原索引，OSM 複合唯一索引只為具有合法 reference 的 marker 建鍵。沒有 Google ID／OSM reference 的 user-picked marker 不用空字串占位，不以座標強制去重。
+- `node/123` 與 `way/123` 是不同 reference；datasetVersion 不納入唯一鍵。一筆同時有 Google ID 和 OSM 位置時兩個唯一約束均成立。
+- repository 查 Google 複合索引前判斷 ID 是否存在，避免 `[mapId, undefined]` 成為非法 IndexedDB key；OSM 查詢同理。
+- TravelDatabase 的新版本由 SyncDatabase 繼承；不重宣告舊 5／6／8／9／10 版本，不新建另一個帳號資料庫名稱。
+- upgrade 只調整 schema／必要索引；不改寫業務 records、frozen payload、operationId、baseline、cursor 或 conflict review，不呼叫網路。
+- schema 升級失敗應明確報錯並保留舊資料；禁止刪庫重建。若需在後續對業務內容補來源，須走正常 repository／hybrid mutation。
+- 升級後舊程式開庫可能收到 VersionError；「不影響 Google」不等於舊二進位可任意降版。多分頁 blocked／versionchange 提示與正式發布窗口需在接 UI 前驗證。
+
+### 13.5 marker／端點與完整格式的接續工作
+
+Place 與 Region 可先做相容型別及 isolated repository 實作；正式新增入口仍不啟用。RouteMapPlace 的 optional Google ID、OSM 唯一鍵、名稱規則，以及 RouteMap 的四種 endpoint union，需配套測試後再接入。
+
+endpoint 保存格式沿用 [contracts.ts](../../src/geo/contracts.ts) 的 `RouteEndpointSelection`，不另外發明平行格式。讀取優先使用有效的新欄位，缺少才 normalize 舊 Google ID；新舊欄位衝突必須拒絕或由明確的相容 mapper 統一，不能兩個來源各自更新。引用刪除／跨 map／shared 撤權／備份 UUID remapping 的驗證尚未由本批測試覆蓋，因此不能認定端點儲存已放行。
+
+Backup v3 是已確認的測試目標：保留可保存位置、繼續讀 v1／v2；新欄位不能偷塞進仍標 v2 的輸出。輸入驗證、完整匯出／替換往返、非法 graph 不改庫、各模式 UUID 重映射，都完成後才啟用正式新格式寫入。共享／公開格式另有獨立版本邊界，不跟著備份 validator 意外升級。
+
+### 13.6 三模式放行與同步限制
+
+| 模式 | 相容層開發期間 | 正式 OSM 寫入前置 |
+|---|---|---|
+| standalone | 舊 Google／URL 寫入照舊；新位置只在 isolated DB 測試 | repository、備份完整往返、刪除與端點規則通過 |
+| direct cloud | 本階段不改雲端、不嘗試寫入新欄位 | schema／mapper／原子位置更新／新格式驗證及舊 writer 防護完成 |
+| hybrid | 保留既有自動同步；不讓尚未支援的新 payload 流入正式佇列 | server／client 協定兼容完成，新位置及受影響 items 沿原 mutate → outbox → 自動同步路徑；不能改成只留本機或手動上傳 |
+
+本批 hybrid 測試僅證明 isolated LocalSyncStore 可把新物件與 queue 原子保存，**不代表 protocol v1 或 live server 接受該 payload**。正式啟用需完成第 7 節版本協商／精確重試設計，保留未知上傳結果的 legacy tasks。此 gate 是尚未發布功能的依賴順序，不是已獲同意把產品降成 local-only。
+
+### 13.7 已落地測試與尚未驗證項目
+
+- [契約測試](../../poc/indexeddb-geo/indexeddb-geo.contract.ts)：Google 回歸、OSM 位置持久化與非法輸入、估算原子失效、舊 v10 schema 升級 fixture、hybrid queue 原子性，以及 backup v3 最小驗證目標。
+- [獨立 Vitest 設定](../../poc/indexeddb-geo/vitest.config.ts)：只收 `.contract.ts`；不由一般預設 `.test`／`.spec` 收集，避免預期紅燈污染既有回歸。
+- 舊庫 fixture 固定使用 pre-extension v10 的 store 定義，不以新 schema 反向建立「舊庫」。目前含原樣保留 queue／metadata／baseline／conflict 的斷言；不是合法 cloud payload 的精確重試驗證，也還沒有要求目標 verno 必須升到 11 的斷言。
+- Google 回歸是應保留行為；OSM 組與 backup v3 是未實作的預期需求，現在可能失敗。寫了 assertion 不等於通過。
+- 尚缺：Region metadata 專用案例、OSM marker CRUD／唯一索引、endpoint graph、跨行程／跨天完整失效矩陣、hybrid 失效 items 全部入 queue、帳號切換、新舊 writer／receipt 往返、完整備份替換、shared/public 及真實瀏覽器版本升級。
+- 撰寫規格時未執行測試；後續限定基準結果見第 13.8 節。**未執行 typecheck、build、lint、瀏覽器或 live DB 驗證。** Google 實際 API 仍不重試；保持原 key 載入方式。
+
+若使用者另行批准，最小驗證入口為 `vitest run --config poc/indexeddb-geo/vitest.config.ts`，並另跑相關既有 repository／sync／backup 回歸；未取得授權前不執行。第三階段實作完成仍需補齊對應缺項與正式 typecheck，不能把這份先行測試當作整合驗收完成。
+
+### 13.8 首次紅／綠基準（2026-10-23）
+
+使用者選擇先跑限定基準；沒有實作正式資料層，也沒有為了變綠改弱斷言。
+
+| 執行範圍 | 結果 |
+|---|---|
+| `route-map.repository.test.ts`、`local-sync.store.test.ts`、`backup.repository.test.ts` | 3 個檔案、39 項全部通過 |
+| `vitest run --config poc/indexeddb-geo/vitest.config.ts` | 29 項：8 通過、21 失敗 |
+
+契約測試的 8 項通過為 Google 相容性 6 項，以及 standalone／hybrid 舊 v10 fixture 原資料保留 2 項。它們不代表 v11 索引已實作或升級驗收完成。
+
+21 項失敗分類：
+
+- 5 項被既有「Google ID 或 mapsUrl 必填」規則擋住：OSM-only 保存、使用者座標、關聯／刪除保護、名稱／筆記更新、hybrid queue。後三者的後段斷言尚未執行，不能宣稱交易／佇列／刪除規則已驗證。
+- 13 項缺少新位置驗證：12 組非法 location 新增，以及 1 組非法 location 更新，目前未按新規格拒絕。
+- 1 項座標變更未清估算；另 1 項預期的失效寫入未發生，因而未觸發回滾用的錯誤。
+- 1 項 backup v3 尚不支援。
+
+合計：既有必要欄位阻擋 5 項、位置驗證 13 項、失效／回滾 2 項、備份 1 項，共 21 項。
+
+本次未出現測試載入、缺依賴或 API 名稱錯誤；Vitest 可執行不等於 TypeScript typecheck 通過。未執行 Google API、瀏覽器、live Supabase、build、lint 或其他未授權檢查。
