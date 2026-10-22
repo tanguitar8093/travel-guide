@@ -1,5 +1,6 @@
 import type { ItineraryItem, NewPlace, PlaceChanges, NewTrip, TripChanges, NewItineraryItem, ItineraryItemChanges } from '../../src/database/models'
 import { savedPlaces, candidates, trip, RouteCalculatorController } from './controller'
+import { googleNameUrl, isGoogleMapUrl } from './location-input'
 
 const regions = [{ id: trip.regionId, name: '沖繩', center: { latitude: 26.43, longitude: 127.9 }, zoom: 9 }]
 const labels = [{ id: 'preview-scenery', name: '景點', color: '#648a74' }, { id: 'preview-food', name: '美食', color: '#c3a369' }]
@@ -8,6 +9,10 @@ const items: ItineraryItem[] = savedPlaces.map((p, index) => ({ id: 'preview-ite
 const geo = new RouteCalculatorController()
 const clone = <T,>(value: T): T => structuredClone(value)
 function findPlace(id: string) { const place = savedPlaces.find(p => p.id === id); if (!place) throw new Error('地點不存在。'); return place }
+function navigation(input: NewPlace | PlaceChanges) {
+  if (input.mapsUrl && !isGoogleMapUrl(input.mapsUrl)) throw new Error('地圖網址請填 Google 地圖連結，或留空。')
+  return input.googlePlaceId ? candidates.get(input.googlePlaceId)?.googleMapsUri : input.mapsUrl || googleNameUrl(input.name || '地點')
+}
 
 export const placeController = {
   async loadWorkspace() { return clone({ places: savedPlaces, regions, labels }) },
@@ -15,8 +20,8 @@ export const placeController = {
   async search(query: { search?: string; labelIds?: string[]; regionId?: string } = {}) {
     return clone(savedPlaces.filter(p => (!query.search || p.name.toLowerCase().includes(query.search.trim().toLowerCase())) && (!query.regionId || p.regionIds.includes(query.regionId)) && (!query.labelIds?.length || query.labelIds.some(id => p.labelIds.includes(id)))))
   },
-  async create(input: NewPlace) { const id = crypto.randomUUID(); savedPlaces.push({ ...clone(input), mapsUrl: input.googlePlaceId ? candidates.get(input.googlePlaceId)?.googleMapsUri : input.mapsUrl, id }); return id },
-  async update(id: string, changes: PlaceChanges) { Object.assign(findPlace(id), clone(changes), changes.googlePlaceId ? { mapsUrl: candidates.get(changes.googlePlaceId)?.googleMapsUri } : {}) },
+  async create(input: NewPlace) { const id = crypto.randomUUID(); savedPlaces.push({ ...clone(input), mapsUrl: navigation(input), id }); return id },
+  async update(id: string, changes: PlaceChanges) { Object.assign(findPlace(id), clone(changes), { mapsUrl: navigation(changes) }) },
   async delete(id: string) { if (items.some(item => item.placeId === id)) throw new Error('地點仍被行程引用，請先移除行程項目。'); const index = savedPlaces.findIndex(p => p.id === id); if(index >= 0) savedPlaces.splice(index,1) },
   async deleteMany(ids: string[]) { const result = { deletedIds: [] as string[], failures: [] as { id: string; name: string; message: string }[] }; for(const id of ids) { try { await this.delete(id); result.deletedIds.push(id) } catch(cause) { result.failures.push({ id, name: findPlace(id).name, message: String(cause) }) } } return result },
   async assignLabelMany(ids: string[], labelId: string) { for(const id of ids) { const p=findPlace(id); if(!p.labelIds.includes(labelId))p.labelIds.push(labelId) } return { succeededIds: ids, failures: [] } },

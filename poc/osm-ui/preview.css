@@ -5,3 +5,18 @@
   width: 100%;
   height: 100%;
 }
+.preview-search-heading { display: inline-flex; align-items: center; gap: 7px; }
+.preview-search-help { width: 22px; height: 22px; display: inline-grid; place-items: center; padding: 0; border: 1px solid #dce5dc; border-radius: 50%; background: #fff; color: #648a74; cursor: pointer; font-size: 12px; }
+.preview-search-dialog { width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 18px; border: 1px solid #dce5dc; border-radius: 10px; color: #4f6053; background: #fff; box-shadow: 0 16px 45px #263e3826; font-size: 12px; text-align: left; }
+.preview-search-dialog::backdrop { background: #263e3859; }
+.preview-search-dialog-heading { display: flex; justify-content: space-between; align-items: center; }
+.preview-search-dialog-heading button { border: 0; background: none; padding: 4px 8px; color: #718477; font-size: 20px; cursor: pointer; }
+.preview-search-dialog p { font-size: 11px; line-height: 1.7; color: #7e8e82; }
+.preview-search-dialog dt { margin-top: 13px; font-weight: 600; font-size: 11px; }
+.preview-search-dialog dd { margin: 5px 0 0; padding: 8px; border-radius: 5px; background: #f5f8f4; overflow-wrap: anywhere; font-size: 11px; line-height: 1.7; }
+.preview-location-search input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #e1e8e2; border-radius: 6px; font: inherit; font-size: 12px; color: #4f6053; background: #fff; }
+.preview-location-result { width: 100%; text-align: left; margin-top: 6px; padding: 9px 12px; border: 1px solid #e1e8e2; border-radius: 6px; background: #fff; color: #4f6053; font-size: 12px; cursor: pointer; overflow-wrap: anywhere; }
+.preview-location-result small { display: block; margin-top: 4px; color: #948261; font-size: 10px; }
+.preview-new-place-name { display: grid; gap: 8px; margin: 16px 0; color: #627168; font-size: 12px; }
+.preview-new-place-name b { color: #b67b6a; }
+.preview-new-place-name input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid #e1e8e2; border-radius: 6px; color: #475d4e; background: #fff; font: inherit; }

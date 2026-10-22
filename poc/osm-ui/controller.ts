@@ -1,3 +1,4 @@
+import { googleNavigationUrl, resolveLocationInput } from './location-input'
 import type { RouteCalculationInput, RouteEndpoint, RouteMapPlace, TripMapData } from '../../src/modules/route-calculator/route-calculator.service'
 import type { RouteMap, RouteMapChanges, Place, Trip } from '../../src/database/models'
 import type { GooglePlaceDetails } from '../../src/modules/place/google-places.service'
@@ -11,7 +12,7 @@ const fixtures = [
   { id: 'preview-aquarium', name: '沖繩美麗海水族館', position: { lat: 26.6944, lng: 127.8779 }, address: '本部町', date: '2026-11-08' },
 ]
 export const trip: Trip = { id: 'preview-trip', regionId: 'preview-okinawa', name: '沖繩行程（預覽範例）', startDate: '2026-11-07', endDate: '2026-11-08' }
-export const savedPlaces: Place[] = fixtures.map(p => ({ id: p.id, name: p.name, googlePlaceId: p.id, regionIds: [trip.regionId], labelIds: [], mapsUrl: `https://www.openstreetmap.org/?mlat=${p.position.lat}&mlon=${p.position.lng}#map=16/${p.position.lat}/${p.position.lng}` }))
+export const savedPlaces: Place[] = fixtures.map(p => ({ id: p.id, name: p.name, googlePlaceId: p.id, regionIds: [trip.regionId], labelIds: [], mapsUrl: googleNavigationUrl(p.position) }))
 export const candidates = new Map<string, GooglePlaceDetails>(fixtures.map(p => [p.id, { id: p.id, displayName: p.name, formattedAddress: p.address, location: p.position, googleMapsUri: savedPlaces.find(row => row.id === p.id)?.mapsUrl }]))
 let record: RouteMap = { id: 'preview-route-map', name: '沖繩路程試算', tripId: trip.id, transport: 'DRIVING', selectedDate: '2026-11-07', originGooglePlaceId: fixtures[0].id, destinationGooglePlaceId: fixtures[1].id }
 const personal = new Set<string>()
@@ -62,21 +63,29 @@ export class RouteCalculatorController {
   }
   async mountAutocomplete(container: HTMLElement, onSelect: (details: GooglePlaceDetails, query: string) => void, onError: (error: Error) => void, options: { label?: string; onInput?: () => void } = {}) {
     const input = document.createElement('input'), results = document.createElement('div')
-    input.type = 'search'; input.placeholder = '輸入地址、店名或景點名稱'; input.setAttribute('aria-label', options.label || '搜尋 OSM 地點')
+    container.classList.add('preview-location-search')
+    input.type = 'search'; input.placeholder = '地點、Google 連結或緯度, 經度'; input.setAttribute('aria-label', options.label || '搜尋 OSM 地點')
     container.append(input, results)
     let active = true, generation = 0, timer: ReturnType<typeof setTimeout>
     const search = async () => {
       const current = ++generation, query = input.value.trim()
       results.replaceChildren(); if (!query) return
       try {
-        const data = await request('/api/search?q=' + encodeURIComponent(query))
+        let details = await resolveLocationInput(query, request)
+        if (!details) {
+          const data = await request('/api/search?q=' + encodeURIComponent(query))
+          if (!data || typeof data !== 'object' || !('results' in data) || !Array.isArray(data.results)) throw new Error('搜尋資料格式不正確。')
+          details = data.results.flatMap(item => {
+            if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.name !== 'string' || !validPosition(item.coordinates)) return []
+            const location = { lng: item.coordinates[0], lat: item.coordinates[1] }
+            return [{ id: item.id, displayName: item.name, formattedAddress: typeof item.address === 'string' ? item.address : undefined, location, googleMapsUri: googleNavigationUrl(location) }]
+          })
+        }
         if (!active || current !== generation) return
-        if (!data || typeof data !== 'object' || !('results' in data) || !Array.isArray(data.results)) throw new Error('OSM 搜尋資料格式不正確。')
-        if (!data.results.length) results.textContent = '找不到符合的地點。'
-        for (const item of data.results) {
-          if (!item || typeof item !== 'object' || typeof item.id !== 'string' || typeof item.name !== 'string' || !validPosition(item.coordinates)) continue
-          const detail = { id: item.id, displayName: item.name, formattedAddress: typeof item.address === 'string' ? item.address : undefined, location: { lng: item.coordinates[0], lat: item.coordinates[1] }, googleMapsUri: `https://www.openstreetmap.org/?mlat=${item.coordinates[1]}&mlon=${item.coordinates[0]}#map=16/${item.coordinates[1]}/${item.coordinates[0]}` }
-          const button = document.createElement('button'); button.type = 'button'; button.className = 'route-secondary'; button.style.cssText = 'width:100%;justify-content:flex-start;margin-top:6px;text-align:left;'; button.textContent = detail.displayName
+        if (!details.length) results.textContent = '找不到符合的地點。'
+        for (const detail of details) {
+          const button = document.createElement('button'); button.type = 'button'; button.className = 'preview-location-result'; button.textContent = detail.displayName || '選取位置'
+          if (detail.formattedAddress) { const note=document.createElement('small'); note.textContent=detail.formattedAddress; button.append(note) }
           button.onclick = () => { candidates.set(detail.id, detail); onSelect(detail, query) }; results.append(button)
         }
       } catch (cause) { if (active && current === generation) onError(cause instanceof Error ? cause : new Error('OSM 搜尋失敗。')) }

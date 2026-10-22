@@ -31,13 +31,20 @@ export default defineConfig({
           .replace(/Google Maps/g, 'OpenStreetMap').replace(/Google 地圖/g, 'OSM 地圖')
       }
       if (filename.endsWith('/src/modules/place/PlaceModule.tsx')) {
-        return code
+        return 'import { PlaceSearchHeading } from ' + local('PlaceSearchHeading.tsx') + ';\n' + code
           .replace('from "./place.controller";', 'from ' + local('workspace-controllers.ts') + ';')
           .replace('import { placeIcons } from "../../database";', 'import { placeIcons } from "../../database/models";')
           .replace('from "../../database/useHybridDataRevision";', 'from ' + local('preview-support.tsx') + ';')
           .replace(/選擇結果可連結或更換 Google 地點；資料庫只保存\s+place_id，地點名稱請填寫你自己的名稱。/, '選擇 OSM 結果可連結或更換位置；此預覽暫存在記憶體，地點名稱請填寫你自己的名稱。')
           .replace(/`https:\/\/www.google.com\/maps\/search\/\?api=1&query=\$\{encodeURIComponent\(selectedPlace.name\)\}&query_place_id=\$\{encodeURIComponent\(selectedPlace.googlePlaceId\)\}`/, 'selectedPlace.mapsUrl')
           .replace(/Google Maps/g, 'OpenStreetMap').replace(/Google Places/g, 'OSM 搜尋').replace(/Google 地點/g, 'OSM 地點').replace(/Google 搜尋/g, 'OSM 搜尋').replace(/向 Google/g, '向 OSM')
+          .replace('<span className="search-field-label">OpenStreetMap 搜尋</span>', '<span className="search-field-label"><PlaceSearchHeading /></span>')
+          .replace('<span>地圖網址 {!draft.googlePlaceId && <b>*</b>}</span>', '<span>地圖網址</span>')
+          .replace('required={!draft.googlePlaceId}', '')
+          .replace('placeholder="https://maps.google.com/..."', 'placeholder="選填：Google 地圖連結"')
+          .replace(/若未選 OSM 搜尋結果，請貼上 OpenStreetMap\s+分享連結或其他地圖網址。/, '可不填；需要時貼上 Google 地圖連結。')
+          .replaceAll('setDraft(emptyDraft);', 'setDraft({ ...emptyDraft, regionIds: regions.length === 1 ? [regions[0].id] : [] });')
+          .replace('在 OpenStreetMap 開啟 ↗', '在 Google Maps 開啟 ↗')
       }
       if (filename.endsWith('/src/modules/route-calculator/RouteCalculatorModule.tsx')) {
         return code
@@ -53,7 +60,9 @@ export default defineConfig({
           .replace('{ lat: 25.033, lng: 121.5654 }', '{ lat: 26.43, lng: 127.9 }')
       }
       if (filename.endsWith('/src/modules/route-calculator/RouteEndpointField.tsx')) {
-        return code.replace(/Google 搜尋/g, 'OSM 搜尋').replace(/Google 建議/g, 'OSM 建議')
+        return 'import { NewPlaceSearch } from ' + local('NewPlaceSearch.tsx') + ';\n' + code.replace(/Google 搜尋/g, '新地點搜尋').replace(/Google 建議/g, '搜尋')
+          .replace(/<div className="route-google-search" ref=\{container\}[\s\S]*?<p className="route-field-hint">請從 搜尋結果選取；只輸入文字不會作為計算地點。<\/p>/,
+            '<NewPlaceSearch controller={controller} disabled={disabled} onConfirm={(place) => { setError(\'\'); onChange({ source: \'google\', place }); setDialogSource(null); trigger.current?.focus(); }} />')
       }
       if (filename.endsWith('/src/common/WorkspaceLayout.tsx')) {
         return code.replace('from \'./HybridStatus\'', 'from ' + local('preview-support.tsx'))
