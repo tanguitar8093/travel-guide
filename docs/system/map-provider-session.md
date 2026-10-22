@@ -2,7 +2,19 @@
 
 更新：2026-10-23。這是對話接續紀錄，尚未開始功能實作。
 
+## 2026-10-23 UI 試作修正（最新使用者指示）
+
+- 使用者要求 **Google 地圖能力抽換為 OSM，UI 和操作邏輯都沿用 Travel 現有專案**。maps 專案僅參考地圖、搜尋、圖釘與路程能力，不搬其產品介面。
+- 曾錯誤產出重新設計的 `poc/osm-ui/index.html` 與靜態 SVG，使用者已明確否決並授權刪除；兩者已刪除／替換。不能再沿用該設計，也不能由「做一版 UI」推定重新設計產品。
+- 新 `poc/osm-ui` 直接載入正式路程試算 React 元件和 CSS，以預覽專用 Vite 插件替換地圖／controller 接線，正式 src 尚未修改。底圖使用 maps 現有 MapLibre 和 GeoJSON；搜尋／路程只呼叫本機服務，不用假數字。
+- 此版是 UI 階段試作，不是 A–F 計畫的正式實作；僅路程試算頁面，其他頁面與正式資料接線尚未完成。詳見 `../../poc/osm-ui/README.md`。
+- 使用者已同意啟動新版 UI 預覽，Vite 已啟動於 `http://127.0.0.1:5174/`。尚未執行測試、build、typecheck、lint 或瀏覽器驗證，也未啟動 maps 服務；其他執行前先取得同意的限制仍保留。
+- 後續使用者回報空白頁，已修正 MapLibre 控制項位置 `right` → `top-right`，等待底圖完成後才返回 handle，並在直接開 HTML 時提供預覽服務連結。本機 Chromium 診斷確認底圖與 3 個圖釘顯示、起點對話框可開啟、無頁面 JS 錯誤；未執行測試套件、build、typecheck 或 lint。
+- 使用者指出缺少行程／地點頁後，已補 `/itinerary`（亦為預覽首頁）、`/places` 與原側欄切換，直接載入原 `ItineraryModule.tsx`／`PlaceModule.tsx` 與 CSS。共用記憶體範例地點；正式 src／資料庫無修改。本機 Chromium 確認行程 4 個圖釘、第二天切換、側欄前往地點頁及原編輯表單開啟，無頁面 JS 錯誤。協作／公開／區域／標籤頁未接線；搜尋與路程仍依賴尚未啟動的 maps 服務。
+
 ## 使用者目標與優先順序
+
+- 行程空白地圖已另修正 MapLibre CSS 覆蓋 absolute host 導致高度 0 的衝突，加入預覽專用定位 CSS 與 resize observer。1908 × 900 Chromium 實際截圖確認底圖／圖釘可見，host 和 canvas 高度皆 700 px；先前僅 DOM 圖釘計數不能作為可見性證據。
 
 - Travel 使用 React／TypeScript／Vite，想讓 Google Maps 與本機 OSM 可以抽換，沿用現有 UI 框架與資料庫。
 - OSM 參考專案：`/home/tanguitar/workspaces/maps`。不沿用其 UI／行程邏輯；目前只需沖繩圖資。
