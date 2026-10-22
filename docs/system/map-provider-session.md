@@ -1,6 +1,16 @@
 # 地圖抽換工作接續紀錄
 
-更新：2026-10-23。這是對話接續紀錄，尚未開始功能實作。
+更新：2026-10-23（Asia/Taipei）。已完成並核准 UI 試作與靜態設計稿；尚未開始正式核心、資料庫或正式頁面接線。
+
+## 本次結束狀態與接續入口
+
+- 最新要求是「session 存一下」，僅更新接續紀錄，不開始下一階段、不自行 commit。
+- **已核准靜態稿入口：[map-provider-osm.html](../../poc/ui/map-provider-osm.html)**。八個畫面可直接開檔，CSS、表單值、地圖圖像內嵌，無需任何服務。已確認問號說明可開啟、390 px 手機無水平溢出、嵌入圖像可見、試算自行命名值已保留，無頁面 JS 錯誤。靜態稿不執行搜尋、儲存、路程計算或地圖拖曳。
+- 可操作試作位於 `poc/osm-ui`，預覽為 `http://127.0.0.1:5174/`：首頁／`/itinerary`、`/places`、`/route-calculator`。本輪已獲准啟動 Vite，曾保持運行；新對話需確認服務實際狀態，不能假設仍在運行。重新啟動命令：`npm run dev -- --config poc/osm-ui/vite.config.ts`。
+- 圖資讀取 `/home/tanguitar/workspaces/maps` 現有 MapLibre 與 GeoJSON，未安裝依賴、重建圖磚或修改 maps。名稱搜尋、短連結解析、道路計算依賴 maps HTTP 服務，尚未啟動或驗證；明確座標與含座標完整 Google URL 在試作本機解析。
+- `poc/osm-ui/export-ui.mjs` 為本次靜態稿匯出腳本，來源是原 React 元件載入後的實際 DOM／CSS 與地圖截圖。保留目前核准稿，後續修改不要悄悄覆蓋核准版本。
+- 實際 git status：`docs/system/map-provider-session.md` modified；`poc/osm-ui/export-ui.mjs` 與 `poc/ui/` untracked。其他試作檔案已非 untracked；不可沿用早期「所有 poc 未追蹤」敘述。保留使用者變更，不自行 commit。
+- 下一階段只有使用者明確要求時才依 `.agents/skills/poc.md` 與最新計畫接續。UI 核准不等於授權跑測試；測試套件、build、typecheck、lint、安裝、maps 服務或图資重建仍遵守既有先確認限制。
 
 ## UI 已核准並保存（最新）
 
@@ -13,8 +23,8 @@
 - 使用者要求 **Google 地圖能力抽換為 OSM，UI 和操作邏輯都沿用 Travel 現有專案**。maps 專案僅參考地圖、搜尋、圖釘與路程能力，不搬其產品介面。
 - 曾錯誤產出重新設計的 `poc/osm-ui/index.html` 與靜態 SVG，使用者已明確否決並授權刪除；兩者已刪除／替換。不能再沿用該設計，也不能由「做一版 UI」推定重新設計產品。
 - 新 `poc/osm-ui` 直接載入正式路程試算 React 元件和 CSS，以預覽專用 Vite 插件替換地圖／controller 接線，正式 src 尚未修改。底圖使用 maps 現有 MapLibre 和 GeoJSON；搜尋／路程只呼叫本機服務，不用假數字。
-- 此版是 UI 階段試作，不是 A–F 計畫的正式實作；僅路程試算頁面，其他頁面與正式資料接線尚未完成。詳見 `../../poc/osm-ui/README.md`。
-- 使用者已同意啟動新版 UI 預覽，Vite 已啟動於 `http://127.0.0.1:5174/`。尚未執行測試、build、typecheck、lint 或瀏覽器驗證，也未啟動 maps 服務；其他執行前先取得同意的限制仍保留。
+- 此版是 UI 階段試作，不是 A–F 計畫的正式實作；現在涵蓋行程、地點、路程試算三頁，正式資料接線尚未完成。詳見 `../../poc/osm-ui/README.md`。
+- 使用者已同意啟動新版 UI 預覽，Vite 已啟動於 `http://127.0.0.1:5174/`。後續修復與靜態稿匯出曾以本機 Chromium 檢視畫面；未執行測試套件、build、typecheck、lint，也未啟動 maps 服務。
 - 後續使用者回報空白頁，已修正 MapLibre 控制項位置 `right` → `top-right`，等待底圖完成後才返回 handle，並在直接開 HTML 時提供預覽服務連結。本機 Chromium 診斷確認底圖與 3 個圖釘顯示、起點對話框可開啟、無頁面 JS 錯誤；未執行測試套件、build、typecheck 或 lint。
 - 使用者指出缺少行程／地點頁後，已補 `/itinerary`（亦為預覽首頁）、`/places` 與原側欄切換，直接載入原 `ItineraryModule.tsx`／`PlaceModule.tsx` 與 CSS。共用記憶體範例地點；正式 src／資料庫無修改。本機 Chromium 確認行程 4 個圖釘、第二天切換、側欄前往地點頁及原編輯表單開啟，無頁面 JS 錯誤。協作／公開／區域／標籤頁未接線；搜尋與路程仍依賴尚未啟動的 maps 服務。
 
@@ -37,7 +47,7 @@
 
 - **不要跑任何測試；每次須先取得使用者同意。** 所有未執行驗證的判断，只能標示為程式碼分析。
 - 已承諾也不自行執行 build、typecheck、lint、啟動服務、安裝依賴或圖資重建；需先確認再執行。
-- 目前授權工作是架構評估與具體計畫，不能把「存 session」當成開始實作的指示。
+- 本輪授權的 UI 試作與靜態稿保存已完成；不能把「存 session」當成開始後續實作的指示。
 - 持續提供簡短進度；使用者曾因長時間沒有說明而打斷工作。
 - 不自行派子代理，除非使用者或適用規則明確要求。
 
