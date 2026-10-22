@@ -1,0 +1,336 @@
+# Google／OSM 共用轉換層與資料整合規劃
+
+日期：2026-10-23（Asia/Taipei）。
+
+狀態：**程式碼評估與建議方案，尚未實作、遷移或完成運行驗證。** 本次僅新增本文件，沒有修改正式功能、既有設計稿、IndexedDB、Supabase、環境或依賴。
+
+## 1. 範圍與結論
+
+本次僅參考使用者核准、今天新增的四份專案文件：[初步評估](map-provider-assessment.md)、[整合決策](osm-integration-decision.md)、[第一階段計畫](map-provider-poc-plan.md)、[接續紀錄](map-provider-session.md)。沒有讀取未勾選的 `maybedo.md`，也沒有沿文件連結擴大閱讀其他專案 Markdown。概念以這四份已核准文件中的記載為準。
+
+另對照目前正式程式、checked-in migrations 及兩個 UI demo。沒有連線檢查實際 Supabase schema、資料筆數或各裝置的 IndexedDB，也未重新盤點 maps 專案；其圖資／服務能力採今天文件記錄，實作前仍需確認。
+
+**建議維持單一 Travel 專案、一份業務資料與操作流程，加上輕量 geo 轉換層，分批實作 Google／OSM adapters。**
+
+- 地圖供應商與資料庫來源是兩個獨立設定，不是 Google 對雲端、OSM 對本機。
+- UI 設計通過，不等於雙 renderer 或中立資料契約已驗證。
+- 真正的大改動是位置、試算端點，以及同步／備份／共享／公開的資料契約，不是下拉選單。
+- 保留現有 UUID、行程、標籤、關聯與 database facade；不建立 Google／OSM 兩份收藏資料。
+- 先完成真正的雙 provider 核心驗證，再遷移正式資料與逐頁接線；額外功能最後。
+
+### 現有 demo 能證明什麼
+
+| 項目 | 目前狀態 | 不能據此推定 |
+|---|---|---|
+| [OSM UI](../../poc/osm-ui/main.tsx) | 用預覽插件替換正式元件的 controller／renderer；範例資料在記憶體 | 正式 facade、業務驗證、同步或雙 provider 已整合 |
+| [設定 UI](../../poc/map-provider-settings/MapProviderSettingsDemo.tsx) | React 下拉選單切換 SVG 地圖風格；不儲存、不呼叫地圖服務 | Google／MapLibre 真實 renderer 可在正式資料上切換 |
+| [靜態設計稿](../../poc/ui/map-provider-osm.html) | 保存 UI 外觀與流程 | 搜尋、路線、儲存或部署可用 |
+| 共用 geo 模組 | 目前未有正式共用模組 | 今天的介面草案已是可直接使用的 API |
+
+## 2. 現有程式對資料設計的約束
+
+| 實際入口 | 已確認現況 | 必須改動的原因 |
+|---|---|---|
+| [models.ts](../../src/database/models.ts) | Place 無座標；Region 有 center；試算端點／額外地點綁 Google ID | OSM 無法從 Google ID 離線還原位置 |
+| [validation.ts](../../src/database/validation.ts) | Place 必須 ID 或網址；試算額外地點必須 Google ID | 要接受有效的中立位置，不要求為座標製造 Google ID |
+| [database.ts](../../src/database/database.ts)／[sync.database.ts](../../src/database/sync.database.ts) | 基底最高版本 10；繼承類別另有 5／6／8／9；Google 複合唯一索引 | 下一版須同時考慮 standalone 與各帳號 hybrid DB |
+| [itinerary-map.service.ts](../../src/modules/itinerary/itinerary-map.service.ts) | 按 Google ID 取位置；有 center 的 Region 也會先嘗試 Google | OSM 模式不能由舊流程偷偷觸發 Google 查詢 |
+| [route-calculator.service.ts](../../src/modules/route-calculator/route-calculator.service.ts) | resolve、端點相同判斷、移除標記均使用 Google ID | 顯示、實體身分與 provider reference 必須分離 |
+| [repositories.ts](../../src/database/repositories.ts)／[supabase.repositories.ts](../../src/database/supabase.repositories.ts) | Google ID 改變才清除受影響路程；雲端更新與清除分多個請求 | 座標變動也要失效；雲端不能半成功留下舊估算 |
+| [hybrid.runtime.ts](../../src/database/hybrid.runtime.ts) | 已有自動同步排程、重試、前景輪詢與衝突停止 | 不採舊 skill 中「自動同步未實作」敘述 |
+| [backup.repository.ts](../../src/database/backup.repository.ts) | 接受備份 1／2，欄位白名單與跨實體驗證 | 新欄位不能直接塞入舊備份或當作原版本透明擴充 |
+| [shared-trip.validation.ts](../../src/database/shared-trip.validation.ts) | 共享文件借用 backup v2 驗證 | 個人資料模型升級會連動共享，不是只改私人 CRUD |
+| [公開 models](../../src/modules/public-itinerary/models.ts)／[core.ts](../../src/modules/public-itinerary/core.ts) | snapshot v1；地點採手動白名單；套用會重建 UUID | 位置、來源與新欄位須明確序列化，不能靠型別自動傳遞 |
+
+## 3. 共用轉換層：共用方法，不共用 provider 原生資料
+
+```text
+資料／偏好設定 → GeoProvider 設定與組合入口
+                         │
+Travel UI → controller → service → geo 中立契約
+                         │           ├ Google adapter
+                         │           └ OSM／MapLibre／本機服務 adapter
+                         │
+                         └ database facade → IndexedDB／Supabase／hybrid
+```
+
+### 3.1 建議責任
+
+| 區塊 | 中立接面／輸出 | 不應承擔 |
+|---|---|---|
+| contracts | WGS84 Coordinate、Bounds、Marker、候選、路線、錯誤、能力 | React、Dexie、Supabase、Google／MapLibre SDK 型別 |
+| renderer／MapHandle | mount、setMarkers、focus、fitBounds、fitMarkers、destroy | 查地點、寫資料、改行程順序、權限判斷 |
+| MapView | host／loading／error、非同步建立與釋放 | provider 分支、資料遷移、業務 state |
+| search／resolver | 搜尋候選、依 reference 解析位置；區分即時資料與可保存資料 | 把 Google details 一律標成可保存 |
+| routing | 中立起終點、交通方式 → 分鐘／公尺／來源／警告 | 用汽車假裝替代機車或大眾運輸 |
+| navigation | 建立外連 Google Maps URL | 決定 renderer 或儲存 provider 回傳網址 |
+| 組合入口 | 依選項建立一組 renderer／search／routing／capabilities | 在每個頁面散布 Google／OSM 條件 |
+
+初期一個下拉選單選一組 provider 能力，不新增三個分開選的產品設定；但內部 renderer、search、routing 仍是三個小接面。dataset 是 OSM 的配置，不是第三種 provider。導航維持 Google Maps 外連，不等於使用 Google SDK。
+
+沿用第一階段計畫中的方法，不新增大型 plugin framework。預計的新檔案集中於 geo 的 contracts、服務組合、MapView 與兩組 adapters；現在仍是預計位置，未新增實作。
+
+### 3.2 必須修正的 Google 邊界
+
+現有 [google-places.service.ts](../../src/modules/place/google-places.service.ts) 把地圖、搜尋與路線都接到 Places loader。共用化時應拆出按需 SDK loader，避免「畫地圖也必須先拿 Places」成為中立接面的前提。
+
+- Google renderer 可先包裝現有 marker 實作，補 focus／視野及完整 cleanup。
+- Google search 的 DOM autocomplete widget 不能直接當成 `search(): candidates`。需另外評估目前 SDK 的資料式 autocomplete／details 接面與 session token，兩 provider 一起接共用搜尋 UI；不是替換型別名稱便完成。
+- Google routing 現在只接受 Google ID。要增補合法座標端點，才能估算使用者／OSM 位置；實作時核對實際 Routes SDK 接面、限制及條款，不能假設任意字串 ID 均可。
+- OSM renderer／搜尋／路線走自架服務；保留 source、datasetVersion、覆蓋及不支援的交通方式。
+- 開始即選 OSM 時不載入或呼叫 Google；已用過 Google 再切 OSM，只能承諾停止應用端新的 Google 操作，不能宣稱已載入 SDK 的所有背景連線都能安全卸除。若需嚴格零 Google 網路，提供重新載入到 OSM 的路徑並驗證。
+
+### 3.3 切換行為
+
+1. 保留旅行資料、UUID、日期、選取、起終點與自行命名；關閉／取消尚未確認的搜尋候選。
+2. 取消舊 provider 的請求；以 generation／AbortSignal 隔離遲到結果，卸載後不得更新畫面。
+3. 清理舊 renderer、markers、events、ResizeObserver，建立新 renderer，再套中立 markers 與合法視野。
+4. 不因 OSM 範圍限制覆寫 Region 或地點，不把範圍外資料搬到沖繩。
+5. 新 provider 失敗時保留使用者選擇與資料，提供重試／明確切回；不得暗中 fallback 或顯示舊底圖卻標成新 provider。
+6. 清除未儲存的試算結果；已保存的估算保留並顯示來源，不因切換設定批次清空行程。
+
+### 3.4 設定保存建議
+
+**第一版建議為裝置／瀏覽器偏好，不加入業務資料庫與同步。** 預設 Google 維持正式產品既有行為；OSM 是否可用由部署能力決定，不靠 Google key 控制。
+
+- 三種資料模式使用同一偏好，不因切換資料庫來源改變。
+- 使用獨立 preference key 與訂閱事件；讀寫失敗明確顯示，不能宣稱保存成功。
+- 不匯出到旅行備份、不推入 outbox、不覆寫同帳號其他裝置的選擇。
+- 若要帳號跨裝置同步設定，另做 settings entity／RLS／sync；不是此建議的隱含功能。
+
+此為待產品確認的建議，不是已獲核准的持久化決策。
+
+## 4. 中立資料模型：建議定稿方向
+
+### 4.1 可保存位置與即時位置分開
+
+建議新增可保存的 `StoredLocation` 概念：
+
+```ts
+type Coordinate = { latitude: number; longitude: number };
+type LocationMetadata = {
+  source: 'user' | 'osm' | 'legacy-user';
+  kind: 'point' | 'approximate-center' | 'map-center' | 'user-picked';
+  osmReference?: string; // 完整 node/123、way/123 或 relation/123
+  datasetVersion?: string;
+};
+type StoredLocation = LocationMetadata & { coordinate: Coordinate };
+```
+
+- 地點名稱仍是使用者名稱，不把 provider 的 displayName／地址當成可以直接永久保存的欄位。
+- Google reference 先沿用既有 `googlePlaceId`，由 mapper 轉成中立 runtime reference；本次不為改名全面搬欄位。
+- Google details 的座標／地址／viewport 只在受允許的 Google runtime 使用，不寫入 `StoredLocation`，也不自動拿到 OSM 畫圖。
+- `source: user` 代表真正獨立輸入／選位，不是把 Google 回傳結果按「確認」就換標籤規避來源限制。
+- 區域沿用 `center`，新增 `centerMetadata?: LocationMetadata`，避免另存一份相同位置。舊 center 可標 `legacy-user`，但批次轉換前仍需確認其實際來源。
+- `osmReference` 不含 datasetVersion 作為身分；資料更新不應使同一 OSM feature 變成另一個收藏。
+
+目前已查閱 [Google Places 政策](https://developers.google.com/maps/documentation/places/web-service/policies)：place ID 有保存例外，但一般 Places content 的儲存及跨非 Google 地圖呈現受限制。正式 Google SDK 路徑、區域條款與 Routes 結果保存仍須實作前核對；本文件不是完整授權或法律判定。
+
+### 4.2 實體改動
+
+| 實體 | 建議新增／變更 | 保留不動 |
+|---|---|---|
+| Place | `location?: StoredLocation`；新增可只用有效 location 儲存的路徑 | UUID、使用者名稱、筆記、icon、區域／標籤、mapsUrl、googlePlaceId |
+| Region | `centerMetadata?`；搜尋 OSM 後保存合法 center 及來源；Google-only region 保持未補位置狀態 | center 的既有名稱／格式、zoom、UUID、googlePlaceId |
+| RouteMapPlace | `googlePlaceId` 改 optional；新增 `location?`；新 OSM／使用者地點必須有位置與自行命名 | UUID、routeMapId、舊 Google marker 與名稱 |
+| RouteMap | 新增 `origin?`／`destination?` 中立端點；舊 Google 端點欄位留相容讀取 | UUID、tripId、selectedDate、transport、既有一行程一地圖規則 |
+| ItineraryItem | 建議新增 optional `travelEstimateContext`，記來源／交通／位置指紋／datasetVersion | 原分鐘、公尺、planned arrival、順序與地點引用 |
+| Trip／Label／關聯表 | 無地圖專屬新欄位 | 既有關聯與規則 |
+
+Place 驗證改為「有效 location、有效 Google ID、有效 mapsUrl 至少一項」。舊未定位資料仍可編輯筆記，不要求先補座標；新 UI 中的 OSM／使用者選位若未完成，不得靠空網址假裝成功。
+
+`travelEstimateContext` 是小型來源物件，不存 Google 原生 response 或路線 geometry。舊無 metadata 的估算顯示「既有估算／來源未記錄」，不推測來源；Google 結果是否可持久保存的條款確認為正式路線接線的前置，不能把現況當作新功能的授權依據。
+
+### 4.3 試算端點：建議使用明確 union
+
+建議保存四種端點，而非將所有來源強迫變成收藏地點：
+
+| kind | 保存內容 | 使用方式 |
+|---|---|---|
+| `place` | 私人 Place UUID | 當下從既有 repository 讀位置／使用者名稱 |
+| `shared-place` | 共享 trip UUID＋共享文件內的 Place UUID | 依共享文件解析，不假設私人 places 表有此 ID |
+| `route-map-place` | RouteMapPlace UUID | 必須屬於此 RouteMap |
+| `location` | 端點自己的 UUID、自行命名、可保存 location 或 legacy Google ID | 搜尋結果直接當端點，不強迫加入收藏或額外 marker 清單 |
+
+`location` variant 的欄位要逐一白名單驗證；只有 Google ID 的舊端點允許無名稱／無永久座標。新使用者／OSM 端點需非空自行命名。Google 搜尋結果仍只保存允許的 ID，名稱由使用者填寫或留 runtime。
+
+相同端點不能再只比較 Google ID：引用型用 kind＋scope＋UUID；inline 候選以完整 provider reference／明確選取身分判斷。相同座標不是實體主鍵，也不能拿不同 provider 的相同字串 ID 當成同一地點。
+
+引用型端點要檢查同 owner／同 map／共享存取及刪除後處理。建議引用目標被刪除時，同交易清空受影響端點，不刪地圖或其他資料；共享取消、撤權時則顯示不可用並要求重選，不能繞過權限從私人表查找。
+
+這是本次新增的具體建議，實作前需確認端點 union；不是既有 schema。
+
+## 5. IndexedDB 具體改動
+
+| 項目 | 工作內容 |
+|---|---|
+| domain／validation | 新增位置與來源驗證；新舊端點 normalize；保留未定位舊資料 |
+| Dexie schema | 建議基底下一版 11；需先核對開工時最高版本，且同時演練 standalone、帳號 DB 的升級路徑 |
+| routeMapPlaces 索引 | 保留既有 Google 複合唯一索引供有 ID 的舊資料使用；Google ID 變 optional，不再視為每筆必有 |
+| OSM 去重 | 建議增 unique compound `[routeMapId+location.osmReference]`；無 reference 的座標地點不以座標硬去重 |
+| Region／Place 新欄位 | 非索引欄位不需要單獨為每欄升版；統一隨此批 schema 發布，不加沒有查詢需求的座標索引 |
+| repository | 建立／修改／刪除端點引用驗證；位置變動與路程失效置於同交易 |
+| shared cache | 共享文件及 before／after／conflict 都能讀取新版位置 |
+| public catalog | 其 DB 目前最高版本 2；snapshot 升版不代表索引一定變更，只有需資料 upgrade 時才新增其下一版 |
+
+OSM reference 索引以完整 `node/…`／`way/…`／`relation/…` 字串為鍵，實作時以 Dexie 的 nested key path 能力驗證；不新增會漏進 sync payload 的衍生私有欄位。若一筆含 Google ID 與 OSM reference，兩個唯一約束都生效。先盤點重複資料，不靠清空 DB 讓 upgrade 成功。
+
+**升級交易不得呼叫 Google、HTTP 或路線服務。** 不在 Dexie upgrade 裡批次改寫 queued task、baseline 或 receipt 對應 payload。schema upgrade 只做可重跑的結構／必要索引資料處理；需改變業務內容的中立化，另經 repository 與 hybrid mutation 保存。
+
+## 6. Supabase 具體改動
+
+### 6.1 建議欄位與約束
+
+| table | 建議變更 | CHECK／索引／交易要求 |
+|---|---|---|
+| `places` | 加 nullable `location jsonb` | 嚴格驗證 shape、來源、有限範圍座標；原 ID／URL CHECK 加 location 分支 |
+| `regions` | 加 nullable `center_metadata jsonb`，沿用 `center` | metadata 必須對應有效 center；無 center 的 Google-only 舊資料仍合法 |
+| `route_map_places` | 加 nullable `location jsonb`；`google_place_id` 允許 NULL | 至少有效位置或非空 Google ID；保留 Google unique；新增 OSM reference 的部分唯一 expression index |
+| `route_maps` | 加 nullable `origin jsonb`、`destination jsonb` | 驗證 endpoint union、同 owner／同 map 引用；保留舊欄位至兼容窗口結束 |
+| `itinerary_items` | 建議加 nullable `travel_estimate_context jsonb` | context 與分鐘／公尺一致；位置改變時清除三者 |
+| 其他業務表 | 不增地圖欄位 | 不因換地圖改 owner、ACL、UUID 或標籤／日期規則 |
+
+選 JSONB 是因位置及 union 小而有固定 shape，與既有 Region.center 契約接近；不是任意 provider response 儲存區。validator 必須拒絕未知／授權欄位、缺一個座標、空字串、非數值或越界。CHECK 需明確拒絕缺值造成的 SQL NULL，不能因三值邏輯漏驗。
+
+不需要 PostGIS、全量 OSM catalog、路網或圖磚進每位使用者資料庫。沒有範圍／半徑查詢需求，先不加空間或一般 GIN 索引。
+
+端點引用若存在 JSONB，不會自動取得 FK 保護：需同 owner／同 map 的資料庫驗證，並以交易結束時檢查或等價的批次驗證處理「先存 map、後存新增 marker」順序；刪除目標時清空引用。實作時不能只做 UI 驗證或立即 trigger 導致合法同步批次被拒。
+
+### 6.2 不可漏改的 SQL／repository 接面
+
+| 接面 | 必要工作 |
+|---|---|
+| cloud repository 的 select／row／input／normalize | Region、Place、RouteMap、RouteMapPlace、ItineraryItem 新欄位全部往返 |
+| `sync_private.record` | 輸出中立位置、metadata、端點與估算來源 |
+| `app_sync_snapshot`／`app_sync_pull`／`app_sync_push` | 協定版本、新欄位白名單、完整 upsert、刪除引用清理、legacy payload 規則 |
+| sync events／versions／receipts | 新版本事件相容、版本戳與重試 payload 保持一致；不改已發出事件與 receipt |
+| `app_backup_assert_payload`／preview／apply replace／clear | 備份 v3、staging、新欄位、ID 重映射；失敗全回滾 |
+| `app_backup_account_signature` | 新欄位也必須影響簽章；避免 preview 後位置改變仍接受舊 token |
+| `collaboration_private.shared_document`／`app_shared_trip` | 共享位置、啟用時複製、整份文件驗證、來源去重及 topology 失效 |
+| `app_cancel_shared_trip` | 共享轉私人保留位置與來源；不能只按 Google ID／URL 誤合併 |
+| `public_itinerary_private.validate_snapshot`／`api` | 新 snapshot version、publish／update／apply 的欄位與 ID 映射 |
+
+私人 Place 更新與路程清除，建議用聚焦的雲端原子操作完成，並讓 sync push 的位置變動規則一致；不要沿用多個 HTTP 請求保證「一定一致」。不順帶重寫無關 CRUD。
+
+incremental migration 不修改／重播 baseline 或歷史 migration，也不先猜檔名。實作時依既有 CLI 工作流產生新 migration；部署前另取得授權、只讀核對 live schema、函式、grants 與版本，再套用新內容。
+
+不擴權：私人 owner／admin 規則、共享角色及公開 snapshot 的既有公開讀取邊界各自保留。公開表現行可匿名讀取，不可誤套「所有資料都禁止 anon」而破壞公開功能；反之也不能把私人位置變成公開。若增 RPC，核對 EXECUTE grants、caller、owner、search_path；不以新增 SECURITY DEFINER 解決權限錯誤。
+
+## 7. 三種資料模式與同步相容
+
+| 操作 | standalone IndexedDB | Supabase direct | hybrid |
+|---|---|---|---|
+| 換地圖偏好 | 瀏覽器設定，不碰業務資料 | 同左 | 同左，不增加 outbox |
+| 新增／補使用者或 OSM 位置 | repository 交易 | 原子 cloud 操作 | facade → LocalSyncStore.mutate → outbox → 現有 auto/manual sync |
+| 修改位置、清路程 | 同交易修改相關 items | 同 DB 交易完成 | 同一任務包含位置與失效的 items |
+| 未連線 | 已存位置可用；服務能力另判定 | 明確提示無法保存，不假裝本機成功 | 本機保存並留待上傳；帳號隔離不變 |
+| 公開／共享 | 沿用各自現有可用範圍 | 沿用公開／共享 RPC | 沿用專屬共享／catalog queue，不強塞私人 outbox |
+
+OSM 不是「整個產品完全離線」的承諾：本機圖資／搜尋／道路服務仍要可達；Auth、雲端與部分共享操作另需連線。
+
+### 協定與舊客戶端：正式發布前的硬前置
+
+現有私人 sync `protocolVersion: 1`，以整筆 `put` upsert；server receipt 對同 operation ID 會比對完整 payload。舊客戶端未認識新欄位，可能驗證失敗或上傳舊 record 清空新內容。
+
+**建議私人 sync 升 protocol v2；新 client 保留 v1 佇列的精確重試能力。** 不只把白名單放寬然後期待安全。
+
+1. 先定 server/client capability 與最低 writer 版本，讓舊 client 明確要求更新，不得靜默丟欄位。
+2. 已凍結的 v1 任務保持原 operationId、protocol 與 payload，先詢問／重試原結果；不重新包成 v2。
+3. 新 server 保留 v1 receipt 回傳路徑。對尚未套用的 legacy 任務，只有在能證明不覆寫新欄位時才接受；否則回明確版本／衝突錯誤並保留 queue。
+4. legacy 任務清理／處理完，新的業務變更才產生 v2 任務；不直接編輯舊 task 冒充重試。
+5. v1 事件仍可供 v2 client 正規化；v2 事件不能送給會拒收或刪欄位的舊 writer。cursor 不因換圖或升版歸零。
+6. direct repositories、共享 RPC、公開 catalog 的寫入也要有對應版本防護；僅改私人 sync 不夠。增量加欄位階段可維持舊路徑，但在發出新資料前必須限制不安全的舊寫入。
+7. 如果無法安全做並行版本，採明確維護／強制更新窗口；不能宣稱只靠前端 Vercel redeploy 就阻止所有舊分頁。
+
+實作前需以 isolated DB 與真實舊 payload fixtures 決定版本路由／維護策略；這是主要風險與工作項，不是已完成的能力。
+
+## 8. 備份、共享與公開格式
+
+- **Backup：建議寫 v3，繼續讀 v1／v2。** 先 normalize 舊格式再驗證完整 graph。cloud replacement 會重建 UUID，必須重映射 `place`／`route-map-place` endpoints；inline 端點自己的 UUID 同樣重新配置。私人全備份不直接匯入共享文件引用；無法合法還原的共享端點明確清空／要求重選並告知，不靜默轉成他人資料。
+- **Shared：增 location、Region metadata、estimate context。** 既有共享 `version` 是並行編輯版本，不等於 schema version；需要獨立格式辨識與讀寫能力協商。處理既有 snapshot、before／after、conflict、save receipts，不能借 backup 升版意外改掉共享相容性。
+- **Public：建議 snapshot schemaVersion 2，繼續讀 v1。** publicPlace、snapshot validator、雲端發佈／套用、catalog tasks／baseline／receipt 及只讀地圖一起升級。不公開私人筆記、labelIds、owner／ACL、使用者身分等無關資訊。
+- 已公開 snapshot 是獨立副本，不因私人補位置就背景改寫；由原擁有者明確更新發布。
+- shared／public 保存的是位置及合法來源，不是全量 OSM tags 或 Google details。
+
+## 9. 舊資料補位置與估算失效
+
+### 9.1 補位置
+
+1. 授權後做唯讀盤點，分 Region、Place、試算 marker／端點、shared、public；統計 Google-only、已有合法 center、含明確座標 URL、未定位各類。
+2. 保留 UUID 與原 Google ID／網址。只有 Google ID 不能離線推導座標；OSM 模式列未定位原因並提供後續補位置入口。
+3. Google URL 中的明確位置也只先當候選；`@lat,lng` 通常是視角中心。URL 的解析不代表永久保存或跨底圖使用已獲授權，須分清來源與確認位置。
+4. 名稱匹配不能自動取第一筆或合併收藏；使用者選 OSM 候選或獨立輸入後，經正常 facade 儲存。
+5. 可重跑、可取消、逐筆記錄結果；禁止在 schema upgrade、登入或換圖時隱性大量查詢。
+6. 不用備份覆蓋／UUID remapping 當作增量遷移，更不清空 outbox 後重新下載。
+
+### 9.2 失效規則
+
+- 位置內容、Google reference、前站、目的地、交通、日期或順序變動，清除受影響 incoming leg 與下一站 leg 的分鐘、公尺、context。
+- 相同位置僅改名稱／筆記／標籤，不清除估算；只切 provider 偏好也不改已存值。
+- 非同步 estimate 回來前重新比對兩端位置指紋、交通與目前 provider generation，過期結果不得寫回。
+- OSM dataset 更新後已存估算標示舊版本，待使用者重新要求計算，不背景覆寫行程。
+- 本機、cloud、shared topology 驗證使用相同規則；實際座標不同但 Google ID 未變，也必須失效。
+
+## 10. 分批實作與放行條件
+
+依賴順序為 **P1 → P2 → P3 → P4 → P5**；概念定稿與離線 fixtures 可先準備，但正式資料寫入不得提前。
+
+| 批次 | 具體交付 | 放行條件／停止點 |
+|---|---|---|
+| P1 真正雙 renderer | contracts、Google／MapLibre adapters、共用 MapView、獨立 PoC；同一批接兩邊 | 同 fixtures 切換、marker ID／視野／cleanup 可驗證；不接正式 DB |
+| P2 搜尋／路線契約 | 兩 provider 的名稱搜尋、resolve、routing、能力與錯誤；Google 座標端點及資料保存邊界 | 同 consumer 能使用兩者；不支援模式明確拒絕；不保證 OSM 的 Google-only 資料可用 |
+| P3 資料相容基礎 | 位置／端點模型、Dexie v11 建議、repository、SQL migration、協定／備份／共享／公開版本 fixtures | isolated DB 完整往返；既有資料與 queue 保留；先不啟用正式 UI 新寫入 |
+| P4 受控部署與正式接線 | 先核對雲端、部署相容層／限制舊 writer，再啟用新 client；Region → Place → 私人行程 → 共享／公開 → 試算 → 設定入口 | 各模組 Google／OSM 與三種資料模式成立，不能有只支援 cloud 的新寫入；未接面的入口須 gate |
+| P5 補舊位置與收斂 | 明確補位置流程、分批遷移、觀測；穩定後才討論移除 legacy 欄位 | 不自動覆蓋位置；確認舊 queue／client 退出後才考慮 cleanup migration |
+
+P3 的 schema／協定修改可以先準備，但不推定已獲授權套用至雲端；P4 在新欄位流入任何舊 client 前需完成相容限制。新座標文字／網址解析、短網址、點圖新增、快捷操作與路線繪製仍屬額外批次，不阻塞核心；不因此刪除今天核准的 UI 設計。
+
+### 範圍估量
+
+| 工作 | 相對規模 | 主要變數 |
+|---|---|---|
+| 下拉設定與偏好 | 小 | 裝置或帳號範圍、失敗 UX |
+| renderer 轉換層 | 中 | Google loader 拆分、生命週期、OSM 正式圖磚 |
+| search／routing 共用 | 中至大 | Google 資料式搜尋、端點支援、OSM 服務與能力差異 |
+| 模型／IndexedDB／cloud repositories | 大 | 試算端點、交易、舊資料與索引 |
+| 同步／版本部署／backup／shared／public | 大，最高風險 | frozen retries、舊 writer、欄位白名單、快照獨立性 |
+
+目前不足以給可靠人日；先以 P1/P2 的實際驗證結果估後續，而不是用「加下拉選單」估整合工期。
+
+## 11. 待授權的驗收清單
+
+本次沒有執行以下測試；這是後續實作的驗收規格，不是通過紀錄。
+
+1. 同一 fixtures 切兩 provider 後 UUID、名稱、選取、日期、起終點保持；失敗不 fallback，多次切換無舊 callback。
+2. OSM 冷啟動不發出 Google SDK／API 請求；既用過 Google 再切換的限制有明確說明。
+3. 地點只有合法 location 可新增；NaN／Infinity／越界／缺一座標／偽造來源與 owner 欄位被拒。
+4. standalone 與多個 project/user DB 從既有版本升級，資料／outbox／baseline／conflict 不丟；索引唯一規則一致。
+5. IndexedDB、direct cloud、hybrid 完整新增／修改／讀回位置；hybrid 自動同步上傳後另一裝置可讀回。
+6. legacy frozen task 精確重試、未知結果重試、v1/v2 混用、舊 writer 拒絕、cursor 前進與斷線恢復均不丟新欄位。
+7. backup 1／2 能讀、3 往返及 ID 重映射；preview 後位置改變令舊 token 失效；非法備份完全不改資料。
+8. 共享啟用／編輯／取消、公開發布／更新／套用都保留位置；舊 snapshot／queue 可讀，私人欄位不公開。
+9. 修改位置時路程原子失效；名稱變動不失效；延遲估算不覆寫新位置／新 provider 狀態。
+10. Google-only／範圍外地點明確列未定位／不支援，不刪資料、不錯配到同名第一筆、不改交通模式。
+11. 匿名／basic 私人資料拒絕、member owner 限制、admin、共享 owner/editor/viewer、同 owner 引用及公開讀取邊界不變。
+12. 批准後分別執行 geo、repositories、migration/RLS、sync、backup、shared/public 相關現有測試；build/typecheck、lint、瀏覽器與 live 驗證各依批准範圍執行。
+
+## 12. 實作前需確認的決策
+
+| 決策 | 本文建議 | 尚待確認 |
+|---|---|---|
+| 地圖偏好範圍 | 裝置／瀏覽器，不跨裝置同步 | 是否需要帳號偏好 |
+| 下拉選項涵蓋範圍 | 一次切換 renderer／search／routing，導航仍 Google 外連 | 是否只要換底圖；若是，需重訂 Google content 邊界 |
+| 永久位置來源 | 使用者／OSM；Google-only 保留未定位相容 | Google 資料保存／使用條款的實際適用範圍 |
+| 試算端點 | 四種明確 union，不強迫把搜尋端點加入收藏 | 是否接受來源引用與 inline endpoint 的保存行為 |
+| 舊 client 發布 | 版本能力防護；無法並行則維護／強制更新窗口 | 是否接受窗口與人工處理未送任務 |
+| OSM 部署 | 可達的圖資／搜尋／routing 服務，不把訪客 localhost 當正式服務 | 沖繩圖磚、正式 host、可用性及容量 |
+
+以上決策未核准前，不開始正式 schema／資料遷移。UI 設計稿與本規劃均不代表已取得測試、安裝、服務啟動或雲端寫入授權。
+
+### 外部規範查核
+
+本次僅查閱一般官方文件，未傳送專案內容或連線至專案資料庫：
+
+- [Supabase changelog](https://supabase.com/changelog.md)：近期索引提及 TLS cipher 停用，屬連線相容性議題，非本次地圖 schema 需求；未據此修改環境。
+- [Supabase RLS](https://supabase.com/docs/guides/database/postgres/row-level-security.md)：確認 grants 與 RLS 是不同層，新增／修改 API 不能只靠前端 gate。
+- [Google Places policies](https://developers.google.com/maps/documentation/places/web-service/policies)：確認 place ID 例外與一般 content 的保存／呈現限制；其他 Google SDK／Routes 的具體選型仍待實作階段核對。
