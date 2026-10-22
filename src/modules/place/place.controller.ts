@@ -41,6 +41,10 @@ export class PlaceController {
     return this.service.isGooglePlacesConfigured()
   }
 
+  mountOsmAutocomplete(...args: Parameters<PlaceService['mountOsmAutocomplete']>) {
+    return this.service.mountOsmAutocomplete(...args)
+  }
+
   mountPlaceAutocomplete(
     container: HTMLElement,
     onSelect: Parameters<PlaceService['mountPlaceAutocomplete']>[1],

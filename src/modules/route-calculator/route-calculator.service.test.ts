@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from 'vitest'
 import type { Place } from '../../database/models'
 import type { GooglePlaceDetails } from '../place/google-places.service'
+import type { StoredLocation } from '../../geo/contracts'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), getById: vi.fn(), details: vi.fn(), estimate: vi.fn(),
@@ -8,7 +9,10 @@ const mocks = vi.hoisted(() => ({
   routeMapCreate: vi.fn(), routeMapUpdate: vi.fn(), routeMapGet: vi.fn(), routeMapList: vi.fn(), routeMapFindByTrip: vi.fn(),
   routeMapPlaceCreate: vi.fn(), routeMapPlaceDelete: vi.fn(), routeMapPlaceFind: vi.fn(),
   sharedTrips: vi.fn(),
+  provider: vi.fn(), osmEstimate: vi.fn(),
 }))
+vi.mock('../../geo/provider-preference', () => ({ getMapProvider: mocks.provider }))
+vi.mock('../../geo/osm-service', () => ({ routeOsmLocations: mocks.osmEstimate }))
 vi.mock('../../database/shared-trip.types', () => ({ sharedTripEditingEnabled: true }))
 vi.mock('../../database/shared-trip.repository', () => ({ sharedTrips: { list: mocks.sharedTrips } }))
 vi.mock('../../database', async () => ({
@@ -46,6 +50,8 @@ const input: RouteCalculationInput = {
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.provider.mockReturnValue('google')
+  mocks.osmEstimate.mockResolvedValue({ durationMinutes: 9, distanceMeters: 650 })
   mocks.list.mockResolvedValue([saved])
   mocks.getById.mockResolvedValue(saved)
   mocks.details.mockResolvedValue({ id: 'station', location: { lat: 25.04, lng: 121.55 } })
@@ -61,6 +67,114 @@ beforeEach(() => {
   mocks.routeMapPlaceDelete.mockResolvedValue(undefined)
   mocks.routeMapPlaceFind.mockResolvedValue([])
   mocks.sharedTrips.mockResolvedValue([])
+})
+
+const osmLocation: StoredLocation = {
+  source: 'osm', kind: 'point', reference: { provider: 'osm', id: 'node/123' },
+  coordinate: { latitude: 26.2, longitude: 127.7 }, datasetVersion: '2026-10-20',
+}
+const userLocation: StoredLocation = {
+  source: 'user', kind: 'user-picked', coordinate: { latitude: 26.3, longitude: 127.8 },
+}
+
+it('routes OSM and user-defined endpoints without requesting Google details or routes', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.getById.mockResolvedValue({ ...saved, googlePlaceId: undefined, location: osmLocation })
+  const result = await new RouteCalculatorService().calculate({
+    ...input,
+    destination: { source: 'osm', place: { id: 'coordinate:26.3,127.8', name: '海邊停車場', location: userLocation } },
+  })
+  expect(result).toMatchObject({
+    provider: 'osm', durationMinutes: 9, distanceMeters: 650,
+    origin: { id: 'osm:node/123', name: saved.name, location: osmLocation },
+    destination: { name: '海邊停車場', location: userLocation },
+  })
+  expect(result.origin.googlePlaceId).toBeUndefined()
+  expect(mocks.osmEstimate).toHaveBeenCalledExactlyOnceWith(osmLocation.coordinate, userLocation.coordinate, 'WALKING')
+  expect(mocks.details).not.toHaveBeenCalled()
+  expect(mocks.estimate).not.toHaveBeenCalled()
+})
+
+it.each(['TRANSIT', 'TWO_WHEELER'])('explicitly rejects unsupported OSM transport %s before resolution', async transport => {
+  mocks.provider.mockReturnValue('osm')
+  await expect(new RouteCalculatorService().calculate({ ...input, transport })).rejects.toThrow('不支援')
+  expect(mocks.getById).not.toHaveBeenCalled()
+  expect(mocks.details).not.toHaveBeenCalled()
+  expect(mocks.osmEstimate).not.toHaveBeenCalled()
+  expect(mocks.estimate).not.toHaveBeenCalled()
+})
+
+it('does not resolve Google-only endpoints or fall back to Google in OSM mode', async () => {
+  mocks.provider.mockReturnValue('osm')
+  await expect(new RouteCalculatorService().calculate(input)).rejects.toThrow('Google')
+  expect(mocks.details).not.toHaveBeenCalled()
+  expect(mocks.estimate).not.toHaveBeenCalled()
+  expect(mocks.osmEstimate).not.toHaveBeenCalled()
+})
+
+it('preserves Google behavior for a saved place with both independent OSM and Google references', async () => {
+  mocks.getById.mockResolvedValue({ ...saved, location: osmLocation })
+  await new RouteCalculatorService().calculate(input)
+  expect(mocks.estimate).toHaveBeenCalledWith('station', 'cafe', 'WALKING')
+  expect(mocks.osmEstimate).not.toHaveBeenCalled()
+})
+
+it('persists neutral marker provenance and user names, never an OSM ID in googlePlaceId', async () => {
+  const service = new RouteCalculatorService()
+  const marker = await service.resolveEndpoint({ source: 'osm', place: { id: 'node/123', name: '入口', location: osmLocation } })
+  await service.addRouteMapPlace('map-id', marker)
+  expect(mocks.routeMapPlaceCreate).toHaveBeenCalledExactlyOnceWith({
+    routeMapId: 'map-id', name: '入口', location: osmLocation,
+  })
+  mocks.routeMapPlaceFind.mockResolvedValue([{ id: 'marker-id', routeMapId: 'map-id', name: '入口', location: osmLocation }])
+  const loaded = await service.loadRouteMap('map-id')
+  expect(loaded.markers).toMatchObject([{
+    id: 'osm:node/123', name: '入口', location: osmLocation,
+    selection: { kind: 'route-map-place', routeMapPlaceId: 'marker-id' },
+  }])
+  await service.addRouteMapPlace('map-id', marker)
+  expect(mocks.routeMapPlaceCreate).toHaveBeenCalledTimes(1)
+  await service.removeRouteMapPlace('map-id', 'osm:node/123')
+  expect(mocks.routeMapPlaceDelete).toHaveBeenCalledWith('marker-id')
+  expect(mocks.details).not.toHaveBeenCalled()
+})
+
+it('resolves all four persisted neutral endpoint kinds through the facade', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.getById.mockResolvedValue({ ...saved, location: osmLocation })
+  mocks.sharedTrips.mockResolvedValue([{
+    id: 'shared-trip', document: {
+      places: [{ id: 'shared-place', name: '共同入口', location: osmLocation }], items: [],
+    },
+  }])
+  mocks.routeMapList.mockResolvedValue([{ id: 'map-id' }])
+  mocks.routeMapPlaceFind.mockResolvedValue([{ id: 'marker-id', name: '後加入口', location: userLocation }])
+  const service = new RouteCalculatorService()
+  await expect(service.resolveEndpoint({ source: 'selection', selection: { kind: 'place', placeId: 'saved' } })).resolves.toMatchObject({ name: saved.name, location: osmLocation })
+  await expect(service.resolveEndpoint({ source: 'selection', selection: { kind: 'shared-place', tripId: 'shared-trip', placeId: 'shared-place' } })).resolves.toMatchObject({ name: '共同入口', location: osmLocation })
+  await expect(service.resolveEndpoint({ source: 'selection', selection: { kind: 'route-map-place', routeMapPlaceId: 'marker-id' } })).resolves.toMatchObject({ name: '後加入口', location: userLocation })
+  await expect(service.resolveEndpoint({ source: 'selection', selection: {
+    kind: 'location', id: 'location-id', value: { kind: 'stored', name: '自行命名', location: userLocation },
+  } })).resolves.toMatchObject({ name: '自行命名', location: userLocation })
+  expect(mocks.details).not.toHaveBeenCalled()
+})
+
+it('does not reinterpret missing shared endpoints as private place IDs', async () => {
+  mocks.getById.mockResolvedValue({ ...saved, id: 'missing', location: osmLocation })
+  await expect(new RouteCalculatorService().resolveEndpoint({ source: 'selection', selection: {
+    kind: 'shared-place', tripId: 'shared-trip', placeId: 'missing',
+  } })).rejects.toThrow('Shared place')
+  expect(mocks.getById).not.toHaveBeenCalled()
+})
+
+it('propagates OSM service failure without falling back to Google', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.osmEstimate.mockRejectedValue(new Error('OSM 離線'))
+  await expect(new RouteCalculatorService().calculate({
+    ...input, origin: { source: 'osm', place: { id: 'node/123', name: '入口', location: osmLocation } },
+    destination: { source: 'osm', place: { id: 'user', name: '終點', location: userLocation } },
+  })).rejects.toThrow('OSM 離線')
+  expect(mocks.estimate).not.toHaveBeenCalled()
 })
 
 it('uses the current shared itinerary and its names rather than retained private items', async () => {

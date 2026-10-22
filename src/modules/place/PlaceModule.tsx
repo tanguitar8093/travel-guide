@@ -11,12 +11,17 @@ import { BulkDeleteToolbar } from "../../common/BulkDeleteToolbar";
 import type { BulkOperationResult } from "../../common/bulk-operation";
 import { BulkLabelToolbar } from "./BulkLabelToolbar";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
+import type { StoredLocation } from "../../geo/contracts";
+import { useMapProvider } from "../../geo/provider-preference";
+import { googleMapsNavigationUrl, suggestedOsmLocationName } from "../../geo/osm-service";
+import { OsmSearchHeading } from "../../geo/OsmSearchHeading";
 
 interface PlaceDraft {
   name: string;
   icon?: PlaceIcon;
   mapsUrl: string;
   googlePlaceId?: string;
+  location?: StoredLocation;
   notes: string;
   regionIds: string[];
   labelIds: string[];
@@ -36,6 +41,7 @@ function toDraft(place: Place): PlaceDraft {
     icon: place.icon,
     mapsUrl: place.mapsUrl ?? "",
     googlePlaceId: place.googlePlaceId,
+    location: place.location,
     notes: place.notes ?? "",
     regionIds: [...place.regionIds],
     labelIds: [...place.labelIds],
@@ -294,6 +300,7 @@ function PlaceModule() {
   const [regions, setRegions] = useState<Region[]>([]);
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>();
   const [draft, setDraft] = useState<PlaceDraft>(emptyDraft);
+  const { provider, error: providerError } = useMapProvider();
   const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails | null>(
     null,
   );
@@ -425,7 +432,7 @@ function PlaceModule() {
   }, [dataRevision, reloadBlocked]);
 
   useEffect(() => {
-    if (!editing || !placeController.isGooglePlacesConfigured()) return;
+    if (!editing || provider !== 'google' || !placeController.isGooglePlacesConfigured()) return;
     const container = autocompleteContainerRef.current;
     if (!container) return;
 
@@ -444,6 +451,7 @@ function PlaceModule() {
             name: current.name || query,
             googlePlaceId: details.id,
             mapsUrl: "",
+            location: undefined,
           }));
           setError("");
         },
@@ -474,10 +482,40 @@ function PlaceModule() {
       dispose?.();
       container.replaceChildren();
     };
-  }, [editing]);
+  }, [editing, provider]);
 
   useEffect(() => {
-    if (!selectedGooglePlaceId) return;
+    if (!editing || provider !== 'osm' || !autocompleteContainerRef.current) return;
+    const container = autocompleteContainerRef.current;
+    let active = true;
+    let dispose: (() => void) | undefined;
+    placeController.mountOsmAutocomplete(container, candidate => {
+      if (!active) return;
+      setDraft(current => ({
+        ...current, location: candidate.location, googlePlaceId: undefined,
+        mapsUrl: candidate.mapsUrl ?? current.mapsUrl,
+        name: current.name || suggestedOsmLocationName(candidate),
+      }));
+      setNotice(candidate.warning ?? '');
+      setError('');
+      document.getElementById('place-user-name')?.focus();
+    }, cause => { if (active) setError(cause.message); }, {
+      onInput: () => {
+        if (active) {
+          setError('');
+          setNotice('');
+          setDraft(current => ({ ...current, location: undefined, googlePlaceId: undefined, mapsUrl: '' }));
+        }
+      },
+    }).then(unmount => {
+      if (active) { dispose = unmount; container.querySelector('input')?.focus(); }
+      else unmount();
+    }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'OSM 搜尋無法啟動。'); });
+    return () => { active = false; dispose?.(); };
+  }, [editing, provider]);
+
+  useEffect(() => {
+    if (!selectedGooglePlaceId || provider !== 'google') return;
 
     let active = true;
     placeController
@@ -503,7 +541,7 @@ function PlaceModule() {
     return () => {
       active = false;
     };
-  }, [selectedGooglePlaceId]);
+  }, [selectedGooglePlaceId, provider]);
 
   useEffect(() => {
     let active = true;
@@ -563,7 +601,7 @@ function PlaceModule() {
     setCreating(true);
     setEditing(true);
     setSelectedPlaceId(undefined);
-    setDraft(emptyDraft);
+    setDraft({ ...emptyDraft, regionIds: regions.length === 1 ? [regions[0].id] : [] });
     setGoogleDetails(null);
     setGoogleDetailsForId(undefined);
     setGoogleDetailsErrorForId(undefined);
@@ -597,6 +635,7 @@ function PlaceModule() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!provider) { setError(providerError ?? '請先選擇地圖供應商。'); return; }
     setSaving(true);
     setError("");
     setNotice("");
@@ -605,6 +644,7 @@ function PlaceModule() {
       ...(draft.icon ? { icon: draft.icon } : {}),
       ...(draft.mapsUrl.trim() ? { mapsUrl: draft.mapsUrl.trim() } : {}),
       ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
+      ...(draft.location ? { location: draft.location } : {}),
       ...(draft.notes.trim() ? { notes: draft.notes.trim() } : {}),
       regionIds: draft.regionIds,
       labelIds: draft.labelIds,
@@ -727,9 +767,9 @@ function PlaceModule() {
           </button>
         </section>
 
-        {error && (
+        {(error || providerError) && (
           <div className="feedback-message error-message" role="alert">
-            {error}
+            {error || providerError}
           </div>
         )}
         {notice && (
@@ -960,7 +1000,7 @@ function PlaceModule() {
                             {place.name}
                           </strong>
                           <span>
-                            {place.googlePlaceId
+                            {provider === 'osm' ? (place.location ? 'OSM／自主位置' : '尚無 OSM 位置') : place.googlePlaceId
                               ? "Google Maps 地點"
                               : "自訂地圖連結"}
                           </span>
@@ -1036,7 +1076,7 @@ function PlaceModule() {
                     <button
                       className="save-button"
                       type="submit"
-                      disabled={saving || !draft.name.trim()}
+                      disabled={saving || !provider || !draft.name.trim()}
                     >
                       {saving ? "儲存中…" : creating ? "建立地點" : "儲存變更"}
                     </button>
@@ -1045,16 +1085,15 @@ function PlaceModule() {
 
                 <div className="place-form-grid">
                   <div className="google-place-search place-name-field">
-                    <span className="search-field-label">Google Maps 搜尋</span>
-                    {placeController.isGooglePlacesConfigured() ? (
+                    <span className="search-field-label">{provider === 'osm' ? <OsmSearchHeading /> : 'Google Maps 搜尋'}</span>
+                    {provider === 'osm' || (provider === 'google' && placeController.isGooglePlacesConfigured()) ? (
                       <>
                         <div
                           className="google-autocomplete"
                           ref={autocompleteContainerRef}
                         />
                         <small>
-                          選擇結果可連結或更換 Google 地點；資料庫只保存
-                          place_id，地點名稱請填寫你自己的名稱。
+                          {provider === 'osm' ? '搜尋沖繩 OSM 名稱或輸入「緯度, 經度」，再選取結果。地點名稱請自行命名；Google 連結只作導航，不擷取其座標。' : '選擇結果可連結或更換 Google 地點；資料庫只保存 place_id，地點名稱請填寫你自己的名稱。'}
                         </small>
                       </>
                     ) : (
@@ -1070,7 +1109,12 @@ function PlaceModule() {
                         </span>
                       </div>
                     )}
-                    {draft.googlePlaceId && (
+                    {provider === 'osm' && draft.location && <div className="google-selection">
+                      <span>✓ 已選位置：{draft.location.coordinate.latitude}, {draft.location.coordinate.longitude}</span>
+                      <small>{draft.location.source === 'osm' ? `OSM ${draft.location.reference.id}` : '自行確認的位置'}{draft.location.kind === 'approximate-center' ? '（代表中心，請確認入口）' : ''}</small>
+                      {notice && <small role="status">{notice}</small>}
+                    </div>}
+                    {provider === 'google' && draft.googlePlaceId && (
                       <>
                         <div className="google-selection">
                           {draftGoogleDetails?.displayName && (
@@ -1105,7 +1149,8 @@ function PlaceModule() {
                       地點名稱（自行命名） <b>*</b>
                     </span>
                     <input
-                      autoFocus={!placeController.isGooglePlacesConfigured()}
+                      id="place-user-name"
+                      autoFocus={provider === 'google' && !placeController.isGooglePlacesConfigured()}
                       value={draft.name}
                       onChange={(event) =>
                         setDraft({ ...draft, name: event.target.value })
@@ -1117,9 +1162,9 @@ function PlaceModule() {
                     />
                   </label>
 
-                  {!draft.googlePlaceId ? (
+                  {provider === 'osm' || !draft.googlePlaceId ? (
                     <label className="form-field place-url-field">
-                      <span>地圖網址 {!draft.googlePlaceId && <b>*</b>}</span>
+                      <span>地圖網址 {provider !== 'osm' && !draft.googlePlaceId && <b>*</b>}</span>
                       <input
                         type="url"
                         value={draft.mapsUrl}
@@ -1127,12 +1172,11 @@ function PlaceModule() {
                           setDraft({ ...draft, mapsUrl: event.target.value })
                         }
                         placeholder="https://maps.google.com/..."
-                        required={!draft.googlePlaceId}
+                        required={provider !== 'osm' && !draft.googlePlaceId}
                         disabled={formDisabled}
                       />
                       <small>
-                        若未選 Google 搜尋結果，請貼上 Google Maps
-                        分享連結或其他地圖網址。
+                        {provider === 'osm' ? '選填：Google 地圖連結或其他導航網址；不會取代已選 OSM 位置。' : '若未選 Google 搜尋結果，請貼上 Google Maps 分享連結或其他地圖網址。'}
                       </small>
                     </label>
                   ) : (
@@ -1240,7 +1284,7 @@ function PlaceModule() {
                   <button
                     className="save-button"
                     type="submit"
-                    disabled={saving || !draft.name.trim()}
+                    disabled={saving || !provider || !draft.name.trim()}
                   >
                     {saving ? "儲存中…" : creating ? "建立地點" : "儲存變更"}
                   </button>
@@ -1280,7 +1324,10 @@ function PlaceModule() {
                   </div>
                 </div>
 
-                {selectedPlace.googlePlaceId && (
+                {provider === 'osm' && <section className="place-map-card">
+                  {selectedPlace.location ? <><span>OSM／自主位置</span><p>{selectedPlace.location.coordinate.latitude}, {selectedPlace.location.coordinate.longitude}</p><a className="maps-link" href={selectedPlace.mapsUrl || googleMapsNavigationUrl(selectedPlace.location.coordinate)} target="_blank" rel="noreferrer">在 Google Maps 開啟 ↗</a></> : <p>此地點尚無 OSM 可用位置。編輯並選取 OSM 搜尋結果或自行確認的座標；原 Google 連結不會被刪除。</p>}
+                </section>}
+                {provider === 'google' && selectedPlace.googlePlaceId && (
                   <section className="google-place-summary">
                     <div className="google-live-heading">
                       Google Maps 地點 <span>Powered by Google Maps</span>
@@ -1316,7 +1363,7 @@ function PlaceModule() {
                   </section>
                 )}
 
-                {!selectedPlace.googlePlaceId && (
+                {provider === 'google' && !selectedPlace.googlePlaceId && (
                   <div className="place-map-card">
                     <span>自訂地圖位置</span>
                     {selectedPlace.mapsUrl && (

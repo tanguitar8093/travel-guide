@@ -9,7 +9,11 @@ const mocks = vi.hoisted(() => ({
   estimate: vi.fn(),
   findRouteMap: vi.fn(),
   findRouteMapPlaces: vi.fn(),
+  provider: 'google',
+  osmEstimate: vi.fn(),
 }))
+vi.mock('../../geo/provider-preference', () => ({ getMapProvider: () => mocks.provider }))
+vi.mock('../../geo/osm-service', () => ({ routeOsmLocations: mocks.osmEstimate }))
 
 vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
@@ -37,6 +41,7 @@ const place = (id: string): Place => ({ id, name: id, googlePlaceId: `google-${i
 
 beforeEach(() => {
   vi.resetAllMocks()
+  mocks.provider = 'google'
   mocks.getItem.mockResolvedValue(second)
   mocks.listItems.mockResolvedValue([first, second])
   mocks.getPlace.mockImplementation(async (id: string) => place(id))
@@ -44,6 +49,37 @@ beforeEach(() => {
   mocks.estimate.mockResolvedValue({ durationMinutes: 25, distanceMeters: 12300 })
   mocks.findRouteMap.mockResolvedValue(undefined)
   mocks.findRouteMapPlaces.mockResolvedValue([])
+})
+
+it('routes OSM through independent locations and saves via the same repository operation', async () => {
+  mocks.provider = 'osm'
+  mocks.getPlace.mockImplementation(async (id: string) => ({
+    ...place(id), location: { source: 'user', kind: 'user-picked', coordinate: { latitude: id === 'a' ? 26.2 : 26.3, longitude: 127.6 } },
+  }))
+  mocks.osmEstimate.mockResolvedValue({ durationMinutes: 12, distanceMeters: 2500 })
+  expect(await new ItineraryService().calculateTravelDuration(second.id)).toEqual({ durationMinutes: 12, distanceMeters: 2500 })
+  expect(mocks.estimate).not.toHaveBeenCalled()
+  expect(mocks.updateItem).toHaveBeenCalledExactlyOnceWith('second', { travelDurationMinutes: 12, travelDistanceMeters: 2500 })
+})
+
+it('rejects Google-only places under OSM before requesting either router', async () => {
+  mocks.provider = 'osm'
+  await expect(new ItineraryService().calculateTravelDuration(second.id)).rejects.toThrow('不會查詢 Google')
+  expect(mocks.estimate).not.toHaveBeenCalled()
+  expect(mocks.osmEstimate).not.toHaveBeenCalled()
+  expect(mocks.updateItem).not.toHaveBeenCalled()
+})
+
+it('does not save an OSM estimate when its location changes during calculation', async () => {
+  mocks.provider = 'osm'
+  const stored = (id: string, latitude: number) => ({
+    ...place(id), location: { source: 'user' as const, kind: 'point' as const, coordinate: { latitude, longitude: 127.6 } },
+  })
+  mocks.getPlace.mockResolvedValueOnce(stored('a', 26.2)).mockResolvedValueOnce(stored('b', 26.3))
+    .mockResolvedValueOnce(stored('a', 26.4)).mockResolvedValueOnce(stored('b', 26.3))
+  mocks.osmEstimate.mockResolvedValue({ durationMinutes: 12, distanceMeters: 2500 })
+  await expect(new ItineraryService().calculateTravelDuration(second.id)).rejects.toThrow('位置已變更')
+  expect(mocks.updateItem).not.toHaveBeenCalled()
 })
 
 it('saves time and distance in one existing repository update', async () => {

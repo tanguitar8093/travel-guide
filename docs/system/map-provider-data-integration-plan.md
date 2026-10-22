@@ -592,3 +592,78 @@ Vitest 在 Node 20 使用已確認可用的 `NODE_OPTIONS=--experimental-websock
 Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。原 OSM UI 設計的 Vite preview-only 替換配合正式 import／mount 入口調整，仍維持原 mock Google-shaped 資料與 OSM 預覽 renderer；不把這些替換放進正式程式。
 
 **未執行 build、lint、瀏覽器或 git 檢查。** 尚未實測正式站的登入後選單、鍵盤焦點、跨分頁／快速切換、實際圖資載入與版面視覺，不能把靜態 markup／mock renderer 測試當作瀏覽器驗證。Google API key 在此環境無法使用，不重試真實 Google API；不連 live Supabase、不部署雲端。前一批 A／B 通過結果也不替代本次 UI 驗證。
+
+### 13.14 正式地點／區域／路程 OSM 流程接線
+
+延續 13.13，本批將正式頁面的「新增／編輯地點、區域中心設定、路程試算」接上 OSM 路徑，不再停留在 Google-only 交互。範圍仍遵守既有資料邊界：地圖供應商由 [provider-preference](../../src/geo/provider-preference.ts) 決定，功能都經由 module service/controller 與 database facade，不直接在 UI 存取資料表。
+
+#### 共用 OSM 服務
+
+- 新增 [osm-service](../../src/geo/osm-service.ts) 與 [osm-search.css](../../src/geo/osm-search.css)，提供：
+  - `searchOsmLocations`：名稱或 `緯度, 經度` 搜尋，回傳含 provenance 的 `StoredLocation`。
+  - `mountOsmAutocomplete`：可重用的 autocomplete UI，含 loading/錯誤/重試與鍵盤行為。
+  - `routeOsmLocations`：靜態道路估算（car/walk/bike），回傳分鐘與距離；不支援模式明確報錯，不 fallback Google。
+  - `googleMapsNavigationUrl`：把已確認位置轉為 Google Maps 導航連結；底圖／位置資料使用 OSM，不把導航連結改成 OpenStreetMap 網址。
+- OSM search 會把 `osm-node-123`/`osm-way-456` 正規化為 `node/123`/`way/456` reference，保留 datasetVersion。Google 連結不會被拿來擷取座標；可另存為導覽網址，但定位必須由 OSM 搜尋或使用者自行確認座標。
+- Vite 增加 `/local-map` proxy；正式環境需 `VITE_OSM_SERVICE_URL`，未設定會明確失敗。
+
+#### 地點與區域
+
+- [PlaceModule](../../src/modules/place/PlaceModule.tsx) 與 [RegionModule](../../src/modules/region/RegionModule.tsx) 改為 provider-aware：
+  - Google 模式保留原 autocomplete/summary。
+  - OSM 模式啟用共用 autocomplete，選取結果寫入 `location`（地點）或 `center + centerMetadata`（區域）。
+  - 建立/編輯表單依 provider 切換提示與必填邏輯（OSM 不強制 Google URL）。
+  - OSM 模式顯示已選座標與來源；詳情區提供 OSM 開啟連結。
+- 新增 [OsmSearchHeading](../../src/geo/OsmSearchHeading.tsx) 的說明對話框，將設計稿中的搜尋說明帶入正式 UI。
+
+#### 路程試算
+
+- [route-calculator.service](../../src/modules/route-calculator/route-calculator.service.ts) 新增 OSM endpoint 與計算邏輯：
+  - 允許來源為 saved place / route-map marker / shared-place / OSM search location。
+  - 以 `StoredLocation` 建立 marker identity（`osm:<ref>` 或 `coordinate:<lat,lng>`），不把 OSM ID 塞進 `googlePlaceId`。
+  - OSM 模式只允許 DRIVING/WALKING/BICYCLING；其餘模式明確拒絕。
+- [RouteEndpointField](../../src/modules/route-calculator/RouteEndpointField.tsx)、[NewPlaceSearch](../../src/modules/route-calculator/NewPlaceSearch.tsx)、[RoutePreviewMap](../../src/modules/route-calculator/RoutePreviewMap.tsx)、[RouteCalculatorModule](../../src/modules/route-calculator/RouteCalculatorModule.tsx) 已接上 provider-aware UI、OSM 搜尋流程與 map mount。
+- [ItineraryService](../../src/modules/itinerary/itinerary.service.ts) 的行程內路程估算已接入 OSM：當前 provider 為 OSM 時，使用已儲存 location 計算，不會查 Google。
+
+#### 寫入發布狀態
+
+- [database/index.ts](../../src/database/index.ts) 的新格式發布 gate 調整為：
+  - `indexeddb`：允許 OSM 新格式寫入（地點 location、區域 centerMetadata、route endpoints/markers）。
+  - `supabase` / `hybrid`：仍阻擋，並回傳明確錯誤「雲端與混合模式整合尚未完成」。
+- [MapProviderSettings](../../src/modules/data-management/MapProviderSettings.tsx) 的整合範圍文案同步更新，不再宣稱 OSM 流程完全未接線；改為標示「雲端/混合新格式同步仍在整合」。
+
+#### 本批新增驗證
+
+| 檢查 | 結果 |
+|---|---|
+| `osm-service`、`route-calculator.service`、`itinerary.service`、`itinerary-map.service`、`MapProviderSettings`、`workspace-map`、`provider-preference` 等聚焦測試 | 7 檔、71 項通過（另一次更大集合為 13 檔、121 項通過） |
+| `tsc -p tsconfig.app.json --noEmit` | 通過 |
+| `tsc -p tsconfig.node.json --noEmit` | 通過 |
+| `tsc -p poc/map-provider/tsconfig.json --noEmit` | 通過 |
+
+同樣未執行 build/lint/瀏覽器/live Supabase。`/local-map` 的 OSM backend 服務是否啟動，需由開發環境另行啟動檢查；本批僅完成前端接線與型別/單元測試驗證。
+
+### 13.15 本機 OSM 服務與 Google Maps 網址修復
+
+使用者回報正式開發站的 OSM 搜尋收到 HTTP 502，並要求搜尋欄支援設計稿中的 Google Maps 網址格式。本節記錄修復後狀態；13.14 中「Google 連結不會被拿來擷取座標」及「backend 需另行啟動」是前一批狀態，已由本節更新。
+
+#### 修復內容
+
+- [osm-dev-assets](../../scripts/osm-dev-assets.ts) 現在先檢查 `127.0.0.1:3000/api/health` 是否為沖繩 maps 服務；未就緒時才啟動同機 maps 專案的 `server.py`，等待健康檢查成功後再代理 `/local-map/*`。服務啟動失敗、回應逾時或非 JSON 錯誤會明確回傳 503 JSON，不再讓無服務的代理只呈現難辨識的 502。
+- [maps server.py](../../../maps/server.py) 將沖繩 `okinawa.mbtiles` 改為可選啟動資源。搜尋、靜態路線與網址解析使用的本地 OSM 資料存在時可獨立啟動；未安裝 mbtiles 時，只有 vector tile API 明確回應 503。
+- [osm-service](../../src/geo/osm-service.ts) 將 Google Maps URL 傳給 maps 專案既有的 allowlist／解析器，不在瀏覽器以單一座標 regex 猜測。解析涵蓋精確 pin、query 座標、embed 座標、視窗中心與短網址；短網址仍須能連線完成安全轉址。前端檢查回傳座標、範圍、解析後網址 host 與位置類型；範圍外會拒絕，視窗中心會提示使用者確認。
+- 地點／區域表單在搜尋文字變更時清除舊位置、Google place ID 與地點的舊導覽網址；選取 Google Maps URL 後保存解析器回傳的安全網址，Google Places autocomplete 與既有 Google loader 未更動。
+- OSM／自主位置的外部導航一律開啟 Google Maps：保留使用者提供且已解析的 Google Maps URL，沒有既存網址時依已確認座標建立 Google Maps directions URL。OSM 是底圖與位置來源，不是外部導航目的地網址。
+
+#### 驗證結果
+
+| 檢查 | 結果 |
+|---|---|
+| OSM service、provider preference、workspace map、place、itinerary、route-calculator 聚焦測試 | 6 檔、74 項通過 |
+| `tsc -p tsconfig.app.json --noEmit` 與 `tsc -p tsconfig.node.json --noEmit` | 通過 |
+| maps 專案 `server.py`、`maps_urls.py`、`sp2.py` Python 語法檢查 | 通過 |
+| Vite 開發站實際 `/local-map/api/health` 與本地 OSM 搜尋 | 回傳沖繩資料集；搜尋 `Shuri Castle` 有結果 |
+| maps 專案 parser 實際解析 | pin、query、embed、視窗中心 4 種長網址均回傳合法沖繩座標 |
+| Vite 固定白名單圖資與 MapLibre module | land GeoJSON 與 MapLibre module HTTP 200 |
+
+短網址的外網轉址未做 live 驗證；其格式已在 service 單元測試確認會傳至既有 parser。未跑 build、lint、瀏覽器或 Google API。雲端／Hybrid 新格式寫入 gate 仍保留，OSM 新格式資料仍只開放 standalone IndexedDB，不能據此宣稱跨裝置同步已完成。

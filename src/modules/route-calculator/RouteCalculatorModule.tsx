@@ -24,12 +24,15 @@ import {
 } from "./route-markers";
 import "./RouteCalculatorModule.css";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
+import { useMapProvider } from "../../geo/provider-preference";
+import { markerKey, storedEndpoint } from "./route-calculator.service";
 
 type Target = "origin" | "destination";
 const activeRouteMapStorageKey =
   "travel-planner:route-calculator:active-map-id";
 
 export default function RouteCalculatorModule() {
+  const { provider, error: providerError } = useMapProvider();
   const dataRevision = useHybridDataRevision();
   const [controller] = useState(() => new RouteCalculatorController());
   const [places, setPlaces] = useState<Place[]>([]);
@@ -83,23 +86,42 @@ export default function RouteCalculatorModule() {
     resultDialog.current?.showModal();
   }, [result]);
   const mapSaveQueue = useRef(Promise.resolve());
-  const configured = controller.isGooglePlacesConfigured();
+  const configured = provider === 'osm' || (provider === 'google' && controller.isGooglePlacesConfigured());
   const markers = useMemo(
     () => visibleRouteMarkers(personal, tripData, date, hidden),
     [personal, tripData, date, hidden],
   );
   const selected = markers.find(
-    (marker) => marker.googlePlaceId === selectedId,
+    (marker) => markerKey(marker) === selectedId,
   );
   const busy = calculating || tripLoading;
   const endpointBusy = busy || resolving.origin || resolving.destination;
 
-  const endpointId = (endpoint: RouteEndpoint | null) =>
-    !endpoint
-      ? undefined
-      : endpoint.source === "saved"
-        ? places.find((place) => place.id === endpoint.placeId)?.googlePlaceId
-        : endpoint.place.id;
+  const endpointId = (endpoint: RouteEndpoint | null) => {
+    if (!endpoint) return undefined;
+    const selection = storedEndpoint(endpoint);
+    const marker = [...personal, ...(tripData?.markers ?? [])].find((item) => {
+      const candidate = storedEndpoint(markerEndpoint(item));
+      return JSON.stringify(candidate) === JSON.stringify(selection);
+    });
+    if (marker) return markerKey(marker);
+    const placeId = endpoint.source === 'saved' ? endpoint.placeId
+      : endpoint.source === 'selection' && endpoint.selection.kind === 'place' ? endpoint.selection.placeId : undefined;
+    const place = places.find(item => item.id === placeId);
+    if (place?.location) {
+      const location = place.location;
+      return location.source === 'osm' ? `osm:${location.reference.id}` : `coordinate:${location.coordinate.latitude},${location.coordinate.longitude}`;
+    }
+    if (place?.googlePlaceId) return place.googlePlaceId;
+    if (endpoint.source === 'selection' && endpoint.selection.kind === 'location') {
+      const value = endpoint.selection.value;
+      if (value.kind === 'google') return value.reference.id;
+      return value.location.source === 'osm' ? `osm:${value.location.reference.id}` : `coordinate:${value.location.coordinate.latitude},${value.location.coordinate.longitude}`;
+    }
+    if (endpoint.source === 'google') return endpoint.place.id;
+    if (endpoint.source === 'osm') return endpoint.place.id;
+    return undefined;
+  };
   const originId = endpointId(origin);
   const destinationId = endpointId(destination);
 
@@ -176,7 +198,7 @@ export default function RouteCalculatorModule() {
     return () => {
       active = false;
     };
-  }, [controller, tripId, tripLoading, tripSettingsOpen, dataRevision]);
+  }, [controller, tripId, tripLoading, tripSettingsOpen, dataRevision, provider]);
 
   const invalidate = useCallback(() => {
     generation.current += 1;
@@ -233,8 +255,8 @@ export default function RouteCalculatorModule() {
         if (currentMapId) {
           void saveMapChanges(
             target === "origin"
-              ? { originGooglePlaceId: undefined }
-              : { destinationGooglePlaceId: undefined },
+              ? { originGooglePlaceId: undefined, origin: undefined }
+              : { destinationGooglePlaceId: undefined, destination: undefined },
             currentMapId,
           ).catch((cause: unknown) => {
             setEndpointErrors((errors) => ({
@@ -252,25 +274,25 @@ export default function RouteCalculatorModule() {
           if (endpointGeneration.current[target] !== current) return;
           const routeMapId = await ensureCurrentMap();
           if (endpointGeneration.current[target] !== current) return;
-          if (!isTripMarker(marker.googlePlaceId, tripData)) {
-            await controller.addRouteMapPlace(routeMapId, marker.googlePlaceId);
+          if (!isTripMarker(markerKey(marker), tripData)) {
+            await controller.addRouteMapPlace(routeMapId, marker);
           }
           if (endpointGeneration.current[target] !== current) return;
           await saveMapChanges(
             target === "origin"
-              ? { originGooglePlaceId: marker.googlePlaceId }
-              : { destinationGooglePlaceId: marker.googlePlaceId },
+              ? { originGooglePlaceId: undefined, origin: storedEndpoint(value, marker) }
+              : { destinationGooglePlaceId: undefined, destination: storedEndpoint(value, marker) },
             routeMapId,
           );
           if (endpointGeneration.current[target] !== current) return;
           setPersonal((existing) => [
             ...existing.filter(
-              (item) => item.googlePlaceId !== marker.googlePlaceId,
+              (item) => markerKey(item) !== markerKey(marker),
             ),
             marker,
           ]);
-          setHidden((ids) => ids.filter((id) => id !== marker.googlePlaceId));
-          setSelectedId(marker.googlePlaceId);
+          setHidden((ids) => ids.filter((id) => id !== markerKey(marker)));
+          setSelectedId(markerKey(marker));
         })
         .catch((cause: unknown) => {
           if (endpointGeneration.current[target] !== current) return;
@@ -311,12 +333,14 @@ export default function RouteCalculatorModule() {
       invalidate();
       const isOpposite =
         target === "origin"
-          ? destinationId === marker.googlePlaceId
-          : originId === marker.googlePlaceId;
+          ? destinationId === markerKey(marker)
+          : originId === markerKey(marker);
       if (isOpposite) {
         void saveMapChanges({
-          originGooglePlaceId: destinationId,
-          destinationGooglePlaceId: originId,
+          originGooglePlaceId: undefined,
+          destinationGooglePlaceId: undefined,
+          origin: storedEndpoint(destination),
+          destination: storedEndpoint(origin),
         }).catch((cause: unknown) => {
           setMapSaveError(
             cause instanceof Error ? cause.message : "儲存起點與終點失敗。",
@@ -328,13 +352,13 @@ export default function RouteCalculatorModule() {
         setEndpointErrors({ origin: "", destination: "" });
         setOrigin(destination);
         setDestination(origin);
-        setSelectedId(marker.googlePlaceId);
+        setSelectedId(markerKey(marker));
         return;
       }
       void saveMapChanges(
         target === "origin"
-          ? { originGooglePlaceId: marker.googlePlaceId }
-          : { destinationGooglePlaceId: marker.googlePlaceId },
+          ? { originGooglePlaceId: undefined, origin: storedEndpoint(markerEndpoint(marker)) }
+          : { destinationGooglePlaceId: undefined, destination: storedEndpoint(markerEndpoint(marker)) },
       ).catch((cause: unknown) => {
         setMapSaveError(
           cause instanceof Error ? cause.message : "儲存端點失敗。",
@@ -348,7 +372,7 @@ export default function RouteCalculatorModule() {
       } else {
         setDestination(markerEndpoint(marker));
       }
-      setSelectedId(marker.googlePlaceId);
+      setSelectedId(markerKey(marker));
     },
     [invalidate, originId, destinationId, origin, destination, saveMapChanges],
   );
@@ -356,18 +380,18 @@ export default function RouteCalculatorModule() {
   const selectMarker = useCallback(
     (marker: RouteMapPlace) => {
       if (busy) return;
-      if (selectedId === marker.googlePlaceId) {
+      if (selectedId === markerKey(marker)) {
         setSelectedId("");
         return;
       }
-      setSelectedId(marker.googlePlaceId);
+      setSelectedId(markerKey(marker));
     },
     [busy, selectedId],
   );
 
   function reconcileMarkers(next: RouteMapPlace[]) {
     const remains = (id: string | undefined) =>
-      !id || next.some((marker) => marker.googlePlaceId === id);
+      !id || next.some((marker) => markerKey(marker) === id);
     const clearOrigin = !remains(originId);
     const clearDestination = !remains(destinationId);
     if (
@@ -379,14 +403,14 @@ export default function RouteCalculatorModule() {
       return false;
     if (clearOrigin) changeOrigin(null);
     if (clearDestination) changeDestination(null);
-    if (!next.some((marker) => marker.googlePlaceId === selectedId))
+    if (!next.some((marker) => markerKey(marker) === selectedId))
       setSelectedId("");
     return true;
   }
 
   function confirmMapSwitch(next: RouteMapPlace[]) {
     const remains = (id: string | undefined) =>
-      !id || next.some((marker) => marker.googlePlaceId === id);
+      !id || next.some((marker) => markerKey(marker) === id);
     if (
       (!remains(originId) || !remains(destinationId)) &&
       !window.confirm(
@@ -416,23 +440,17 @@ export default function RouteCalculatorModule() {
             target === "origin"
               ? map.originGooglePlaceId
               : map.destinationGooglePlaceId;
-          if (!id) return { target, endpoint: null, marker: undefined };
+          const selection = target === "origin" ? map.origin : map.destination;
+          if (!id && !selection) return { target, endpoint: null, marker: undefined };
           try {
-            const marker = await controller.resolveEndpoint({
+            const endpoint: RouteEndpoint = selection ? { source: 'selection', selection } : {
               source: "google",
-              place: { id },
-            });
+              place: { id: id! },
+            };
+            const marker = await controller.resolveEndpoint(endpoint);
             return {
               target,
-              endpoint: {
-                source: "google" as const,
-                place: {
-                  id: marker.googlePlaceId,
-                  displayName: marker.name,
-                  location: marker.position,
-                  formattedAddress: marker.address,
-                },
-              },
+              endpoint: endpoint.source === 'selection' ? { ...endpoint, name: marker.name } : endpoint,
               marker,
             };
           } catch (cause) {
@@ -443,15 +461,15 @@ export default function RouteCalculatorModule() {
         }),
       );
       const tripMarkerIds = new Set(
-        loadedTripData?.markers.map((marker) => marker.googlePlaceId) ?? [],
+        loadedTripData?.markers.map(markerKey) ?? [],
       );
       const personalMarkers = [...mapData.markers];
       for (const { marker } of storedEndpoints) {
         if (
           marker &&
-          !tripMarkerIds.has(marker.googlePlaceId) &&
+          !tripMarkerIds.has(markerKey(marker)) &&
           !personalMarkers.some(
-            (item) => item.googlePlaceId === marker.googlePlaceId,
+            (item) => markerKey(item) === markerKey(marker),
           )
         ) {
           personalMarkers.push(marker);
@@ -501,6 +519,19 @@ export default function RouteCalculatorModule() {
   useEffect(() => {
     let active = true;
     const current = ++tripGeneration.current;
+    endpointGeneration.current.origin += 1;
+    endpointGeneration.current.destination += 1;
+    setOrigin(null);
+    setDestination(null);
+    setPersonal([]);
+    setTripData(undefined);
+    setSelectedId("");
+    setResolving({ origin: false, destination: false });
+    invalidate();
+    if (!provider) {
+      setTripLoading(false);
+      return;
+    }
     let savedMapId: string;
     try {
       savedMapId = window.localStorage.getItem(activeRouteMapStorageKey) ?? "";
@@ -557,7 +588,7 @@ export default function RouteCalculatorModule() {
     return () => {
       active = false;
     };
-  }, [applyRouteMap, controller]);
+  }, [applyRouteMap, controller, provider, invalidate]);
 
   useEffect(() => {
     const close = (event: KeyboardEvent | PointerEvent) => {
@@ -616,13 +647,13 @@ export default function RouteCalculatorModule() {
   }
 
   async function removeMarker(marker: RouteMapPlace) {
-    if (isTripMarker(marker.googlePlaceId, tripData)) {
+    if (isTripMarker(markerKey(marker), tripData)) {
       setError("原行程地點不可移除標記。");
       return;
     }
-    const nextHidden = [...hidden, marker.googlePlaceId];
+    const nextHidden = [...hidden, markerKey(marker)];
     const nextPersonal = personal.filter(
-      (item) => item.googlePlaceId !== marker.googlePlaceId,
+      (item) => markerKey(item) !== markerKey(marker),
     );
     if (
       !reconcileMarkers(
@@ -634,7 +665,7 @@ export default function RouteCalculatorModule() {
       if (!mapIdRef.current) throw new Error("目前沒有已載入的試算地圖。");
       await controller.removeRouteMapPlace(
         mapIdRef.current,
-        marker.googlePlaceId,
+        markerKey(marker),
       );
       setPersonal(nextPersonal);
       setHidden(nextHidden);
@@ -662,6 +693,7 @@ export default function RouteCalculatorModule() {
         origin,
         destination,
         transport,
+        provider,
       });
       if (generation.current === current) setResult(next);
     } catch (cause) {
@@ -685,11 +717,12 @@ export default function RouteCalculatorModule() {
           <div>
             <h1>路程試算</h1>
             <p>
-              使用已存地點或 Google
+              使用已存地點或 {provider === 'osm' ? 'OSM' : 'Google'}
               搜尋；也可點選地圖圖釘，在標記資訊中指定起終點。
             </p>
           </div>
         </header>
+        {providerError && <p className="route-inline-error" role="alert">{providerError}</p>}
         <div className="route-calculator-workspace">
           <section
             className="route-calculator-panel"
@@ -815,18 +848,18 @@ export default function RouteCalculatorModule() {
                 {markers.length ? (
                   <ul>
                     {markers.map((marker) => (
-                      <li key={marker.googlePlaceId}>
+                      <li key={markerKey(marker)}>
                         <button
                           type="button"
                           disabled={busy}
-                          aria-pressed={selectedId === marker.googlePlaceId}
+                          aria-pressed={selectedId === markerKey(marker)}
                           onClick={() => selectMarker(marker)}
                         >
                           {marker.name}
-                          {marker.googlePlaceId === originId
+                          {markerKey(marker) === originId
                             ? "（起點）"
                             : ""}
-                          {marker.googlePlaceId === destinationId
+                          {markerKey(marker) === destinationId
                             ? "（終點）"
                             : ""}
                         </button>
@@ -866,7 +899,7 @@ export default function RouteCalculatorModule() {
                   label="起點"
                   places={places}
                   addedMarkers={markers.filter(
-                    (marker) => !isTripMarker(marker.googlePlaceId, tripData),
+                    (marker) => !isTripMarker(markerKey(marker), tripData),
                   )}
                   value={origin}
                   onChange={changeOrigin}
@@ -887,7 +920,7 @@ export default function RouteCalculatorModule() {
                   label="終點"
                   places={places}
                   addedMarkers={markers.filter(
-                    (marker) => !isTripMarker(marker.googlePlaceId, tripData),
+                    (marker) => !isTripMarker(markerKey(marker), tripData),
                   )}
                   value={destination}
                   onChange={changeDestination}
@@ -927,14 +960,14 @@ export default function RouteCalculatorModule() {
                   >
                     {transportOptions.map((option) => (
                       <option value={option.value} key={option.value}>
-                        {option.label}
+                        {option.label}{provider === 'osm' && !['DRIVING', 'WALKING', 'BICYCLING'].includes(option.value) ? '（OSM 不支援）' : ''}
                       </option>
                     ))}
                   </select>
                 </label>
                 {!configured && (
                   <p className="route-inline-error" role="alert">
-                    尚未設定 Google Maps API key，無法計算路程。
+                    {providerError ?? '尚未設定 Google Maps API key，無法計算路程。'}
                   </p>
                 )}
                 {error && (
@@ -1002,7 +1035,7 @@ export default function RouteCalculatorModule() {
                   </div>
                 </dl>
                 <small>
-                  Google Maps
+                  {result.provider === 'osm' ? 'OSM' : 'Google Maps'}
                   路線估算，非保證抵達時間；實際時間受路況與班次影響。修改條件後需重新計算。
                 </small>
               </section>
@@ -1019,6 +1052,7 @@ export default function RouteCalculatorModule() {
             onSelect={selectMarker}
             disabled={busy}
             configured={configured}
+            provider={provider}
             actions={
               selected && (
                 <>

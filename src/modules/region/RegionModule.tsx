@@ -8,11 +8,15 @@ import { regionController } from "./region.controller";
 import type { GooglePlaceDetails } from "../place/google-places.service";
 import "./RegionModule.css";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
+import { useMapProvider } from "../../geo/provider-preference";
+import { googleMapsNavigationUrl, suggestedOsmLocationName } from "../../geo/osm-service";
+import { OsmSearchHeading } from "../../geo/OsmSearchHeading";
 
 interface RegionDraft {
   name: string;
   center?: Region["center"];
   googlePlaceId?: string;
+  centerMetadata?: Region["centerMetadata"];
   zoom: number;
 }
 
@@ -26,11 +30,13 @@ function toDraft(region: Region): RegionDraft {
     name: region.name,
     center: region.center,
     googlePlaceId: region.googlePlaceId,
+    centerMetadata: region.centerMetadata,
     zoom: region.zoom,
   };
 }
 
 function RegionModule() {
+  const { provider, error: providerError } = useMapProvider();
   const dataRevision = useHybridDataRevision();
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -47,6 +53,7 @@ function RegionModule() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [locationWarning, setLocationWarning] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tripTargets, setTripTargets] = useState<Record<string, string>>({});
   const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails>();
@@ -148,7 +155,7 @@ function RegionModule() {
   }, [dataRevision, reloadBlocked]);
 
   useEffect(() => {
-    if (!editing || !regionController.isGooglePlacesConfigured()) return;
+    if (!editing || provider !== 'google' || !regionController.isGooglePlacesConfigured()) return;
     const container = autocompleteContainerRef.current;
     if (!container) return;
 
@@ -166,6 +173,7 @@ function RegionModule() {
             ...current,
             name: current.name || query,
             center: undefined,
+            centerMetadata: undefined,
             googlePlaceId: details.id,
           }));
           setError("");
@@ -196,10 +204,39 @@ function RegionModule() {
       dispose?.();
       container.replaceChildren();
     };
-  }, [editing]);
+  }, [editing, provider]);
 
   useEffect(() => {
-    if (!selectedGooglePlaceId) return;
+    if (!editing || provider !== 'osm' || !autocompleteContainerRef.current) return;
+    const container = autocompleteContainerRef.current;
+    let active = true;
+    let dispose: (() => void) | undefined;
+    regionController.mountOsmAutocomplete(container, candidate => {
+      if (!active) return;
+      const { coordinate, ...metadata } = candidate.location;
+      setDraft(current => ({
+        ...current, center: coordinate, centerMetadata: metadata, googlePlaceId: undefined,
+        name: current.name || suggestedOsmLocationName(candidate),
+      }));
+      setLocationWarning(candidate.warning ?? '');
+      setError('');
+      document.getElementById('region-user-name')?.focus();
+    }, cause => { if (active) setError(cause.message); }, {
+      onInput: () => {
+        if (active) {
+          setLocationWarning('');
+          setDraft(current => ({ ...current, center: undefined, centerMetadata: undefined, googlePlaceId: undefined }));
+        }
+      },
+    }).then(unmount => {
+      if (active) { dispose = unmount; container.querySelector('input')?.focus(); }
+      else unmount();
+    }).catch(cause => { if (active) setError(cause instanceof Error ? cause.message : 'OSM 搜尋無法啟動。'); });
+    return () => { active = false; dispose?.(); };
+  }, [editing, provider]);
+
+  useEffect(() => {
+    if (!selectedGooglePlaceId || provider !== 'google') return;
     let active = true;
     regionController
       .getGooglePlaceDetails(selectedGooglePlaceId)
@@ -223,7 +260,7 @@ function RegionModule() {
     return () => {
       active = false;
     };
-  }, [selectedGooglePlaceId]);
+  }, [selectedGooglePlaceId, provider]);
 
   function startCreate() {
     setSelectedId(undefined);
@@ -261,16 +298,15 @@ function RegionModule() {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!provider) { setError(providerError ?? '請先選擇地圖供應商。'); return; }
     setSaving(true);
     setError("");
     setNotice("");
     const input: NewRegion = {
       name: draft.name.trim(),
-      ...(draft.googlePlaceId
-        ? { googlePlaceId: draft.googlePlaceId }
-        : draft.center
-          ? { center: draft.center }
-          : {}),
+      ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
+      ...(draft.center ? { center: draft.center } : {}),
+      ...(draft.centerMetadata ? { centerMetadata: draft.centerMetadata } : {}),
       zoom: draft.zoom,
     };
     try {
@@ -382,9 +418,9 @@ function RegionModule() {
             ＋ 新增區域
           </button>
         </section>
-        {error && !deleteDialogOpen && (
+        {(error || providerError) && !deleteDialogOpen && (
           <div className="region-feedback region-error" role="alert">
-            {error}
+            {error || providerError}
           </div>
         )}
         {notice && !deleteDialogOpen && (
@@ -437,9 +473,9 @@ function RegionModule() {
                 </div>
                 <div className="region-google-search">
                   <div className="region-search-label">
-                    用 Google 地圖選擇區域中心 <b>*</b>
+                    {provider === 'osm' ? <OsmSearchHeading title="搜尋區域中心" /> : '用 Google 地圖選擇區域中心'} <b>*</b>
                   </div>
-                  {regionController.isGooglePlacesConfigured() ? (
+                  {provider === 'osm' || (provider === 'google' && regionController.isGooglePlacesConfigured()) ? (
                     <div
                       className="region-autocomplete"
                       ref={autocompleteContainerRef}
@@ -457,7 +493,12 @@ function RegionModule() {
                       </span>
                     </div>
                   )}
-                  {draft.googlePlaceId && (
+                  {provider === 'osm' && draft.centerMetadata && draft.center && <div className="region-selected-place">
+                    <span>✓ 已選區域中心：{draft.center.latitude}, {draft.center.longitude}</span>
+                    <small>來源：{draft.centerMetadata.source}；原 Google 地點連結保留。</small>
+                    {locationWarning && <small role="status">{locationWarning}</small>}
+                  </div>}
+                  {provider === 'google' && draft.googlePlaceId && (
                     <div className="region-selected-place">
                       <span>✓ 已選擇 Google Maps 地點</span>
                       {googleDetails?.id === draft.googlePlaceId &&
@@ -472,7 +513,8 @@ function RegionModule() {
                     區域名稱 <b>*</b>
                   </span>
                   <input
-                    autoFocus={!regionController.isGooglePlacesConfigured()}
+                    id="region-user-name"
+                    autoFocus={provider === 'google' && !regionController.isGooglePlacesConfigured()}
                     value={draft.name}
                     onChange={(event) =>
                       setDraft({ ...draft, name: event.target.value })
@@ -499,7 +541,7 @@ function RegionModule() {
                       disabled={
                         saving ||
                         !draft.name.trim() ||
-                        (!draft.googlePlaceId && !draft.center)
+                        !provider || (provider === 'osm' ? !draft.centerMetadata || !draft.center : !draft.googlePlaceId && !draft.center)
                       }
                     >
                       {saving ? "儲存中…" : creating ? "建立區域" : "儲存變更"}
@@ -533,7 +575,18 @@ function RegionModule() {
                     </button>
                   </div>
                 </div>
-                {selectedRegion.googlePlaceId ? (
+                {provider === 'osm' && selectedRegion.centerMetadata && selectedRegion.center ? (
+                  <section className="region-legacy-location">
+                    <span>OSM／自主區域中心：{selectedRegion.center.latitude}, {selectedRegion.center.longitude}（{selectedRegion.centerMetadata.source}）</span>
+                    <a className="region-map-link" href={googleMapsNavigationUrl(selectedRegion.center)} target="_blank" rel="noreferrer">
+                      在 Google Maps 開啟 ↗
+                    </a>
+                  </section>
+                ) : provider === 'osm' ? (
+                  <p className="region-legacy-location">
+                    尚無已確認來源的 OSM 區域中心；請編輯並重新選擇，原 Google 地點連結仍保留。
+                  </p>
+                ) : selectedRegion.googlePlaceId ? (
                   <section className="region-google-summary">
                     <div className="region-google-attribution">
                       Google Maps 地點 <span>Powered by Google Maps</span>

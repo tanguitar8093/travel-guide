@@ -15,6 +15,7 @@ import type { LabelTreeNode } from "../label";
 import { labelController } from "../label/label.controller";
 import { mountWorkspaceMap } from "../../geo/workspace-map";
 import { useMapProvider } from "../../geo/provider-preference";
+import { googleMapsNavigationUrl } from "../../geo/osm-service";
 import type {
   GoogleMapHandle,
   GoogleMapMarkerData,
@@ -113,7 +114,7 @@ function getPlaceMapUrl(place: Place): string | undefined {
   if (place.googlePlaceId) {
     return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(place.name)}&query_place_id=${encodeURIComponent(place.googlePlaceId)}`;
   }
-  return place.mapsUrl;
+  return place.mapsUrl ?? (place.location ? googleMapsNavigationUrl(place.location.coordinate) : undefined);
 }
 
 function formatDate(date: string): string {
@@ -1025,8 +1026,8 @@ function ItineraryModule({
   }
 
   async function handleCalculateTravelDuration(item: ItineraryItem) {
-    if (mapProvider !== 'google') {
-      setError("OSM 路線估算尚未接線，不會改用 Google。");
+    if (!mapProvider) {
+      setError(mapPreferenceError ?? "請先選擇有效的地圖供應商。");
       return;
     }
     if (!selectedTripId) return;
@@ -1891,11 +1892,11 @@ function ItineraryModule({
                               (option) => option.value === item.transport,
                             )?.label;
                             const routeReady = Boolean(
-                              mapProvider === 'google' &&
                               previousItem &&
                               transportLabel &&
-                              previousPlace?.googlePlaceId &&
-                              place?.googlePlaceId,
+                              (mapProvider === 'osm'
+                                ? previousPlace?.location && place?.location && ['DRIVING', 'WALKING', 'BICYCLING'].includes(item.transport ?? '')
+                                : mapProvider === 'google' && previousPlace?.googlePlaceId && place?.googlePlaceId),
                             );
                             const placeLabels =
                               place?.labelIds.flatMap((labelId) => {
@@ -2053,7 +2054,7 @@ function ItineraryModule({
                                         !routeReady
                                       }
                                       title={
-                                        mapProvider !== 'google' ? "OSM 路線估算尚未接線，不會改用 Google" : !item.transport
+                                        mapProvider === 'osm' ? "OSM 靜態路線需兩個已定位地點，僅支援開車、步行或單車，不含即時路況" : !item.transport
                                           ? "先編輯此地點並選擇交通方式"
                                           : !routeReady
                                             ? "兩個地點都需要 Google Maps 搜尋結果"

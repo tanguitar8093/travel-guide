@@ -17,6 +17,10 @@ export class RegionController {
     return this.service.isGooglePlacesConfigured()
   }
 
+  mountOsmAutocomplete(...args: Parameters<RegionService['mountOsmAutocomplete']>) {
+    return this.service.mountOsmAutocomplete(...args)
+  }
+
   mountPlaceAutocomplete(
     container: HTMLElement,
     onSelect: (details: GooglePlaceDetails, query: string) => void,

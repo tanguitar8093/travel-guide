@@ -62,7 +62,7 @@
 .region-google-summary p,.region-legacy-location { margin: 0; color: #849087; font-size: 10px; line-height: 1.6; }
 .region-map-link { color: #52745a; font-size: 10px; text-decoration: none; }
 .region-map-link:hover { text-decoration: underline; }
-.region-legacy-location { padding: 12px; margin-top: 18px; border-radius: 6px; background: #f5f7f4; }
+.region-legacy-location { display: grid; gap: 8px; padding: 12px; margin-top: 18px; border-radius: 6px; background: #f5f7f4; }
 .region-empty-detail { min-height: 420px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .region-empty-detail > span { color: #71917a; font-size: 38px; }
 .region-empty-detail h2 { margin: 15px 0 5px; color: #48544b; font-size: 17px; }

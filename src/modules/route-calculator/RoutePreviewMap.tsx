@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { mountGoogleMap } from "../place/google-places.service";
+import { mountWorkspaceMap } from "../../geo/workspace-map";
+import type { GeoProvider } from "../../geo/contracts";
+import { markerKey } from "./route-calculator.service";
 import type { GoogleMapHandle } from "../place/google-places.service";
 import type { RouteMapPlace, TripMapData } from "./route-calculator.service";
 import { isTripMarker, routeMarkerColors } from "./route-markers";
@@ -15,6 +17,7 @@ interface Props {
   configured: boolean;
   actions: ReactNode;
   tripData?: TripMapData;
+  provider?: GeoProvider;
 }
 
 export function RoutePreviewMap({
@@ -27,6 +30,7 @@ export function RoutePreviewMap({
   configured,
   actions,
   tripData,
+  provider = 'google',
 }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<GoogleMapHandle | null>(null);
@@ -45,11 +49,11 @@ export function RoutePreviewMap({
     const host = document.createElement("div");
     host.className = "route-map-host";
     container.current.replaceChildren(host);
-    void mountGoogleMap(host, {
+    void mountWorkspaceMap(provider, host, {
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 10,
       maxZoom: 17,
-    })
+    }, (cause) => { if (active) setError(cause.message); })
       .then((handle) => {
         if (!active) {
           handle.destroy();
@@ -70,28 +74,28 @@ export function RoutePreviewMap({
       map.current = null;
       host.remove();
     };
-  }, [configured, attempt]);
+  }, [configured, attempt, provider]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
     const ids = markers
-      .map((marker) => marker.googlePlaceId)
+      .map(markerKey)
       .sort()
       .join("|");
     const shouldFit = ids !== previousIds.current || fit !== lastFit.current;
     map.current.setMarkers(
       markers.map((marker) => ({
-        id: marker.googlePlaceId,
+        id: markerKey(marker),
         position: marker.position,
-        title: `${marker.name}（${isTripMarker(marker.googlePlaceId, tripData) ? "原行程地點" : "後加地點"}）${marker.googlePlaceId === originId ? "（起點）" : ""}${marker.googlePlaceId === destinationId ? "（終點）" : ""}${marker.googlePlaceId === selectedId ? "（已選取）" : ""}`,
-        color: isTripMarker(marker.googlePlaceId, tripData)
+        title: `${marker.name}（${isTripMarker(markerKey(marker), tripData) ? "原行程地點" : "後加地點"}）${markerKey(marker) === originId ? "（起點）" : ""}${markerKey(marker) === destinationId ? "（終點）" : ""}${markerKey(marker) === selectedId ? "（已選取）" : ""}`,
+        color: isTripMarker(markerKey(marker), tripData)
           ? routeMarkerColors.trip
           : routeMarkerColors.added,
-        enlarged: marker.googlePlaceId === selectedId,
+        enlarged: markerKey(marker) === selectedId,
         sequence:
-          marker.googlePlaceId === originId
+          markerKey(marker) === originId
             ? 1
-            : marker.googlePlaceId === destinationId
+            : markerKey(marker) === destinationId
               ? 2
               : undefined,
         onClick: () => {

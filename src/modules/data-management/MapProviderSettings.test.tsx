@@ -17,7 +17,7 @@ it('uses the designed provider card, select and illustration without loading any
   expect(html).toContain('<option value="google" selected="">Google Maps</option>')
   expect(html).toContain('此處為介面風格示意')
   expect(html).toContain('目前套用於正式行程地圖')
-  expect(html).toContain('不開放新格式寫入或雲端同步')
+  expect(html).toContain('OSM 位置寫入目前限單機模式')
   expect(html).not.toContain('<iframe')
   expect(html).not.toContain('<script')
 })

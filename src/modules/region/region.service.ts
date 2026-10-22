@@ -6,6 +6,7 @@ import {
   mountPlaceAutocomplete,
 } from '../place/google-places.service'
 import type { GooglePlaceDetails } from '../place/google-places.service'
+import { mountOsmAutocomplete } from '../../geo/osm-service'
 
 export interface RegionWorkspace {
   regions: Region[]
@@ -14,6 +15,10 @@ export interface RegionWorkspace {
 }
 
 export class RegionService {
+  mountOsmAutocomplete(...args: Parameters<typeof mountOsmAutocomplete>) {
+    return mountOsmAutocomplete(...args)
+  }
+
   isGooglePlacesConfigured(): boolean {
     return isGooglePlacesConfigured()
   }

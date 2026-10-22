@@ -1,3 +1,5 @@
+import type { StoredLocation } from '../geo/contracts'
+
 export type TripMemberRole = 'viewer' | 'editor'
 export type TripAccess = TripMemberRole | 'owner'
 
@@ -39,6 +41,7 @@ export interface SharedTripPlace {
   id: string
   name: string
   googlePlaceId?: string
+  location?: StoredLocation
   mapsUrl?: string
   icon?: string
 }

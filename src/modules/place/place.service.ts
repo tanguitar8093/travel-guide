@@ -19,6 +19,7 @@ import {
 import type { GooglePlaceDetails } from './google-places.service'
 import { bulkDelete, type BulkDeleteResult } from '../../common/bulk-delete'
 import { bulkOperation, type BulkOperationResult } from '../../common/bulk-operation'
+import { mountOsmAutocomplete } from '../../geo/osm-service'
 
 export interface PlaceQuery {
   search?: string
@@ -34,6 +35,10 @@ export interface PlaceWorkspace {
 }
 
 export class PlaceService {
+  mountOsmAutocomplete(...args: Parameters<typeof mountOsmAutocomplete>) {
+    return mountOsmAutocomplete(...args)
+  }
+
   isGooglePlacesConfigured(): boolean {
     return isGooglePlacesConfigured()
   }

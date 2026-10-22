@@ -3,6 +3,10 @@ import type { Place } from '../../database'
 import { SearchableSelect } from '../../common/SearchableSelect'
 import type { RouteCalculatorController } from './route-calculator.controller'
 import type { RouteEndpoint, RouteMapPlace } from './route-calculator.service'
+import { markerKey } from './route-calculator.service'
+import { markerEndpoint } from './route-markers'
+import { useMapProvider } from '../../geo/provider-preference'
+import { NewPlaceSearch } from './NewPlaceSearch'
 
 interface RouteEndpointFieldProps {
   label: string
@@ -16,24 +20,25 @@ interface RouteEndpointFieldProps {
 
 type SavedChoice =
   | { kind: 'place'; placeId: string }
-  | { kind: 'marker'; googlePlaceId: string }
+  | { kind: 'marker'; marker: RouteMapPlace }
 
 export function RouteEndpointField({
   label, places, addedMarkers, value, onChange, disabled, controller,
 }: RouteEndpointFieldProps) {
   const id = useId()
+  const { provider } = useMapProvider()
   const trigger = useRef<HTMLButtonElement>(null)
   const [dialogSource, setDialogSource] = useState<'saved' | 'google' | null>(null)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const container = useRef<HTMLDivElement>(null)
-  const configured = controller.isGooglePlacesConfigured()
+  const configured = provider === 'osm' || (provider === 'google' && controller.isGooglePlacesConfigured())
   const savedGooglePlaceIds = new Set(
     places.flatMap((place) => place.googlePlaceId ? [place.googlePlaceId] : []),
   )
   const uniqueAddedMarkers = addedMarkers.filter(
-    (marker) => !savedGooglePlaceIds.has(marker.googlePlaceId),
+    (marker) => !marker.googlePlaceId || !savedGooglePlaceIds.has(marker.googlePlaceId),
   )
   const savedChoices = new Map<string, SavedChoice>()
   const options = [
@@ -43,17 +48,18 @@ export function RouteEndpointField({
       return {
         id: optionId,
         name: place.name,
-        disabled: !place.googlePlaceId,
-        description: place.googlePlaceId ? undefined : '未設定 Google 地點，無法用於試算',
+        disabled: provider === 'osm' ? !place.location : !place.googlePlaceId,
+        description: provider === 'osm' ? (place.location ? undefined : '未設定 OSM 或自行輸入位置，無法用於試算') : (place.googlePlaceId ? undefined : '未設定 Google 地點，無法用於試算'),
       }
     }),
     ...uniqueAddedMarkers.map((marker) => {
-      const optionId = `marker:${marker.googlePlaceId}`
-      savedChoices.set(optionId, { kind: 'marker', googlePlaceId: marker.googlePlaceId })
+      const optionId = `marker:${markerKey(marker)}`
+      savedChoices.set(optionId, { kind: 'marker', marker })
       return {
         id: optionId,
         name: marker.name,
         description: '後加標記',
+        disabled: provider === 'osm' ? !marker.location : !marker.googlePlaceId,
       }
     }),
   ]
@@ -65,14 +71,20 @@ export function RouteEndpointField({
   const selectedMarker = value?.source === 'google'
     ? uniqueAddedMarkers.find((marker) => marker.googlePlaceId === value.place.id)
     : undefined
+  const selection = value?.source === 'selection' ? value.selection : undefined
+  const selectedReferencePlaceId = selection?.kind === 'place' ? selection.placeId : undefined
+  const selectedReferenceName = selection?.kind === 'location' ? selection.value.name
+    : places.find(place => place.id === selectedReferencePlaceId)?.name
   const selectedName = selectedPlace?.name
     ?? selectedMarker?.name
     ?? (value?.source === 'google'
       ? value.place.displayName ?? value.place.formattedAddress ?? 'Google 地點'
+      : value?.source === 'osm' ? value.place.name
+      : value?.source === 'selection' ? value.name ?? selectedReferenceName ?? ''
       : '')
 
   useEffect(() => {
-    if (dialogSource !== 'google' || !configured || !container.current) return
+    if (provider !== 'google' || dialogSource !== 'google' || !configured || !container.current) return
     let active = true
     let destroy: (() => void) | undefined
     const host = document.createElement('div')
@@ -107,7 +119,7 @@ export function RouteEndpointField({
       }
     })
     return () => { active = false; destroy?.(); host.remove() }
-  }, [dialogSource, configured, onChange, label, attempt, controller])
+  }, [provider, dialogSource, configured, onChange, label, attempt, controller])
 
   useEffect(() => {
     if (!dialogSource) return
@@ -133,7 +145,7 @@ export function RouteEndpointField({
     if (choice.kind === 'place') {
       onChange({ source: 'saved', placeId: choice.placeId })
     } else {
-      onChange({ source: 'google', place: { id: choice.googlePlaceId } })
+      onChange(markerEndpoint(choice.marker))
     }
     closeDialog()
   }
@@ -190,7 +202,7 @@ export function RouteEndpointField({
                 type="button"
                 aria-pressed={dialogSource === 'google'}
                 onClick={() => { setError(''); setDialogSource('google') }}
-              >Google 搜尋</button>
+              >{provider === 'osm' ? '新地點搜尋' : 'Google 搜尋'}</button>
             </div>
             {dialogSource === 'saved' ? (
               <div className="route-saved-choices">
@@ -203,7 +215,7 @@ export function RouteEndpointField({
                     selectedPlace
                       ? `place:${selectedPlace.id}`
                       : selectedMarker
-                        ? `marker:${selectedMarker.googlePlaceId}`
+                        ? `marker:${markerKey(selectedMarker)}`
                         : ''
                   }
                   onChange={selectSavedChoice}
@@ -212,12 +224,14 @@ export function RouteEndpointField({
                   ariaRequired
                 />
                 {!places.length && !uniqueAddedMarkers.length && (
-                  <p className="route-field-hint">目前沒有可選地點，可切換 Google 搜尋直接選擇。</p>
+                  <p className="route-field-hint">目前沒有可選地點，可切換{provider === 'osm' ? '新地點搜尋' : ' Google 搜尋'}直接選擇。</p>
                 )}
                 {!!uniqueAddedMarkers.length && (
                   <p className="route-field-hint">後加標記也可直接選作端點。</p>
                 )}
               </div>
+            ) : provider === 'osm' ? (
+              <NewPlaceSearch disabled={disabled} onConfirm={place => { onChange({ source: 'osm', place }); closeDialog() }} />
             ) : (
               <>
                 <div className="route-google-search" ref={container} inert={disabled} aria-busy={loading} />

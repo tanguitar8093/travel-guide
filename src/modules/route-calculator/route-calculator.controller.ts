@@ -1,5 +1,5 @@
 import { RouteCalculatorService } from './route-calculator.service'
-import type { RouteCalculationInput, RouteEndpoint } from './route-calculator.service'
+import type { RouteCalculationInput, RouteEndpoint, RouteMapPlace } from './route-calculator.service'
 import type { RouteMapChanges } from '../../database'
 
 export class RouteCalculatorController {
@@ -25,8 +25,8 @@ export class RouteCalculatorController {
 
   loadRouteMap(id: string) { return this.service.loadRouteMap(id) }
 
-  addRouteMapPlace(routeMapId: string, googlePlaceId: string) {
-    return this.service.addRouteMapPlace(routeMapId, googlePlaceId)
+  addRouteMapPlace(routeMapId: string, value: string | RouteMapPlace) {
+    return this.service.addRouteMapPlace(routeMapId, value)
   }
 
   removeRouteMapPlace(routeMapId: string, googlePlaceId: string) {

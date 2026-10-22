@@ -193,9 +193,9 @@ function activeBackend(): DatabaseBackend {
 
 // Keep new-format writes isolated until backup and cloud/sync formats are ready.
 function assertReleasedLocationWrite(input: object): void {
-  if (hasGeoFormatFields(input)) {
-    throw new ValidationError('OSM 位置資料尚未開放正式寫入；需先完成備份及雲端同步格式整合。')
-  }
+  if (!hasGeoFormatFields(input)) return
+  if (getDatabaseMode() === 'indexeddb') return
+  throw new ValidationError('OSM 位置資料目前只開放單機模式寫入；雲端與混合模式的備份/同步格式整合尚未完成。')
 }
 
 export const routeMaps: DatabaseBackend['routeMaps'] = {

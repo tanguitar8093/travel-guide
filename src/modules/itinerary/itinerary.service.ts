@@ -22,6 +22,9 @@ import { getGoogleRouteEstimate } from '../place/google-places.service'
 import type { GoogleRouteEstimate } from '../place/google-places.service'
 import { isGoogleTravelMode } from '../../common/route-estimate'
 import { ItineraryMapService } from './itinerary-map.service'
+import { getMapProvider } from '../../geo/provider-preference'
+import { routeOsmLocations } from '../../geo/osm-service'
+import { sameStoredLocation, validateStoredLocation } from '../../database/location.validation'
 
 export interface ItineraryWorkspace {
   trips: Trip[]
@@ -87,6 +90,7 @@ export class ItineraryService {
   }
 
   async calculateTravelDuration(itemId: string): Promise<GoogleRouteEstimate> {
+    const provider = getMapProvider()
     const item = await itineraryItems.getById(itemId)
     if (!item) throw new EntityNotFoundError('Itinerary item', itemId)
 
@@ -108,15 +112,21 @@ export class ItineraryService {
     ])
     if (!originPlace) throw new EntityNotFoundError('Place', previousItem.placeId)
     if (!destinationPlace) throw new EntityNotFoundError('Place', item.placeId)
-    if (!originPlace.googlePlaceId || !destinationPlace.googlePlaceId) {
+    if (provider === 'google' && (!originPlace.googlePlaceId || !destinationPlace.googlePlaceId)) {
       throw new ValidationError('上一站和這一站都需要先選取 Google Maps 搜尋結果，才能計算路程。')
     }
 
-    const estimate = await getGoogleRouteEstimate(
-      originPlace.googlePlaceId,
-      destinationPlace.googlePlaceId,
-      travelMode,
-    )
+    let estimate: GoogleRouteEstimate
+    if (provider === 'osm') {
+      if (!originPlace.location || !destinationPlace.location) {
+        throw new ValidationError('上一站和這一站都需要已確認來源的 OSM／自主位置；不會查詢 Google。')
+      }
+      validateStoredLocation(originPlace.location)
+      validateStoredLocation(destinationPlace.location)
+      estimate = await routeOsmLocations(originPlace.location.coordinate, destinationPlace.location.coordinate, travelMode)
+    } else {
+      estimate = await getGoogleRouteEstimate(originPlace.googlePlaceId!, destinationPlace.googlePlaceId!, travelMode)
+    }
 
     const currentDayItems = (await itineraryItems.findByTripAndDate(item.tripId, item.date))
       .sort((left, right) => left.order - right.order)
@@ -135,8 +145,10 @@ export class ItineraryService {
       places.getById(previousItem.placeId),
       places.getById(item.placeId),
     ])
-    if (currentOrigin?.googlePlaceId !== originPlace.googlePlaceId ||
-        currentDestination?.googlePlaceId !== destinationPlace.googlePlaceId) {
+    if (!currentOrigin || !currentDestination || getMapProvider() !== provider ||
+        (provider === 'osm'
+          ? !sameStoredLocation(currentOrigin.location, originPlace.location) || !sameStoredLocation(currentDestination.location, destinationPlace.location)
+          : currentOrigin.googlePlaceId !== originPlace.googlePlaceId || currentDestination.googlePlaceId !== destinationPlace.googlePlaceId)) {
       throw new ValidationError('地點的 Google Maps 位置已變更，請重新計算路程。')
     }
     await itineraryItems.update(itemId, {

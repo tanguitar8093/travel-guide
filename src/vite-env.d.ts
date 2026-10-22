@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_ADMIN_SYNC_INFO_ENABLED?: string
   readonly VITE_OSM_ASSET_BASE_URL?: string
   readonly VITE_OSM_STYLE_URL?: string
+  readonly VITE_OSM_SERVICE_URL?: string
 }
 
 interface ImportMeta {
