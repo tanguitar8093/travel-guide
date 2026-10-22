@@ -1,0 +1,2 @@
+ssh oracle
+scp -r /home/tanguitar/workspaces/maps oracle:/home/ubuntu/workspace/

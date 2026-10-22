@@ -52,6 +52,8 @@ npm run setup
 - `GET /data/{land,water,roads}.geojson`：沖繩本機 2D 地圖。
 - `POST /api/route`：`{"points":[[127.6843,26.2144],[127.7192,26.2170]],"mode":"car"}`。mode 可為 `car`、`walk`、`bike`；回傳各段 GeoJSON、秒數、公尺數與吸附距離。
 
+靜態文字資源（包含地圖 GeoJSON）支援 gzip 傳輸、ETag 驗證與一小時瀏覽器快取；API 回應不快取。gzip 可減少遠端首次下載的資料量，重訪時則可沿用瀏覽器快取。
+
 ```bash
 docker compose up --build -d
 ```
