@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["vite/client"],
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true
+  },
+  "include": ["main.tsx", "Demo.tsx", "fixtures.ts", "osm-resources.ts", "../../src/geo/**/*.ts", "../../src/geo/**/*.tsx"],
+  "exclude": ["../../src/geo/**/*.test.ts"]
+}

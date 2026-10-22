@@ -1,13 +1,13 @@
 # 地圖共用最小契約：第一階段
 
-日期：2026-10-23。狀態：已新增 TypeScript 契約，經使用者授權的契約型別檢查通過；未實作 adapter、持久化或正式 UI 接線。
+日期：2026-10-23。第一階段契約型別檢查已通過；第二階段新增隔離 renderer 核心與 PoC，驗證狀態見文末。未接持久化或正式 UI。
 
 依據已核准的今日 [核心計畫](map-provider-poc-plan.md) 與 [資料整合規劃](map-provider-data-integration-plan.md)。本文件細化第一階段，不代表已批准後續資料庫格式、migration、provider 設定保存或正式功能切換。
 
-## 1. 本次交付與不變範圍
+## 1. 第一階段交付與不變範圍
 
 - [contracts.ts](../../src/geo/contracts.ts)：純型別契約。
-- [index.ts](../../src/geo/index.ts)：僅 type export 的公開入口。
+- [index.ts](../../src/geo/index.ts)：第一階段為 type exports；第二階段另公開 renderer factories 與 MapView。
 - 不 import database、React、Google／MapLibre SDK 或既有模組。
 - 不新增全域 singleton、SDK loader、網路請求、localStorage 或環境設定。
 - 不修改既有 Google 型別、服務、controller、頁面、路由、資料模型、索引、同步、備份或分享。
@@ -134,4 +134,53 @@ operation 層依資料庫模式／權限解析引用、驗證同 map／同 owner
 
 結果：exit code 0。最初未加 `--ignoreConfig` 時，TypeScript 6 以 TS5112 拒絕指定檔案與既有 tsconfig 並存的命令；加上明確忽略專案設定後，僅檢查此入口與其匯入的 contracts，沒有擴大驗證範圍。未執行 build、lint、Playwright、正式專案型別檢查或既有全套測試。後續核心實作再加入固定 fixtures 與針對兩 adapter 的行為驗收。
 
-下一階段：同批實作 Google／MapLibre renderer 與共用生命週期，使用隔離 PoC，不接正式頁面。搜尋／路線先依本契約做接面驗證；IndexedDB 相容設計以本契約為輸入，但在 schema 定稿前不能自行寫新欄位到三種正式資料模式。
+## 9. 第二階段：renderer 核心與隔離 PoC
+
+已新增：
+
+- [Google renderer](../../src/geo/adapters/google/google-renderer.ts)、[獨立 SDK loader](../../src/geo/adapters/google/google-sdk.ts)。只載入 maps／marker，不依賴 Places，不修改既有 Google 服務的來源檔或載入 callback；另鏈接 Google 官方 gm_authFailure hook，保留先前 handler，將授權錯誤送往本 loader 的 renderer subscribers。
+- [MapLibre renderer](../../src/geo/adapters/osm/maplibre-renderer.ts)：注入 SDK 與 style，沒有硬編碼 maps 專案路徑或沖繩資料於核心。
+- [MapView](../../src/geo/MapView.tsx)：共用 loading/error、取消、過期掛載清理與最新 markers／callback；options 的物件身分改變會重新建立地圖，consumer 應保持穩定。
+- 共用數值／marker 驗證、跨日期變更線的最小圖釘範圍、marker DOM 呈現及事件清理。
+- [隔離 PoC](../../poc/map-provider/main.tsx)：相同固定座標與 marker ID 切換兩 provider，清單／圖釘選取、聚焦、fitMarkers、fitBounds、重試；預設 OSM。
+- [renderer 契約測試](../../src/geo/map-renderers.test.ts)：以注入的假 SDK 驗證兩 renderer，不會呼叫 Google 或 OSM。
+
+既有正式模組、資料庫、Google service、正式 Vite 設定、package.json 與 lockfile 未因本階段修改。搜尋／resolve／routing 仍只有契約，沒有假實作，也沒有建立看似全功能的 GeoServices。
+
+### 啟動與依賴
+
+待獲准啟動後：
+
+```bash
+npm run dev -- --config poc/map-provider/vite.config.ts
+```
+
+入口 `http://127.0.0.1:5176/`，strictPort，不影響既有 5174／5175 demo。PoC 自己的 envDir 指向專案根目錄，因此可使用既有 VITE_GOOGLE_MAPS_API_KEY；不讀取／輸出其他秘密，不新增 key。
+
+不安裝套件。PoC 透過 allowlist middleware 讀取 maps 專案現有 MapLibre 模組／worker／CSS 與三份 GeoJSON，預設 `/home/tanguitar/workspaces/maps`，可用 OSM_PROJECT_DIR 指定。只在這個開發服務暴露固定資源路徑，不把外部目錄加入一般任意檔案存取範圍。正式 adapter 的 SDK 由 consumer 注入，沒有依賴這條絕對路徑。
+
+OSM 約 34 MiB GeoJSON 是現有預覽方案，不是正式 vector tiles、TileJSON／health metadata 驗證或可部署產品。這階段不啟動 Python、不重建圖磚、不聲稱解決既有圖資／服務部署限制。
+
+Google 選項會真正載入 SDK，可能產生 API 使用量；必須取得使用者授權後才進行連線驗證。缺 key、SDK／底圖逾時、gm_authFailure 明確失敗，不回退 OSM；Google Maps 沒有公開等價 map.remove，因此移除 owned DOM、markers 與 instance listeners，不宣稱已卸載全域 SDK。授權失敗也可能觸發 idle，不能僅以 idle 判定 Google 可用。
+
+先選 OSM 不呼叫 Google；曾用 Google 後切回 OSM 不宣稱所有 SDK 背景連線已停止，PoC 提示重新整理以開始乾淨 OSM 工作階段。
+
+### 驗證狀態
+
+使用者授權 PoC 專屬型別檢查、針對性單元測試、啟動服務與瀏覽器驗證後：
+
+| 檢查 | 結果 |
+|---|---|
+| `tsc -p poc/map-provider/tsconfig.json` | 通過，包含共用核心與 PoC；不是正式專案全套 typecheck |
+| `vitest run src/geo/map-renderers.test.ts src/modules/place/google-map-controls.test.ts` | 2 個檔案、25 個測試通過；包含既有 Google controls 與新增 Google 授權失敗測試 |
+| OSM 真實瀏覽器 | 底圖及道路實際截圖可見、3 個圖釘；清單聚焦、圖釘選取、fitMarkers 可操作 |
+| 390 px 手機 viewport | 無水平溢出；canvas 寬 349 px／高 478 px，非零尺寸 |
+| 快速重新載入／取消 | 最終只有 1 個 renderer host、3 個 markers，無 pageerror；被取消的舊 GeoJSON 請求可能正常顯示 ERR_ABORTED |
+| OSM 冷啟動 | 沒有 Google SDK script；沒有自動切 Google |
+| Google 真實底圖 | 未通過／不再重試：現有 key 的 referrer 限制不允許 127.0.0.1:5176，回 RefererNotAllowedMapError；使用者確認是預期限制，不修改 key 或來源設定 |
+
+Google 實測發現授權失敗也可能觸發 idle，因此新增 gm_authFailure 訂閱，並以單元測試驗證初始／延遲授權錯誤與清理。修正後未再次嘗試真實 Google API；不能宣稱 Google 真實切換／底圖已通過。key 沿用原 VITE_GOOGLE_MAPS_API_KEY 與根目錄 env 設定，正式 Google 載入方式未變。
+
+PoC 元件與 createRoot 入口分檔，避免更新元件時重複 createRoot 的 HMR 提示；乾淨重新載入後無 pageerror。正式 build、lint、其他測試套件、真實資料庫與同步驗證未執行。隔離預覽服務運行於 5176，未啟動 Python 或修改 maps 專案。
+
+renderer 核心已實作，不代表搜尋／routing adapters、正式圖磚、持久化與 IndexedDB＋UI 整合已完成。
