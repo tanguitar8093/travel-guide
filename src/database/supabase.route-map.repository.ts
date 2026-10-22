@@ -1,4 +1,5 @@
 import { supabase } from './supabase.client'
+import { assertLegacyGeoWrite } from './geo-format'
 import { EntityNotFoundError, ValidationError } from './errors'
 import type { NewRouteMap, NewRouteMapPlace, RouteMap, RouteMapChanges, RouteMapPlace, RouteMapPlaceChanges } from './models'
 import { validateRouteMap, validateRouteMapPlace } from './validation'
@@ -59,6 +60,7 @@ const placeColumns = 'id,route_map_id,google_place_id,name'
 
 export class SupabaseRouteMapRepository {
   async create(input: NewRouteMap): Promise<string> {
+    assertLegacyGeoWrite(input)
     validateRouteMap(input)
     const owner = await requireAuthenticatedUserId()
     const { data, error } = await withSupabaseTimeout(Promise.resolve(
@@ -69,6 +71,7 @@ export class SupabaseRouteMapRepository {
   }
 
   async update(id: string, changes: RouteMapChanges): Promise<void> {
+    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) throw new EntityNotFoundError('Route map', id)
     const next = { ...current, ...changes }
@@ -115,6 +118,7 @@ export class SupabaseRouteMapRepository {
 
 export class SupabaseRouteMapPlaceRepository {
   async create(input: NewRouteMapPlace): Promise<string> {
+    assertLegacyGeoWrite(input)
     validateRouteMapPlace(input)
     // The database derives ownership from the parent, including admin-owned maps.
     const { data, error } = await withSupabaseTimeout(Promise.resolve(
@@ -125,6 +129,7 @@ export class SupabaseRouteMapPlaceRepository {
   }
 
   async update(id: string, changes: RouteMapPlaceChanges): Promise<void> {
+    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) throw new EntityNotFoundError('Route map place', id)
     const next = { ...current, ...changes }

@@ -25,7 +25,9 @@ function conflictRecordTitle(review: SyncConflictReview, row: Row, side: Side): 
   const record = row[side]
   if (!record) return '已刪除／不存在'
   if ('name' in record && record.name) return record.name
-  if ('routeMapId' in record) return record.googlePlaceId
+  if ('routeMapId' in record) {
+    return record.googlePlaceId ?? (record.location?.source === 'osm' ? record.location.reference.id : record.id)
+  }
   if ('tripId' in record && 'placeId' in record) {
     const trip = findName(review, side, 'trips', record.tripId) ?? '未知行程'
     const place = findName(review, side, 'places', record.placeId) ?? '未知地點'

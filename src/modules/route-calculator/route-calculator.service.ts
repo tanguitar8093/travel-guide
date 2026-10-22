@@ -144,6 +144,10 @@ export class RouteCalculatorService {
     const work = async () => {
       while (cursor < savedMarkers.length) {
         const savedMarker = savedMarkers[cursor++]
+        if (!savedMarker.googlePlaceId) {
+          unavailable.push(`${savedMarker.name ?? savedMarker.id}：此位置需使用尚未接線的中立地圖流程。`)
+          continue
+        }
         const place = savedPlaces.find((candidate) => candidate.googlePlaceId === savedMarker.googlePlaceId)
         try {
           const resolved = place

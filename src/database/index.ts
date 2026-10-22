@@ -65,6 +65,8 @@ export type {
 } from './trip-collaboration.types'
 export type { RouteMap, RouteMapPlace, NewRouteMap, NewRouteMapPlace, RouteMapChanges, RouteMapPlaceChanges } from './models'
 export { RouteMapRepository, RouteMapPlaceRepository } from './route-map.repository'
+export { getRouteMapEndpoint } from './route-endpoint'
+export type { RouteEndpointSelection } from '../geo/contracts'
 
 import { routeMaps as indexedRouteMaps, routeMapPlaces as indexedRouteMapPlaces } from './route-map.repository'
 import { supabaseRouteMaps, supabaseRouteMapPlaces } from './supabase.route-map.repository'
@@ -73,6 +75,8 @@ import type { BackupCounts, TravelBackup } from './backup.repository'
 import { labels as indexedLabels } from './label.repository'
 import { itineraryItems as indexedItineraryItems, places as indexedPlaces, regions as indexedRegions, trips as indexedTrips } from './repositories'
 import { getDatabaseMode, type DatabaseMode } from './runtime'
+import { ValidationError } from './errors'
+import { hasGeoFormatFields } from './geo-format'
 import { hybridBackend } from './hybrid.backend'
 import {
   supabaseBackupRepository,
@@ -187,9 +191,22 @@ function activeBackend(): DatabaseBackend {
   return databaseBackends[getDatabaseMode()]
 }
 
+// Keep new-format writes isolated until backup and cloud/sync formats are ready.
+function assertReleasedLocationWrite(input: object): void {
+  if (hasGeoFormatFields(input)) {
+    throw new ValidationError('OSM 位置資料尚未開放正式寫入；需先完成備份及雲端同步格式整合。')
+  }
+}
+
 export const routeMaps: DatabaseBackend['routeMaps'] = {
-  create: (input) => activeBackend().routeMaps.create(input),
-  update: (id, changes) => activeBackend().routeMaps.update(id, changes),
+  create: (input) => {
+    assertReleasedLocationWrite(input)
+    return activeBackend().routeMaps.create(input)
+  },
+  update: (id, changes) => {
+    assertReleasedLocationWrite(changes)
+    return activeBackend().routeMaps.update(id, changes)
+  },
   delete: (id) => activeBackend().routeMaps.delete(id),
   getById: (id) => activeBackend().routeMaps.getById(id),
   list: () => activeBackend().routeMaps.list(),
@@ -197,8 +214,14 @@ export const routeMaps: DatabaseBackend['routeMaps'] = {
 }
 
 export const routeMapPlaces: DatabaseBackend['routeMapPlaces'] = {
-  create: (input) => activeBackend().routeMapPlaces.create(input),
-  update: (id, changes) => activeBackend().routeMapPlaces.update(id, changes),
+  create: (input) => {
+    assertReleasedLocationWrite(input)
+    return activeBackend().routeMapPlaces.create(input)
+  },
+  update: (id, changes) => {
+    assertReleasedLocationWrite(changes)
+    return activeBackend().routeMapPlaces.update(id, changes)
+  },
   delete: (id) => activeBackend().routeMapPlaces.delete(id),
   getById: (id) => activeBackend().routeMapPlaces.getById(id),
   list: () => activeBackend().routeMapPlaces.list(),
@@ -207,9 +230,11 @@ export const routeMapPlaces: DatabaseBackend['routeMapPlaces'] = {
 
 export const regions = {
   create(input: Parameters<typeof indexedRegions.create>[0]) {
+    assertReleasedLocationWrite(input)
     return activeBackend().regions.create(input)
   },
   update(id: string, changes: Parameters<typeof indexedRegions.update>[1]) {
+    assertReleasedLocationWrite(changes)
     return activeBackend().regions.update(id, changes)
   },
   delete(id: string) {
@@ -225,9 +250,11 @@ export const regions = {
 
 export const places = {
   create(input: Parameters<typeof indexedPlaces.create>[0]) {
+    assertReleasedLocationWrite(input)
     return activeBackend().places.create(input)
   },
   update(id: string, changes: Parameters<typeof indexedPlaces.update>[1]) {
+    assertReleasedLocationWrite(changes)
     return activeBackend().places.update(id, changes)
   },
   delete(id: string) {
@@ -333,6 +360,10 @@ export const backupRepository = {
     return activeBackend().backupRepository.validateImport(value)
   },
   replaceAll(value: unknown) {
+    const backup = indexedBackupRepository.validateImport(value)
+    if (backup.version === 3) {
+      throw new ValidationError('新位置備份尚未開放正式匯入；需先完成雲端同步與正式 UI 整合。')
+    }
     return activeBackend().backupRepository.replaceAll(value)
   },
   clearAllData() {

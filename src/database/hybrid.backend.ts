@@ -1,4 +1,5 @@
 import { BackupRepository } from './backup.repository'
+import { hasGeoFormatFields } from './geo-format'
 import type { TravelBackup } from './backup.repository'
 import { ValidationError } from './errors'
 import { requireHybridStore, runHybridMutation } from './hybrid.runtime'
@@ -56,7 +57,9 @@ export const hybridBackend = {
         ])
         const itineraryItems = (await Promise.all(trips.map((trip) => repositories.itineraryItems.findByTripId(trip.id)))).flat()
         return new BackupRepository().validateImport({
-          format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(),
+          format: 'travel-planner-backup',
+          version: [...regions, ...places, ...routeMaps, ...routeMapPlaces].some(hasGeoFormatFields) ? 3 : 2,
+          exportedAt: new Date().toISOString(),
           data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
         })
       })

@@ -1,6 +1,8 @@
-import { database } from './database'
+import { database, type TravelDatabase } from './database'
 import { ValidationError } from './errors'
 import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
+import { getRouteMapEndpoint } from './route-endpoint'
+import { hasGeoFormatFields } from './geo-format'
 import {
   validateItineraryItem,
   validateLabel,
@@ -13,7 +15,7 @@ import {
 
 export interface TravelBackup {
   format: 'travel-planner-backup'
-  version: 1 | 2
+  version: 1 | 2 | 3
   exportedAt: string
   data: {
     regions: Region[]
@@ -102,8 +104,21 @@ function validateReferences(backup: NormalizedTravelBackup): void {
   const labelById = new Map(backup.data.labels.map((label) => [label.id, label]))
   const tripById = new Map(backup.data.trips.map((trip) => [trip.id, trip]))
   const mapIds = new Set(backup.data.routeMaps.map((map) => map.id))
+  const markersById = new Map(backup.data.routeMapPlaces.map(marker => [marker.id, marker]))
   const mapTrips = new Set<string>()
   for (const map of backup.data.routeMaps) {
+    for (const side of ['origin', 'destination'] as const) {
+      const endpoint = getRouteMapEndpoint(map, side)
+      if (endpoint?.kind === 'shared-place') {
+        throw new ValidationError('私人備份不包含共享文件；請先移除共享地點端點或改選私人位置。')
+      }
+      if (endpoint?.kind === 'place' && !placeIds.has(endpoint.placeId)) {
+        throw new ValidationError('Route endpoint references a missing place.')
+      }
+      if (endpoint?.kind === 'route-map-place' && markersById.get(endpoint.routeMapPlaceId)?.routeMapId !== map.id) {
+        throw new ValidationError('Route endpoint marker is missing or belongs to another map.')
+      }
+    }
     if (!map.tripId) continue
     if (!tripById.has(map.tripId)) throw new ValidationError(`Route map "${map.id}" references a missing trip.`)
     if (mapTrips.has(map.tripId)) throw new ValidationError('A trip cannot have multiple route maps.')
@@ -112,9 +127,14 @@ function validateReferences(backup: NormalizedTravelBackup): void {
   const mapPlaces = new Set<string>()
   for (const place of backup.data.routeMapPlaces) {
     if (!mapIds.has(place.routeMapId)) throw new ValidationError(`Route map place "${place.id}" references a missing map.`)
-    const key = JSON.stringify([place.routeMapId, place.googlePlaceId])
-    if (mapPlaces.has(key)) throw new ValidationError('Duplicate route map Google place.')
-    mapPlaces.add(key)
+    const references: [string, string][] = []
+    if (place.googlePlaceId !== undefined) references.push(['google', place.googlePlaceId])
+    if (place.location?.source === 'osm') references.push(['osm', place.location.reference.id])
+    for (const [provider, reference] of references) {
+      const key = JSON.stringify([place.routeMapId, provider, reference])
+      if (mapPlaces.has(key)) throw new ValidationError('Duplicate route map provider reference.')
+      mapPlaces.add(key)
+    }
   }
 
   for (const place of backup.data.places) {
@@ -174,7 +194,7 @@ function validateReferences(backup: NormalizedTravelBackup): void {
 function validateBackup(value: unknown): NormalizedTravelBackup {
   const root = requireRecord(value, 'Backup')
   requireExactKeys(root, backupKeys)
-  if (root.format !== 'travel-planner-backup' || (root.version !== 1 && root.version !== 2)) {
+  if (root.format !== 'travel-planner-backup' || (root.version !== 1 && root.version !== 2 && root.version !== 3)) {
     throw new ValidationError('Unsupported backup format or version.')
   }
   requireString(root.exportedAt, 'Backup exportedAt')
@@ -183,7 +203,8 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
   }
 
   const data = requireRecord(root.data, 'Backup data')
-  const keys = root.version === 2 ? [...dataKeys, 'routeMaps', 'routeMapPlaces'] : dataKeys
+  const geo = root.version === 3
+  const keys = root.version !== 1 ? [...dataKeys, 'routeMaps', 'routeMapPlaces'] : dataKeys
   requireExactKeys(data, keys)
   for (const key of keys) {
     if (!Array.isArray(data[key])) {
@@ -201,7 +222,7 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
       regionRecord,
       'Region',
       ['name', 'zoom'],
-      ['center', 'googlePlaceId'],
+      ['center', 'googlePlaceId', ...(geo ? ['centerMetadata'] : [])],
       validateRegion,
     )
   })
@@ -210,7 +231,7 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
       record,
       'Place',
       ['name', 'regionIds', 'labelIds'],
-      ['icon', 'mapsUrl', 'googlePlaceId', 'notes'],
+      ['icon', 'mapsUrl', 'googlePlaceId', 'notes', ...(geo ? ['location'] : [])],
       validatePlace,
     ),
   )
@@ -231,9 +252,11 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
   )
   const routeMaps = ((data.routeMaps ?? []) as unknown[]).map((record) =>
     validateRecord<RouteMap>(record, 'Route map', ['name', 'transport'],
-      ['tripId', 'selectedDate', 'originGooglePlaceId', 'destinationGooglePlaceId'], validateRouteMap))
+      ['tripId', 'selectedDate', 'originGooglePlaceId', 'destinationGooglePlaceId', ...(geo ? ['origin', 'destination'] : [])], validateRouteMap))
   const routeMapPlaces = ((data.routeMapPlaces ?? []) as unknown[]).map((record) =>
-    validateRecord<RouteMapPlace>(record, 'Route map place', ['routeMapId', 'googlePlaceId'], ['name'], validateRouteMapPlace))
+    validateRecord<RouteMapPlace>(record, 'Route map place',
+      geo ? ['routeMapId'] : ['routeMapId', 'googlePlaceId'],
+      geo ? ['name', 'googlePlaceId', 'location'] : ['name'], validateRouteMapPlace))
   validateUniqueIds(regions, 'region')
   validateUniqueIds(places, 'place')
   validateUniqueIds(labels, 'label')
@@ -244,7 +267,7 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
 
   const backup: NormalizedTravelBackup = {
     format: 'travel-planner-backup',
-    version: 2,
+    version: geo ? 3 : 2,
     exportedAt: root.exportedAt,
     data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
   }
@@ -253,7 +276,14 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
 }
 
 export class BackupRepository {
+  private readonly storage: TravelDatabase
+
+  constructor(storage: TravelDatabase = database) {
+    this.storage = storage
+  }
+
   async exportAll(): Promise<NormalizedTravelBackup> {
+    const database = this.storage
     return database.transaction(
       'r',
       database.tables,
@@ -267,11 +297,13 @@ export class BackupRepository {
           database.routeMaps.toArray(),
           database.routeMapPlaces.toArray(),
         ])
+        const data = { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces }
+        const geo = [...regions, ...places, ...routeMaps, ...routeMapPlaces].some(hasGeoFormatFields)
         return validateBackup({
           format: 'travel-planner-backup',
-          version: 2,
+          version: geo ? 3 : 2,
           exportedAt: new Date().toISOString(),
-          data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
+          data,
         })
       },
     )
@@ -282,7 +314,9 @@ export class BackupRepository {
   }
 
   async replaceAll(value: unknown): Promise<BackupCounts> {
+    this.assertStandaloneReplacement()
     const backup = validateBackup(value)
+    const database = this.storage
     const { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces } = backup.data
     await database.transaction(
       'rw',
@@ -316,6 +350,8 @@ export class BackupRepository {
   }
 
   async clearAllData(): Promise<void> {
+    this.assertStandaloneReplacement()
+    const database = this.storage
     await database.transaction(
       'rw',
       database.tables,
@@ -330,6 +366,12 @@ export class BackupRepository {
         await database.regions.clear()
       },
     )
+  }
+
+  private assertStandaloneReplacement(): void {
+    if (this.storage.tables.some(table => table.name === 'outbox')) {
+      throw new ValidationError('帳號同步資料庫不能直接覆蓋或清空；必須保留待同步任務並使用既有同步流程。')
+    }
   }
 }
 

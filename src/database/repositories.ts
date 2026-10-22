@@ -1,6 +1,8 @@
 import Dexie from 'dexie'
 import { database, type TravelDatabase } from './database'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
+import { sameStoredLocation } from './location.validation'
+import { clearRouteEndpointReferences } from './route-endpoint'
 import type {
   ItineraryItem,
   ItineraryItemChanges,
@@ -64,10 +66,12 @@ export class RegionRepository {
   }
 
   async update(id: string, changes: RegionChanges): Promise<void> {
-    const current = required(await this.database.regions.get(id), 'Region', id)
-    const next = { ...current, ...changes }
-    validateRegion(next)
-    await this.database.regions.put(next)
+    await this.database.transaction('rw', this.database.regions, async () => {
+      const current = required(await this.database.regions.get(id), 'Region', id)
+      const next = { ...current, ...changes }
+      validateRegion(next)
+      await this.database.regions.put(next)
+    })
   }
 
   async delete(id: string): Promise<void> {
@@ -142,7 +146,7 @@ export class PlaceRepository {
         await requireLabels(this.database, next.labelIds)
         await this.database.places.put(next)
 
-        if (current.googlePlaceId !== next.googlePlaceId) {
+        if (current.googlePlaceId !== next.googlePlaceId || !sameStoredLocation(current.location, next.location)) {
           const scheduledItems = await this.database.itineraryItems.where('placeId').equals(id).toArray()
           const staleEstimateIds = new Set(scheduledItems.map((item) => item.id))
           for (const item of scheduledItems) {
@@ -200,6 +204,7 @@ export class PlaceRepository {
       'rw',
       this.database.places,
       this.database.itineraryItems,
+      this.database.routeMaps,
       async () => {
         required(await this.database.places.get(id), 'Place', id)
         const itemCount = await this.database.itineraryItems.where('placeId').equals(id).count()
@@ -210,6 +215,7 @@ export class PlaceRepository {
             'remove its itinerary items before deleting it.',
           )
         }
+        await clearRouteEndpointReferences(this.database, endpoint => endpoint.kind === 'place' && endpoint.placeId === id)
         await this.database.places.delete(id)
       },
     )

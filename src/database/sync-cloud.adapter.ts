@@ -1,5 +1,6 @@
 import { supabase } from './supabase.client'
 import { ValidationError } from './errors'
+import { assertLegacySyncTask } from './geo-format'
 import { withSupabaseTimeout } from './supabase.utils'
 import type { SyncRecord, SyncEntityName, SyncTask } from './sync.types'
 import { sharedTripCloud } from './shared-trip.cloud'
@@ -62,6 +63,7 @@ export const syncCloudAdapter = {
     return result
   },
   async push(task: SyncTask): Promise<CloudSyncPush> {
+    assertLegacySyncTask(task)
     if (task.changes.some((change) => change.baseVersion === undefined)) throw new ValidationError('缺少雲端基準版本，請先初始化或處理前序操作。')
     const payload = { protocolVersion: task.protocolVersion, operationId: task.operationId, account: task.account, changes: task.changes }
     const result = await callSyncRpc('app_sync_push', { p_task: payload }) as CloudSyncPush

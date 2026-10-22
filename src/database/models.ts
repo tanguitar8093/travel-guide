@@ -1,3 +1,5 @@
+import type { LocationMetadata, RouteEndpointSelection, StoredLocation } from '../geo/contracts'
+
 export interface Region {
   id: string
   name: string
@@ -6,6 +8,7 @@ export interface Region {
     longitude: number
   }
   googlePlaceId?: string
+  centerMetadata?: LocationMetadata
   zoom: number
 }
 
@@ -15,6 +18,7 @@ export interface Place {
   icon?: PlaceIcon
   mapsUrl?: string
   googlePlaceId?: string
+  location?: StoredLocation
   notes?: string
   regionIds: string[]
   labelIds: string[]
@@ -94,13 +98,16 @@ export interface RouteMap {
   selectedDate?: string
   originGooglePlaceId?: string
   destinationGooglePlaceId?: string
+  origin?: RouteEndpointSelection
+  destination?: RouteEndpointSelection
   transport: string
 }
 
 export interface RouteMapPlace {
   id: string
   routeMapId: string
-  googlePlaceId: string
+  googlePlaceId?: string
+  location?: StoredLocation
   name?: string
 }
 

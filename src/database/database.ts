@@ -69,6 +69,9 @@ export class TravelDatabase extends Dexie {
       routeMaps: '&id, &tripId',
       routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId]',
     })
+    this.version(11).stores({
+      routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId], &[routeMapId+location.reference.id]',
+    })
   }
 }
 

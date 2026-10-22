@@ -1,4 +1,5 @@
 import { supabase } from './supabase.client'
+import { assertLegacyGeoWrite } from './geo-format'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { BackupCounts } from './backup.repository'
 import { backupRepository as indexedBackupRepository } from './backup.repository'
@@ -569,6 +570,7 @@ export class SupabaseLabelRepository {
 
 export class SupabasePlaceRepository {
   async create(input: NewPlace): Promise<string> {
+    assertLegacyGeoWrite(input)
     validatePlace(input)
     await Promise.all([
       ...input.regionIds.map((regionId) => assertRegionExists(regionId)),
@@ -601,6 +603,7 @@ export class SupabasePlaceRepository {
   }
 
   async update(id: string, changes: PlaceChanges): Promise<void> {
+    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) {
       throw new EntityNotFoundError('Place', id)
@@ -1149,6 +1152,7 @@ export class SupabaseBackupRepository {
 
   async previewReplaceAll(value: unknown): Promise<CloudBackupPreview> {
     const backup = this.validateImport(value)
+    if (backup.version === 3) throw new ValidationError('雲端尚未支援備份 v3；未送出覆蓋預覽。')
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
         supabase.rpc('app_backup_preview_replace', {
@@ -1167,6 +1171,7 @@ export class SupabaseBackupRepository {
     }
 
     const backup = this.validateImport(value)
+    if (backup.version === 3) throw new ValidationError('雲端尚未支援備份 v3；未送出覆蓋操作。')
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
         supabase.rpc('app_backup_apply_replace', {

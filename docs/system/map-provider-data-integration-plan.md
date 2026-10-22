@@ -2,7 +2,7 @@
 
 日期：2026-10-23（Asia/Taipei）。
 
-狀態：**整合評估與 IndexedDB 實作設計，正式資料層尚未實作或遷移。** 後續已另完成中立契約及隔離雙 renderer 核心；第三階段的先行測試已獲確認並完成首次基準執行，結果見第 13.8 節。新增設計見第 13 節；不代表已授權修改正式資料庫或部署雲端。
+狀態：**第三階段 A／B 的本機相容層已完成限定驗證：IndexedDB v11、marker／端點、備份 v3 與同步版本防護。** 未部署雲端、未啟用正式 OSM 寫入。A 的紀錄見第 13.8–13.10 節；本次 B 的實作與使用者確認的雲端邊界見第 13.11 節，驗證結果見第 13.12 節。
 
 ## 1. 範圍與結論
 
@@ -446,3 +446,106 @@ Backup v3 是已確認的測試目標：保留可保存位置、繼續讀 v1／v
 合計：既有必要欄位阻擋 5 項、位置驗證 13 項、失效／回滾 2 項、備份 1 項，共 21 項。
 
 本次未出現測試載入、缺依賴或 API 名稱錯誤；Vitest 可執行不等於 TypeScript typecheck 通過。未執行 Google API、瀏覽器、live Supabase、build、lint 或其他未授權檢查。
+
+### 13.9 第三階段 A 實作
+
+使用者確認先完成 A：Place／Region 位置及 repository 相容層；marker／endpoint／v11 索引／backup v3／同步格式留在 B。本批不是完整第三階段或正式 UI 整合完成。
+
+已編寫：
+
+- [models.ts](../../src/database/models.ts)：以 type-only import 引入 geo 契約；新增 optional Place.location、Region.centerMetadata，不改 Google、URL 或 legacy center 欄位。
+- [location.validation.ts](../../src/database/location.validation.ts)：有限範圍座標、來源／kind／reference／datasetVersion、nested 欄位白名單與位置等價比較。OSM ID 保留字串，避免大型 ID 失真。
+- [validation.ts](../../src/database/validation.ts)：合法 location 可獨立滿足 Place 定位條件；有 Google ID 仍驗證提供的 location。Region metadata 必須搭配 center，舊 center 可維持無 metadata；null／非法 center 報 ValidationError。
+- [repositories.ts](../../src/database/repositories.ts)：Location 新增／移除／內容變更與 Google ID 變更都在原 Place 交易內清除本站與同日下一站估算。datasetVersion-only、同值物件或名稱／筆記變更不清；Region update 也包在交易內。
+- [index.ts](../../src/database/index.ts)：對全部資料模式明確拒絕含 location／centerMetadata 的新格式 create／update，包括明確傳 undefined 的移除操作。這是暫時的發布 gate，不剝除欄位、不改成 local-only 或手動同步；原 Google／URL 輸入照常派送。
+- facade 之外的 injected repositories／LocalSyncStore 用於 isolated DB 驗證新格式；不從正式 UI 直接繞過 facade。既有自動同步、outbox 格式、frozen tasks 與 SDK loader 未修改。
+
+補充測試：
+
+- [IndexedDB 契約測試](../../poc/indexeddb-geo/indexeddb-geo.contract.ts)：更多非法 nested 格式、三種 OSM reference／大型 ID、Region 來源持久化與錯誤回滾、位置新增／移除／身分變更、相同位置／dataset-only 不失效、跨 trip／date 失效、hybrid Place 與受影響 items 同任務／queue 失敗全部回滾、帳號切換保留舊資料。
+- [facade 測試](../../src/database/index.test.ts)：三種模式在派送前拒絕未發布格式，原 Google／URL 寫入保持傳遞。
+- [契約 typecheck 設定](../../poc/indexeddb-geo/tsconfig.json)：沿用正式專案 compiler options，涵蓋原本位於 src 外的契約測試。
+
+第 13.8 節的結果是實作前基準，不能當作本批通過證據；實作後另獲授權執行測試與 typecheck，結果見第 13.10 節。完整契約測試中 backup v3 仍是 B 的未實作需求，保留斷言且仍紅燈；不刪掉、不標成已完成。
+
+下一次建議申請：完整契約測試、原三個回歸檔加 index.test.ts 及既有 Place service 測試、正式 app 與契約測試的 typecheck。build、lint、瀏覽器、Google API 與 live Supabase 不在此建議範圍。
+
+### 13.10 第三階段 A 驗證結果（2026-10-23）
+
+使用者另行授權上述測試及兩項 TypeScript 檢查：
+
+| 範圍 | 結果 |
+|---|---|
+| `route-map.repository.test.ts`、`local-sync.store.test.ts`、`backup.repository.test.ts` | 39 項通過 |
+| `index.test.ts`、`modules/place/place.service.test.ts` | 11 項通過 |
+| 完整 IndexedDB 契約測試 | 63 項：62 通過、1 失敗；唯一失敗為未實作的 B 階段 backup v3 |
+| `tsc -p tsconfig.app.json --noEmit` | 通過 |
+| `tsc -p poc/indexeddb-geo/tsconfig.json --noEmit` | 通過 |
+
+初次執行 facade 與 Place service 測試時，Node 20.19.4 沒有預設啟用 WebSocket，Supabase client 在模組載入階段報錯；不是資料操作斷言失敗。確認現有 Node 支援 `--experimental-websocket` 後，以 `NODE_OPTIONS=--experimental-websocket` 重跑這兩個檔案，11 項全部通過。沒有安裝套件、修改正式 client 或連線 live DB。
+
+A 的位置持久化／非法輸入拒絕、Region provenance、相同位置保留估算、跨 trip／date 失效、失敗回滾、hybrid 原子 queue 及帳號隔離案例均在上述契約測試通過項目內。契約套件整體仍回傳非零，不宣稱全部綠燈；也不把 LocalSyncStore 測試當作雲端協定相容證明。
+
+未執行 build、lint、瀏覽器、實際 Google API 或 live Supabase 驗證。未變更 Dexie schema 版本／索引、SDK key 載入方式、既有同步格式；正式 OSM 寫入仍被 facade gate 阻擋，等待 B 與雲端相容層接續。
+
+### 13.11 第三階段 B：IndexedDB、端點與備份
+
+使用者確認本批實作完整本機 B 及明確同步版本防護，**不準備或部署雲端 migration／v2 協定**。這不是新增第三個子階段；A／B 仍是 IndexedDB 相容層的兩批工作。雲端格式未就緒前，正式新格式寫入保持關閉，不宣稱整個產品可同步 OSM。
+
+#### 儲存與身分
+
+- [database.ts](../../src/database/database.ts) 新增 Dexie v11，保留原 Google 索引並增加唯一 `[routeMapId+location.reference.id]`，由 SyncDatabase 繼承。不重寫舊 records／queue／baseline／cursor／conflict，也不在 upgrade 呼叫網路。
+- RouteMapPlace 的 Google ID 改 optional，可保存合法 location；有 location 必須有非空使用者名稱。無 reference 的 user-picked 位置不按座標硬去重；OSM 完整 reference 按 map 去重，datasetVersion 不作身分。
+- [route-map.repository.ts](../../src/database/route-map.repository.ts) 只對存在的 provider ID 查複合鍵，避免 undefined key；一筆有兩種 reference 時同時套用兩種唯一約束。
+
+#### 四種端點與引用
+
+- RouteMap 新增 optional origin／destination，直接引用既有 `RouteEndpointSelection`，保留 originGooglePlaceId／destinationGooglePlaceId。
+- [route-endpoint.ts](../../src/database/route-endpoint.ts) 負責 nested shape 白名單、身分 key、legacy Google 端點的 runtime normalize 及引用檢查。舊資料不為了 normalize 批次寫回；新舊欄位並存只接受相同 inline Google ID，否則明確拒絕。
+- 私人 place 必須存在；marker 必須屬於同一 map；shared-place 只能引用帳號庫現有且可讀的共享快取，不從私人表 fallback。共享撤權／快取移除後，再檢查引用會回報不可用，保留端點供之後 UI 提示重選，不繞過權限。
+- 相同引用／provider reference 不可當兩端；獨立 user-picked endpoint 使用選取 ID，不按座標判斷為同實體。
+- 刪除私人 Place、刪除或移動 marker 時，在同一交易清空受影響 origin／destination；其他端點與 map 不動。原本 itinerary 使用中的 Place 仍禁止刪除。hybrid 的連帶 map 更新沿既有 mutation hooks 一起進 task。
+- 原 Google 試算 service 對沒有 Google ID 的 marker 明確列為尚未接線，不把 undefined 當 Google ID；沒有提前改寫 renderer／搜尋／試算流程。
+
+#### 備份 v3
+
+- [BackupRepository](../../src/database/backup.repository.ts) 支援注入 isolated DB；繼續讀 v1／v2，新增 v3 的位置、Region metadata、marker 與端點完整 graph 驗證。
+- 舊 Google-only 資料仍輸出 v2，含新欄位才輸出 v3；v2 不接受夾帶新欄位。v3 在本機完整替換保留 UUID，驗證全部通過後才清表，寫入失敗整體回滾。
+- marker 去重按 provider＋完整 ID，不把所有無 Google ID 的 marker 當重複。
+- 私人全備份不含共享文件。依使用者確認，遇 shared-place 端點明確拒絕匯出／匯入，不悄悄丟掉端點或跨 scope 解析。
+- 帳號同步庫可備份匯出，但禁止透過注入的 BackupRepository 直接 replace／clear，避免業務資料被替換而 queue 留下不一致狀態。
+- 正式 facade 的 replaceAll 仍阻擋 v3；新格式先用 isolated DB 驗證，不藉備份繞過發布 gate。
+
+#### 同步／雲端版本防護
+
+- [geo-format.ts](../../src/database/geo-format.ts) 共用新格式辨識及 legacy task 防護；目前仍維持 protocolVersion 1，不假裝已完成 v2。
+- prepareUpload 在改 attempts／凍結 uploadChanges 之前拒絕未知 protocol、新格式 before／after、frozen payload 或共享文件。既有 legacy frozen task 保持原 operationId／protocol／payload 精確重試。
+- RPC adapter 再檢查一次，防止繞過 prepareUpload 直接送出新格式；不修改舊 payload 為「可接受」形狀。
+- facade 的 marker／端點 create／update 同樣 gate；雲端各相關 repository 直接入口也明確拒絕新欄位，不能 mapper 靜默丟掉 location 後回報成功。雲端備份 preview／replace 在 RPC 前拒絕 v3。
+- 不變更自動同步排程、帳號授權、RLS、現行雲端 schema 或 cursor。Google／URL／legacy route map 寫入照舊；這些 client 防護不是 server 舊 writer 防護的替代品。
+
+#### 新增驗證範圍
+
+- [B 契約測試](../../poc/indexeddb-geo/route-map-geo.contract.ts)：marker 重開／雙唯一鍵、reference scope、端點 normalize／衝突／引用／刪除回滾、v3 完整替換往返／graph 錯誤不改庫、shared cache 撤權、hybrid 連帶清理 task、阻擋新格式上傳且 queue 不變、legacy frozen 精確重試。
+- 原 v10 standalone／帳號 fixture 增加 verno 11 與新索引存在的斷言；保留原資料／佇列完全相等的檢查。
+- [雲端邊界測試](../../src/database/geo-cloud-boundary.test.ts)、[RPC adapter 測試](../../src/database/sync-cloud.adapter.test.ts) 與 [facade 測試](../../src/database/index.test.ts)：未支援格式在任何寫入／RPC 前明確拒絕。
+- 本批測試與 typecheck 在另獲授權後執行，結果見第 13.12 節；未跑 build、lint、瀏覽器或 live DB。A 的通過紀錄不能當作 B 已通過。尚未驗證真實瀏覽器的 blocked/versionchange UX 或線上 schema 相容性。
+
+公開 snapshot／共享文件新格式與 cloud UUID remapping 不在這次確認的本機 B 範圍內，仍保留舊版並阻擋新格式進入。正式 UI 接線前須另外完成雲端相容實作／部署與發布 gate 移除，不應把「本機 B 程式完成」描述成「OSM 全模式產品完成」。
+
+### 13.12 第三階段 B 驗證結果（2026-10-23）
+
+使用者授權本批指定測試與兩項 TypeScript 檢查：
+
+| 檢查 | 結果 |
+|---|---|
+| 完整 A＋B IndexedDB 契約套件 | 2 檔、99 項全部通過；包含原本未實作的 backup v3 案例 |
+| route-map.repository、local-sync.store、backup.repository、index、sync-cloud.adapter、geo-cloud-boundary、hybrid.backend、place.service、route-calculator.service | 9 檔、94 項全部通過 |
+| `tsc -p tsconfig.app.json --noEmit` | 通過 |
+| `tsc -p poc/indexeddb-geo/tsconfig.json --noEmit` | 通過 |
+
+首次契約執行有 1 項共享撤權 fixture 繞過帳號庫 tracked transaction 而被既有防護拒絕；改為透過 syncTransaction 模擬既有私人資料後，完整套件重跑 99 項通過，未放寬正式防護。首次 app 型別檢查指出衝突預覽標題仍假設 marker 必有 Google ID；已在 [ConflictRecordValue.tsx](../../src/modules/data-management/ConflictRecordValue.tsx) 補上 OSM reference／record ID 顯示，再跑兩項 typecheck 通過。沒有以空字串冒充 Google ID。
+
+Vitest 在 Node 20 使用已確認可用的 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。未執行 build、lint、瀏覽器、Google API、live Supabase 或任何雲端部署。client 程式的 schema 宣告為 v11，實際升級驗證在 isolated DB 完成；未另開正式使用者庫做資料遷移。
+
+**結論：本次確認的本機 B 與版本防護已通過限定驗證。** 正式寫入 gate 仍保留；雲端 v2／server writer 防護、共享／公開新格式、正式 UI 與真實瀏覽器 blocked/versionchange 驗證仍未完成，不在本次結果中冒充通過。

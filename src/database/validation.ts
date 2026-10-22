@@ -1,5 +1,7 @@
 import { ValidationError } from './errors'
 import { placeIcons } from './models'
+import { validateCoordinatePair, validateLocationMetadata, validateStoredLocation } from './location.validation'
+import { getRouteMapEndpoint, routeEndpointKey } from './route-endpoint'
 import type {
   ItineraryItem,
   Label,
@@ -19,6 +21,11 @@ export function validateRouteMap(map: NewRouteMap): void {
   if (map.originGooglePlaceId && map.originGooglePlaceId === map.destinationGooglePlaceId) {
     throw new ValidationError('Route endpoints must be different.')
   }
+  const origin = getRouteMapEndpoint({ ...map, id: 'validation' }, 'origin')
+  const destination = getRouteMapEndpoint({ ...map, id: 'validation' }, 'destination')
+  if (origin && destination && routeEndpointKey(origin) === routeEndpointKey(destination)) {
+    throw new ValidationError('Route endpoints must be different.')
+  }
   if (!['DRIVING', 'TRANSIT', 'WALKING', 'BICYCLING', 'TWO_WHEELER'].includes(map.transport)) {
     throw new ValidationError('Route map transport is invalid.')
   }
@@ -26,23 +33,20 @@ export function validateRouteMap(map: NewRouteMap): void {
 
 export function validateRouteMapPlace(place: NewRouteMapPlace): void {
   requireText(place.routeMapId, 'Route map ID')
-  requireText(place.googlePlaceId, 'Google Place ID')
+  if (place.googlePlaceId !== undefined) requireText(place.googlePlaceId, 'Google Place ID')
+  if (place.location !== undefined) {
+    validateStoredLocation(place.location)
+    requireText(place.name, 'Route map place name')
+  }
+  if (place.googlePlaceId === undefined && place.location === undefined) {
+    throw new ValidationError('Route map place requires a Google ID or stored location.')
+  }
   if (place.name !== undefined) requireText(place.name, 'Route map place name')
 }
 
 function requireText(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || !value.trim()) {
     throw new ValidationError(`${field} must not be empty.`)
-  }
-}
-
-function requireCoordinate(latitude: number, longitude: number): void {
-  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
-    throw new ValidationError('Latitude must be between -90 and 90.')
-  }
-
-  if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-    throw new ValidationError('Longitude must be between -180 and 180.')
   }
 }
 
@@ -64,18 +68,28 @@ function requireIds(ids: string[], field: string): void {
   }
 }
 
-export function validateRegion(region: Omit<Region, 'id'>): void {
+export function validateRegion(
+  region: Omit<Region, 'id' | 'center' | 'centerMetadata'> & { center?: unknown; centerMetadata?: unknown },
+): void {
   requireText(region.name, 'Region name')
   if (region.googlePlaceId !== undefined) {
     requireText(region.googlePlaceId, 'Google Place ID')
   }
   if (region.center !== undefined) {
-    if (typeof region.center !== 'object') {
+    if (typeof region.center !== 'object' || region.center === null || Array.isArray(region.center) ||
+        !('latitude' in region.center) || !('longitude' in region.center)) {
       throw new ValidationError('Region center must be a coordinate pair.')
     }
-    requireCoordinate(region.center.latitude, region.center.longitude)
+    validateCoordinatePair(region.center.latitude, region.center.longitude)
   } else if (region.googlePlaceId === undefined) {
     throw new ValidationError('Select a Google Maps place for the region.')
+  }
+
+  if (region.centerMetadata !== undefined) {
+    validateLocationMetadata(region.centerMetadata)
+    if (region.center === undefined) {
+      throw new ValidationError('Region center metadata requires a center.')
+    }
   }
 
   if (!Number.isFinite(region.zoom) || region.zoom < 0 || region.zoom > 22) {
@@ -85,6 +99,7 @@ export function validateRegion(region: Omit<Region, 'id'>): void {
 
 export function validatePlace(place: Omit<Place, 'id'>): void {
   requireText(place.name, 'Place name')
+  if (place.location !== undefined) validateStoredLocation(place.location)
   if (
     place.icon !== undefined &&
     !placeIcons.some((icon) => icon === place.icon)
@@ -115,8 +130,8 @@ export function validatePlace(place: Omit<Place, 'id'>): void {
     }
   }
 
-  if (place.googlePlaceId === undefined && place.mapsUrl === undefined) {
-    throw new ValidationError('Select a Google Maps place or provide a map URL.')
+  if (place.googlePlaceId === undefined && place.mapsUrl === undefined && place.location === undefined) {
+    throw new ValidationError('Select a Google Maps place, provide a map URL or a stored location.')
   }
 }
 

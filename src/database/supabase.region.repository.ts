@@ -1,4 +1,5 @@
 import { supabase } from './supabase.client'
+import { assertLegacyGeoWrite } from './geo-format'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { NewRegion, Region, RegionChanges } from './models'
 import { validateRegion } from './validation'
@@ -72,6 +73,7 @@ function mapSupabaseError(error: { code?: string; message: string }, fallback: s
 
 export class SupabaseRegionRepository {
   async create(input: NewRegion): Promise<string> {
+    assertLegacyGeoWrite(input)
     validateRegion(input)
     const regionId = crypto.randomUUID()
 
@@ -91,6 +93,7 @@ export class SupabaseRegionRepository {
   }
 
   async update(id: string, changes: RegionChanges): Promise<void> {
+    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) {
       throw new EntityNotFoundError('Region', id)

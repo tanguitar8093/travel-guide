@@ -9,8 +9,10 @@ import { RouteMapPlaceRepository, RouteMapRepository } from '../../src/database/
 import { LocalSyncStore } from '../../src/database/local-sync.store'
 import { SyncAccountContext } from '../../src/database/sync-account-context'
 import { SyncDatabase } from '../../src/database/sync.database'
-import type { NewPlace } from '../../src/database/models'
+import type { NewPlace, NewRegion } from '../../src/database/models'
 import type { StoredLocation } from '../../src/geo/contracts'
+import { validateLocationMetadata } from '../../src/database/location.validation'
+import { validateRegion } from '../../src/database/validation'
 
 const osmLocation = {
   source: 'osm', kind: 'point',
@@ -19,8 +21,7 @@ const osmLocation = {
   datasetVersion: 'fixture-2026-10-23',
 } as const satisfies StoredLocation
 
-// Extra properties describe the proposed format without changing production models.
-function placeInput(regionId: string, location: unknown = osmLocation): NewPlace & { location: unknown } {
+function placeInput(regionId: string, location: StoredLocation = osmLocation): NewPlace {
   return { name: 'User-named place', regionIds: [regionId], labelIds: [], location }
 }
 
@@ -139,7 +140,7 @@ describe('Google compatibility gates', () => {
   })
 })
 
-describe('OSM proposed behavior: expected red until phase 3 is implemented', () => {
+describe('OSM location persistence and validation', () => {
   it('creates a location-only place without a fabricated Google ID or URL and survives reopening', async () => {
     const input = placeInput(regionId)
     const id = await places.create(input)
@@ -168,11 +169,26 @@ describe('OSM proposed behavior: expected red until phase 3 is implemented', () 
     ['missing OSM reference', { source: 'osm', kind: 'point', coordinate: { latitude: 26, longitude: 127 } }],
     ['incomplete OSM ID', { ...osmLocation, reference: { provider: 'osm', id: '123' } }],
     ['zero OSM ID', { ...osmLocation, reference: { provider: 'osm', id: 'node/0' } }],
+    ['negative OSM ID', { ...osmLocation, reference: { provider: 'osm', id: 'way/-1' } }],
+    ['fractional OSM ID', { ...osmLocation, reference: { provider: 'osm', id: 'node/1.5' } }],
+    ['unknown OSM type', { ...osmLocation, reference: { provider: 'osm', id: 'area/12' } }],
+    ['wrong reference provider', { ...osmLocation, reference: { provider: 'google', id: 'node/123' } }],
+    ['reference unknown field', { ...osmLocation, reference: { ...osmLocation.reference, address: 'Not allowed' } }],
+    ['coordinate unknown field', { ...osmLocation, coordinate: { ...osmLocation.coordinate, ownerUid: 'injected' } }],
+    ['numeric string', { ...osmLocation, coordinate: { latitude: '26', longitude: 127 } }],
+    ['array coordinate', { ...osmLocation, coordinate: [26, 127] }],
+    ['array location', []],
+    ['empty dataset', { ...osmLocation, datasetVersion: '' }],
+    ['user claiming OSM reference', { ...osmLocation, source: 'user' }],
+    ['legacy user claiming dataset', {
+      source: 'legacy-user', kind: 'point', coordinate: osmLocation.coordinate, datasetVersion: 'unexpected',
+    }],
     ['unknown kind', { ...osmLocation, kind: 'invalid' }],
     ['unknown field', { ...osmLocation, ownerUid: 'injected-owner' }],
     ['Google runtime content', { ...osmLocation, source: 'google', reference: { provider: 'google', id: 'google' } }],
   ])('rejects invalid location even alongside a valid Google ID: %s', async (_name, location) => {
-    const input = { ...placeInput(regionId, location), googlePlaceId: 'valid-google' }
+    const input = { ...placeInput(regionId), location, googlePlaceId: 'valid-google' }
+    // @ts-expect-error Exercise untrusted runtime input at the repository boundary.
     await expect(places.create(input)).rejects.toBeInstanceOf(ValidationError)
     expect(await db.places.count()).toBe(0)
   })
@@ -233,7 +249,80 @@ describe('OSM proposed behavior: expected red until phase 3 is implemented', () 
     expect(await db.itineraryItems.bulkGet(ids)).toEqual(beforeItems)
   })
 
-  it('validates backup v3 with location-only places and markers without changing their payloads', () => {
+  it('accepts all OSM reference types without rounding large IDs', async () => {
+    for (const type of ['node', 'way', 'relation'] as const) {
+      const location: StoredLocation = {
+        ...osmLocation, reference: { provider: 'osm', id: `${type}/900719925474099312345` },
+      }
+      const id = await places.create(placeInput(regionId, location))
+      expect((await places.getById(id))?.location).toEqual(location)
+    }
+  })
+
+  it('does not invalidate identical locations or dataset-version-only changes', async () => {
+    const id = await places.create(placeInput(regionId))
+    const ids = await itinerary(id)
+    const before = await db.itineraryItems.bulkGet(ids)
+    await places.update(id, { location: structuredClone(osmLocation) })
+    await places.update(id, { location: { ...osmLocation, datasetVersion: 'next-dataset' } })
+    expect(await db.itineraryItems.bulkGet(ids)).toEqual(before)
+    expect((await places.getById(id))?.location).toEqual({ ...osmLocation, datasetVersion: 'next-dataset' })
+  })
+
+  it.each(['add', 'remove', 'reference', 'source', 'kind'] as const)(
+    'invalidates location identity changes: %s', async change => {
+      const id = await places.create({
+        ...placeInput(regionId), googlePlaceId: 'unchanged-google',
+        location: change === 'add' ? undefined : osmLocation,
+      })
+      const ids = await itinerary(id)
+      const location: StoredLocation | undefined = change === 'remove' ? undefined
+        : change === 'reference' ? { ...osmLocation, reference: { provider: 'osm', id: 'way/123' } }
+        : change === 'source' ? { source: 'user', kind: 'point', coordinate: osmLocation.coordinate }
+        : change === 'kind' ? { ...osmLocation, kind: 'approximate-center' } : osmLocation
+      await places.update(id, { location })
+      for (const index of [1, 2]) {
+        expect(await db.itineraryItems.get(ids[index])).toMatchObject({ id: ids[index], arrivalTime: '10:00' })
+        expect((await db.itineraryItems.get(ids[index]))?.travelDurationMinutes).toBeUndefined()
+        expect((await db.itineraryItems.get(ids[index]))?.travelDistanceMeters).toBeUndefined()
+      }
+    },
+  )
+
+  it('rejects removal of the only usable location and preserves estimates', async () => {
+    const id = await places.create(placeInput(regionId))
+    const ids = await itinerary(id)
+    const before = await places.getById(id)
+    const items = await db.itineraryItems.bulkGet(ids)
+    await expect(places.update(id, { location: undefined })).rejects.toBeInstanceOf(ValidationError)
+    expect(await places.getById(id)).toEqual(before)
+    expect(await db.itineraryItems.bulkGet(ids)).toEqual(items)
+  })
+
+  it('invalidates every occurrence across trips and dates without crossing day boundaries', async () => {
+    const id = await places.create(placeInput(regionId))
+    const firstIds = await itinerary(id)
+    const secondIds = await itinerary(id)
+    const tripId = (await db.itineraryItems.get(firstIds[0]))!.tripId
+    const items = new ItineraryItemRepository(db)
+    const nextDay = await items.create({
+      tripId, placeId: id, date: '2026-10-24', order: 0, travelDurationMinutes: 30, travelDistanceMeters: 300,
+    })
+    const nextDaySuccessor = await items.create({
+      tripId, placeId: (await db.itineraryItems.get(firstIds[0]))!.placeId,
+      date: '2026-10-24', order: 1, travelDurationMinutes: 40, travelDistanceMeters: 400,
+    })
+    const unrelated = await db.itineraryItems.bulkGet([firstIds[0], firstIds[3], secondIds[0], secondIds[3]])
+    await places.update(id, { location: { ...osmLocation, coordinate: { latitude: 27, longitude: 128 } } })
+    for (const itemId of [firstIds[1], firstIds[2], secondIds[1], secondIds[2], nextDay, nextDaySuccessor]) {
+      const item = await db.itineraryItems.get(itemId)
+      expect(item?.travelDurationMinutes).toBeUndefined()
+      expect(item?.travelDistanceMeters).toBeUndefined()
+    }
+    expect(await db.itineraryItems.bulkGet([firstIds[0], firstIds[3], secondIds[0], secondIds[3]])).toEqual(unrelated)
+  })
+
+  it('validates backup v3 with location-only places and markers', () => {
     const place = { id: 'place', ...placeInput(regionId) }
     const marker = { id: 'marker', routeMapId: 'map', name: 'User marker', location: osmLocation }
     const backup = new BackupRepository().validateImport({
@@ -246,6 +335,64 @@ describe('OSM proposed behavior: expected red until phase 3 is implemented', () 
     })
     expect(backup.data.places).toEqual([place])
     expect(backup.data.routeMapPlaces).toEqual([marker])
+  })
+})
+
+describe('Region center provenance', () => {
+  it('persists OSM metadata without creating a Google ID or modifying legacy regions', async () => {
+    const regions = new RegionRepository(db)
+    const input: NewRegion = {
+      name: 'OSM region', zoom: 12, center: osmLocation.coordinate,
+      centerMetadata: { source: 'osm', kind: 'approximate-center', reference: osmLocation.reference },
+    }
+    const beforeLegacy = await regions.getById(regionId)
+    const id = await regions.create(input)
+    await regions.update(id, { name: 'Renamed' })
+    db.close()
+    const reopened = new TravelDatabase(db.name)
+    storages.push(reopened)
+    expect(await reopened.regions.get(id)).toEqual({ id, ...input, name: 'Renamed' })
+    expect(await reopened.regions.get(regionId)).toEqual(beforeLegacy)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('accepts independent user metadata at coordinate boundaries', async () => {
+    for (const source of ['user', 'legacy-user'] as const) {
+      const input: NewRegion = {
+        name: source, zoom: 12, center: { latitude: -90, longitude: 180 },
+        centerMetadata: { source, kind: 'map-center' },
+      }
+      const id = await new RegionRepository(db).create(input)
+      expect(await db.regions.get(id)).toEqual({ id, ...input })
+    }
+  })
+
+  it('rejects orphan metadata and invalid center updates atomically', async () => {
+    const regions = new RegionRepository(db)
+    await expect(regions.create({
+      name: 'Invalid', googlePlaceId: 'valid', zoom: 12, centerMetadata: { source: 'user', kind: 'point' },
+    })).rejects.toBeInstanceOf(ValidationError)
+    const id = await regions.create({
+      name: 'OSM', zoom: 12, center: osmLocation.coordinate,
+      centerMetadata: { source: 'osm', kind: 'point', reference: osmLocation.reference },
+    })
+    const before = await regions.getById(id)
+    await expect(regions.update(id, { name: 'Must not save', center: undefined })).rejects.toBeInstanceOf(ValidationError)
+    await expect(regions.update(id, { center: { latitude: NaN, longitude: 127 } })).rejects.toBeInstanceOf(ValidationError)
+    expect(await regions.getById(id)).toEqual(before)
+  })
+
+  it.each([
+    null, [], { source: 'google', kind: 'point' }, { source: 'user', kind: 'invalid' },
+    { source: 'osm', kind: 'point' },
+    { source: 'user', kind: 'point', ownerUid: 'injected' },
+    { source: 'user', kind: 'point', coordinate: osmLocation.coordinate },
+  ])('rejects invalid metadata shape: %j', value => {
+    expect(() => validateLocationMetadata(value)).toThrow(ValidationError)
+  })
+
+  it('reports null legacy centers as ValidationError instead of TypeError', () => {
+    expect(() => validateRegion({ name: 'Invalid', zoom: 12, center: null })).toThrow(ValidationError)
   })
 })
 
@@ -290,6 +437,9 @@ describe('literal pre-extension v10 upgrade fixtures', () => {
     for (const table of old.tables) original[table.name] = await table.toArray()
     old.close()
     await target.open()
+    expect(target.verno).toBe(11)
+    expect(await target.routeMapPlaces.where('[routeMapId+location.reference.id]')
+      .equals(['legacy-map', 'node/123']).count()).toBe(0)
     for (const [name, records] of Object.entries(original)) expect(await target.table(name).toArray()).toEqual(records)
     expect(fetch).not.toHaveBeenCalled()
   })
@@ -317,5 +467,84 @@ describe('hybrid local transaction boundary, not cloud protocol approval', () =>
     expect(await sync.places.toArray()).toEqual(beforePlaces)
     expect(await store.listTasks()).toEqual(queued)
     expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('queues location and all invalidated legs together, and rolls all of them back on outbox failure', async () => {
+    const sync = new SyncDatabase({ projectId: crypto.randomUUID(), userId: 'owner' })
+    storages.push(sync)
+    const context = new SyncAccountContext()
+    context.activate(sync.account)
+    const store = new LocalSyncStore(sync, context)
+    await store.prepareLocal()
+    const { placeId, itemIds } = await store.mutate('osm-itinerary.setup', async repositories => {
+      const region = await repositories.regions.create({ name: 'Region', googlePlaceId: 'region', zoom: 12 })
+      const placeId = await repositories.places.create(placeInput(region))
+      const otherPlace = await repositories.places.create({
+        name: 'Other', googlePlaceId: 'other', regionIds: [region], labelIds: [],
+      })
+      const tripId = await repositories.trips.create({
+        name: 'Trip', regionId: region, startDate: '2026-10-23', endDate: '2026-10-23',
+      })
+      const itemIds: string[] = []
+      for (let order = 0; order < 3; order += 1) {
+        itemIds.push(await repositories.itineraryItems.create({
+          tripId, placeId: order === 0 ? placeId : otherPlace, date: '2026-10-23', order,
+          travelDurationMinutes: 10, travelDistanceMeters: 100, arrivalTime: '10:00',
+        }))
+      }
+      return { placeId, itemIds }
+    })
+    const update = { location: { ...osmLocation, coordinate: { latitude: 27, longitude: 128 } } }
+    const beforePlace = await sync.places.get(placeId)
+    const beforeItems = await sync.itineraryItems.bulkGet(itemIds)
+    const beforeTasks = await store.listTasks()
+    vi.spyOn(sync.outbox, 'add').mockRejectedValueOnce(new Error('queue failed'))
+    await expect(store.mutate('osm-itinerary.update', repositories => repositories.places.update(placeId, update)))
+      .rejects.toThrow('queue failed')
+    expect(await sync.places.get(placeId)).toEqual(beforePlace)
+    expect(await sync.itineraryItems.bulkGet(itemIds)).toEqual(beforeItems)
+    expect(await store.listTasks()).toEqual(beforeTasks)
+    await store.mutate('osm-itinerary.update', repositories => repositories.places.update(placeId, update))
+    const tasks = await store.listTasks()
+    expect(tasks).toHaveLength(2)
+    expect(tasks[0]).toEqual(beforeTasks[0])
+    const task = tasks[1]
+    expect(task.changes).toHaveLength(3)
+    expect(task.changes.find(change => change.entity === 'places' && change.id === placeId))
+      .toMatchObject({ before: beforePlace, after: { id: placeId, ...update } })
+    for (const itemId of itemIds.slice(0, 2)) {
+      const change = task.changes.find(value => value.entity === 'itineraryItems' && value.id === itemId)
+      expect(change).toMatchObject({
+        before: { travelDurationMinutes: 10, travelDistanceMeters: 100 },
+        after: { id: itemId, arrivalTime: '10:00' },
+      })
+      const after = change?.after
+      expect(after && 'travelDurationMinutes' in after ? after.travelDurationMinutes : undefined).toBeUndefined()
+      expect(after && 'travelDistanceMeters' in after ? after.travelDistanceMeters : undefined).toBeUndefined()
+    }
+    expect(task.changes.some(change => change.id === itemIds[2])).toBe(false)
+    expect(await sync.itineraryItems.get(itemIds[2])).toEqual(beforeItems[2])
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('rejects writes after account switching without losing the old local data or queue', async () => {
+    const sync = new SyncDatabase({ projectId: crypto.randomUUID(), userId: 'owner' })
+    storages.push(sync)
+    const context = new SyncAccountContext()
+    context.activate(sync.account)
+    const store = new LocalSyncStore(sync, context)
+    await store.prepareLocal()
+    const id = await store.mutate('osm.setup', async repositories => {
+      const region = await repositories.regions.create({ name: 'Region', googlePlaceId: 'region', zoom: 12 })
+      return repositories.places.create(placeInput(region))
+    })
+    const before = await sync.places.get(id)
+    const tasks = await store.listTasks()
+    context.activate({ ...sync.account, userId: 'different-owner' })
+    await expect(store.mutate('osm.stale-update', repositories => repositories.places.update(id, { notes: 'Must not save' })))
+      .rejects.toBeInstanceOf(ValidationError)
+    expect(await sync.places.get(id)).toEqual(before)
+    context.activate(sync.account)
+    expect(await store.listTasks()).toEqual(tasks)
   })
 })

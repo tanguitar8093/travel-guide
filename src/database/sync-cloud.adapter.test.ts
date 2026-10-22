@@ -44,4 +44,25 @@ describe('sync cloud adapter', () => {
     rpc.mockResolvedValueOnce({ data: null, error: { message: 'Permission denied' } })
     await expect(syncCloudAdapter.pull('0')).rejects.toThrow('Permission denied')
   })
+
+  it('rejects new-format changes and frozen payloads before any RPC call', async () => {
+    const task: SyncTask = {
+      operationId: 'new-geo', account: { projectId: 'test', userId: 'member' }, deviceId: 'device',
+      protocolVersion: 1, operation: 'place.create', createdAt: new Date().toISOString(), status: 'pending', attempts: 0,
+      changes: [{
+        entity: 'places', id: 'place', kind: 'put', baseVersion: null,
+        after: {
+          id: 'place', name: 'User', regionIds: [], labelIds: [],
+          location: { source: 'user', kind: 'user-picked', coordinate: { latitude: 0, longitude: 0 } },
+        },
+      }],
+    }
+    const before = structuredClone(task)
+    await expect(syncCloudAdapter.push(task)).rejects.toThrow('尚未支援')
+    expect(task).toEqual(before)
+    task.uploadChanges = structuredClone(task.changes)
+    task.changes = []
+    await expect(syncCloudAdapter.push(task)).rejects.toThrow('尚未支援')
+    expect(rpc).not.toHaveBeenCalled()
+  })
 })
