@@ -29,6 +29,7 @@ export interface MapLibreSdk {
   }) => MapLibreMap
   Marker: new (options: { element: HTMLElement }) => MapLibreMarker
   NavigationControl: new (options: { showCompass: boolean }) => unknown
+  FullscreenControl?: new () => unknown
 }
 
 function mapLibreBounds(bounds: Bounds): [[number, number], [number, number]] {
@@ -81,6 +82,7 @@ export function createMapLibreRenderer(config: {
         const currentMap = map
         currentMap.on('error', runtimeError)
         currentMap.addControl(new sdk.NavigationControl({ showCompass: false }), 'top-right')
+        if (sdk.FullscreenControl) currentMap.addControl(new sdk.FullscreenControl(), 'top-right')
         observer = new ResizeObserver(() => { if (!destroyed) currentMap.resize() })
         observer.observe(container)
         await new Promise<void>((resolve, reject) => {

@@ -19,6 +19,10 @@ export default defineConfig({
       const filename = id.split('?')[0]
       if (filename.endsWith('/src/modules/itinerary/ItineraryModule.tsx')) {
         return code
+          .replace('import { mountWorkspaceMap } from "../../geo/workspace-map";', 'import { mountGoogleMap } from ' + local('osm-map.ts') + ';')
+          .replace('import { useMapProvider } from "../../geo/provider-preference";', '')
+          .replace('const { provider: mapProvider, error: mapPreferenceError } = useMapProvider();', 'const mapProvider = "google"; const mapPreferenceError = undefined;')
+          .replace('mountWorkspaceMap(mapProvider, container, {', 'mountGoogleMap(container, {')
           .replace('from "./itinerary.controller";', 'from ' + local('workspace-controllers.ts') + ';')
           .replace('from "../label/label.controller";', 'from ' + local('workspace-controllers.ts') + ';')
           .replace('from "../place/google-places.service";', 'from ' + local('osm-map.ts') + ';')

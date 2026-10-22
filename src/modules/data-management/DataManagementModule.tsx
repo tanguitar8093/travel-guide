@@ -10,6 +10,7 @@ import { HybridSyncPreview } from './HybridSyncPreview';
 import { useAdminSyncInfo } from '../../common/useAdminSyncInfo';
 import { useAdminLayoutDebug } from '../../common/useAdminLayoutDebug';
 import { useAuth } from '../../auth/useAuth';
+import { MapProviderSettings } from './MapProviderSettings';
 
 const countLabels = [
   ["regions", "區域"],
@@ -39,6 +40,7 @@ function formatPreviewCounts(
 }
 
 function DataManagementModule() {
+  const [tab, setTab] = useState<'data' | 'preferences'>('data');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const databaseMode = useDatabaseMode();
   const syncMode = useSyncMode();
@@ -339,10 +341,25 @@ function DataManagementModule() {
         <div className="data-management-heading">
           <div className="workspace-page-heading-title">
             <h1>資料</h1>
-            <p>匯出可存取的旅行資料；單機模式可匯入備份或清空本機資料。</p>
+            <p>管理旅行資料與偏好設定。</p>
           </div>
         </div>
 
+        <div className="data-management-tabs" role="tablist" aria-label="資料設定分類" onKeyDown={event => {
+          if (busy) return;
+          if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+          event.preventDefault();
+          const next = event.key === 'Home' ? 'data' : event.key === 'End' ? 'preferences' : tab === 'data' ? 'preferences' : 'data';
+          setTab(next);
+          document.getElementById(`data-tab-${next}`)?.focus();
+        }}>
+          <button id="data-tab-data" type="button" role="tab" aria-selected={tab === 'data'} aria-controls="data-panel-data" tabIndex={tab === 'data' ? 0 : -1} disabled={busy} onClick={() => setTab('data')}>資料搬移</button>
+          <button id="data-tab-preferences" type="button" role="tab" aria-selected={tab === 'preferences'} aria-controls="data-panel-preferences" tabIndex={tab === 'preferences' ? 0 : -1} disabled={busy} onClick={() => setTab('preferences')}>偏好設定</button>
+        </div>
+        <div id="data-panel-preferences" role="tabpanel" aria-labelledby="data-tab-preferences" hidden={tab !== 'preferences'}>
+          {tab === 'preferences' && <MapProviderSettings />}
+        </div>
+        <div id="data-panel-data" role="tabpanel" aria-labelledby="data-tab-data" hidden={tab !== 'data'}>
         {canDebugModes && <section className="data-management-switcher" aria-label="管理員資料庫除錯設定">
           <label className="data-management-switcher-field">
             <span>資料庫來源</span>
@@ -573,6 +590,7 @@ function DataManagementModule() {
           {databaseMode === "supabase" && (
             <p role="note">雲端操作只作用於目前登入帳號，且採預覽確認與交易回滾保護。</p>
           )}
+        </div>
         </div>
       </section>
     </WorkspaceLayout>

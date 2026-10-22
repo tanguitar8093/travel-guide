@@ -13,7 +13,8 @@ import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { routes } from "../../routes";
 import type { LabelTreeNode } from "../label";
 import { labelController } from "../label/label.controller";
-import { mountGoogleMap } from "../place/google-places.service";
+import { mountWorkspaceMap } from "../../geo/workspace-map";
+import { useMapProvider } from "../../geo/provider-preference";
 import type {
   GoogleMapHandle,
   GoogleMapMarkerData,
@@ -186,6 +187,7 @@ function ItineraryModule({
   onRefreshSharedTrips?(): Promise<void>;
 }) {
   const itineraryController = controller;
+  const { provider: mapProvider, error: mapPreferenceError } = useMapProvider();
   const Layout = readonly ? PreviewLayout : WorkspaceLayout;
   const databaseMode = useDatabaseMode();
   const { user } = useAuth();
@@ -234,6 +236,7 @@ function ItineraryModule({
   const [mapData, setMapData] = useState<ItineraryMapData>();
   const [mapDataRegionId, setMapDataRegionId] = useState<string>();
   const [mapError, setMapError] = useState("");
+  const [mapRetry, setMapRetry] = useState(0);
   const [mapErrorRegionId, setMapErrorRegionId] = useState<string>();
   const [mountedMapRegionId, setMountedMapRegionId] = useState<string>();
   const mapContainerRef = useRef<HTMLDivElement>(null);
@@ -297,11 +300,11 @@ function ItineraryModule({
     (region) => region.id === selectedRegionId,
   );
   const visibleMapData =
-    mapDataRegionId === selectedRegion?.id ? mapData : undefined;
+    mapDataRegionId === selectedRegion?.id && (mapData?.provider ?? 'google') === mapProvider ? mapData : undefined;
   const visibleMapError =
-    mapErrorRegionId === selectedRegion?.id ? mapError : "";
+    mapPreferenceError ?? (mapErrorRegionId === selectedRegion?.id ? mapError : "");
   const mapLoading = Boolean(
-    selectedRegion && mapDataRegionId !== selectedRegion.id && !visibleMapError,
+    selectedRegion && !visibleMapData && !visibleMapError,
   );
   const tripItems = useMemo(
     () => items.filter((item) => item.tripId === selectedTripId),
@@ -666,19 +669,24 @@ function ItineraryModule({
         (place) =>
           selectedRegionId && place.regionIds.includes(selectedRegionId),
       )
-      .map(({ id, name, googlePlaceId, mapsUrl, icon }) => ({
+      .map(({ id, name, googlePlaceId, mapsUrl, icon, location }) => ({
         id,
         name,
         googlePlaceId,
         mapsUrl,
         icon,
+        location,
       })),
   ]);
 
   useEffect(() => {
-    if (!selectedRegionId) return;
+    if (!selectedRegionId || !mapProvider) return;
     const regionId = selectedRegionId;
     let active = true;
+    setMapData(undefined);
+    setMountedMapRegionId(undefined);
+    setMapError("");
+    setMapErrorRegionId(undefined);
     itineraryController
       .loadMapData(regionId, selectedTripId)
       .then((nextMapData) => {
@@ -701,17 +709,24 @@ function ItineraryModule({
     return () => {
       active = false;
     };
-  }, [selectedRegionId, selectedTripId, mapSourceKey, itineraryController]);
+  }, [selectedRegionId, selectedTripId, mapSourceKey, itineraryController, mapProvider, mapRetry]);
 
   useEffect(() => {
     const container = mapContainerRef.current;
-    if (!container || !visibleMapData) return;
+    if (!container || !visibleMapData || !mapProvider) return;
     let active = true;
     let handle: GoogleMapHandle | undefined;
-    mountGoogleMap(container, {
+    const abort = new AbortController();
+    mountWorkspaceMap(mapProvider, container, {
       center: visibleMapData.center,
       zoom: visibleMapData.zoom,
       ...(visibleMapData.viewport ? { viewport: visibleMapData.viewport } : {}),
+      signal: abort.signal,
+    }, cause => {
+      if (active) {
+        setMapErrorRegionId(visibleMapData.regionId);
+        setMapError(cause.message);
+      }
     })
       .then((mapHandle) => {
         if (!active) {
@@ -727,16 +742,17 @@ function ItineraryModule({
         if (active) {
           setMapErrorRegionId(visibleMapData.regionId);
           setMapError(
-            cause instanceof Error ? cause.message : "Google 地圖無法載入。",
+            cause instanceof Error ? cause.message : "地圖無法載入。",
           );
         }
       });
     return () => {
       active = false;
+      abort.abort();
       handle?.destroy();
       if (mapHandleRef.current === handle) mapHandleRef.current = undefined;
     };
-  }, [visibleMapData]);
+  }, [visibleMapData, mapProvider]);
 
   useEffect(() => {
     if (mountedMapRegionId === visibleMapData?.regionId) {
@@ -1009,6 +1025,10 @@ function ItineraryModule({
   }
 
   async function handleCalculateTravelDuration(item: ItineraryItem) {
+    if (mapProvider !== 'google') {
+      setError("OSM 路線估算尚未接線，不會改用 Google。");
+      return;
+    }
     if (!selectedTripId) return;
     itineraryController.beginEdit(item.tripId);
     setCalculatingItemId(item.id);
@@ -1871,6 +1891,7 @@ function ItineraryModule({
                               (option) => option.value === item.transport,
                             )?.label;
                             const routeReady = Boolean(
+                              mapProvider === 'google' &&
                               previousItem &&
                               transportLabel &&
                               previousPlace?.googlePlaceId &&
@@ -2032,7 +2053,7 @@ function ItineraryModule({
                                         !routeReady
                                       }
                                       title={
-                                        !item.transport
+                                        mapProvider !== 'google' ? "OSM 路線估算尚未接線，不會改用 Google" : !item.transport
                                           ? "先編輯此地點並選擇交通方式"
                                           : !routeReady
                                             ? "兩個地點都需要 Google Maps 搜尋結果"
@@ -2221,11 +2242,12 @@ function ItineraryModule({
                 <div className="itinerary-map-overlay itinerary-map-overlay-error">
                   <strong>無法顯示區域地圖</strong>
                   <p>{visibleMapError}</p>
+                  <button type="button" className="itinerary-secondary" onClick={() => setMapRetry(value => value + 1)}>重試地圖</button>
                   <RouterLink to={routes.regions}>前往區域</RouterLink>
                 </div>
               ) : mountedMapRegionId !== selectedRegion.id ? (
                 <div className="itinerary-map-overlay">
-                  <strong>正在載入 Google Maps…</strong>
+                  <strong>正在載入 {mapProvider === 'osm' ? 'OpenStreetMap' : 'Google Maps'}…</strong>
                 </div>
               ) : null}
               {visibleMapData?.regionWarning && (
@@ -2262,7 +2284,7 @@ function ItineraryModule({
               ) : null}
               {visibleMapData && (
                 <div className="itinerary-map-attribution">
-                  Powered by Google Maps
+                  {mapProvider === 'osm' ? <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">© OpenStreetMap contributors</a> : 'Powered by Google Maps'}
                 </div>
               )}
             </div>

@@ -1,5 +1,9 @@
 import { places, regions } from "../../database";
 import type { Place, Region } from "../../database";
+import type { GeoProvider } from "../../geo/contracts";
+import { getMapProvider } from "../../geo/provider-preference";
+import { osmDefaultBounds, osmDefaultCenter } from "../../geo/adapters/osm/osm-resources";
+import { validateLocationMetadata, validateStoredLocation } from "../../database/location.validation";
 import {
   getGooglePlaceDetails,
   type GoogleMapMarkerData,
@@ -15,6 +19,7 @@ export interface UnlocatedMapPlace {
 }
 
 export interface ItineraryMapData {
+  provider?: GeoProvider;
   regionId: string;
   center: GoogleMapPosition;
   zoom: number;
@@ -36,6 +41,7 @@ function positionFromLegacyRegion(
 
 export class ItineraryMapService {
   async loadMapData(regionId: string): Promise<ItineraryMapData> {
+    const provider = getMapProvider();
     const [region, regionPlaces] = await Promise.all([
       regions.getById(regionId),
       places.findByRegionId(regionId),
@@ -43,10 +49,11 @@ export class ItineraryMapService {
     if (!region) {
       throw new Error(`區域 "${regionId}" 不存在，無法載入行程地圖。`);
     }
-    return this.loadRecords(region, regionPlaces);
+    return this.loadRecords(region, regionPlaces, provider);
   }
 
-  async loadRecords(region: Region, regionPlaces: Place[]): Promise<ItineraryMapData> {
+  async loadRecords(region: Region, regionPlaces: Place[], provider = getMapProvider()): Promise<ItineraryMapData> {
+    if (provider === 'osm') return this.loadOsmRecords(region, regionPlaces);
     let center = positionFromLegacyRegion(region);
     let viewport: GoogleMapViewport | undefined;
     let regionWarning: string | undefined;
@@ -93,6 +100,50 @@ export class ItineraryMapService {
         result.unlocated ? [result.unlocated] : [],
       ),
       ...(regionWarning ? { regionWarning } : {}),
+    };
+  }
+
+  private loadOsmRecords(region: Region, regionPlaces: Place[]): ItineraryMapData {
+    let center = { lat: osmDefaultCenter.latitude, lng: osmDefaultCenter.longitude };
+    let regionWarning: string | undefined;
+    const hasCenter = region.center !== undefined && region.centerMetadata !== undefined;
+    if (region.center !== undefined && region.centerMetadata !== undefined) {
+      validateLocationMetadata(region.centerMetadata);
+      validateStoredLocation({ ...region.centerMetadata, coordinate: region.center });
+      center = { lat: region.center.latitude, lng: region.center.longitude };
+    } else {
+      regionWarning = `區域「${region.name}」尚無已確認來源的位置；先顯示沖繩圖資範圍，不會查詢 Google 或自動補座標。`;
+    }
+    const markers: GoogleMapMarkerData[] = [];
+    const unlocatedPlaces: UnlocatedMapPlace[] = [];
+    for (const place of regionPlaces) {
+      if (place.location !== undefined) {
+        try {
+          validateStoredLocation(place.location);
+          markers.push({
+            id: place.id, title: place.name,
+            position: { lat: place.location.coordinate.latitude, lng: place.location.coordinate.longitude },
+          });
+          continue;
+        } catch (cause) {
+          unlocatedPlaces.push({
+            id: place.id, name: place.name, mapsUrl: place.mapsUrl,
+            reason: cause instanceof Error ? cause.message : '位置資料無法驗證。',
+          });
+          continue;
+        }
+      }
+      unlocatedPlaces.push({
+        id: place.id, name: place.name, mapsUrl: place.mapsUrl,
+        reason: place.googlePlaceId
+          ? '目前只有 Google 地點識別碼，尚未補上可供 OSM 使用的位置。'
+          : '尚未儲存可供 OSM 使用的位置；地圖網址不會自動轉成座標。',
+      });
+    }
+    return {
+      provider: 'osm', regionId: region.id, center, zoom: hasCenter ? region.zoom : 9,
+      ...(!hasCenter ? { viewport: osmDefaultBounds } : {}),
+      markers, unlocatedPlaces, ...(regionWarning ? { regionWarning } : {}),
     };
   }
 

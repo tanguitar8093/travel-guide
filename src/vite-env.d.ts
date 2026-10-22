@@ -6,6 +6,8 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY?: string
   readonly VITE_SUPABASE_EMAIL_REDIRECT_TO?: string
   readonly VITE_ADMIN_SYNC_INFO_ENABLED?: string
+  readonly VITE_OSM_ASSET_BASE_URL?: string
+  readonly VITE_OSM_STYLE_URL?: string
 }
 
 interface ImportMeta {

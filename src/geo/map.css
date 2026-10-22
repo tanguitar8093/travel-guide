@@ -5,3 +5,8 @@
 .geo-marker { display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 2px solid white; border-radius: 50%; color: white; box-shadow: 0 2px 5px #0005; font: 600 12px system-ui, sans-serif; cursor: pointer; }
 .geo-marker-selected { width: 38px; height: 38px; border-width: 3px; outline: 2px solid #415c46; }
 .geo-marker:focus-visible { outline: 3px solid #263c8d; outline-offset: 3px; }
+.itinerary-google-map > .geo-renderer-host { position: absolute; inset: 0; width: 100%; height: 100%; }
+.itinerary-google-map .geo-marker { --marker-scale: 1; width: calc(13px * var(--marker-scale)); height: calc(13px * var(--marker-scale)); border-width: calc(2px * var(--marker-scale)); box-shadow: 0 1px 5px #22362866; }
+.itinerary-google-map .geo-marker:not(:empty) { width: calc(25px * var(--marker-scale)); height: calc(25px * var(--marker-scale)); box-shadow: 0 2px 7px #22362859; font: 600 calc(10px * var(--marker-scale)) Inter, sans-serif; }
+.itinerary-google-map .geo-marker-selected { --marker-scale: 1.5; outline: none; }
+.itinerary-google-map .geo-marker:focus-visible { outline: 3px solid #263c8d; outline-offset: 3px; }

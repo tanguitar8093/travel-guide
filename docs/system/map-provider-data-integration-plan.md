@@ -549,3 +549,46 @@ A 的位置持久化／非法輸入拒絕、Region provenance、相同位置保�
 Vitest 在 Node 20 使用已確認可用的 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。未執行 build、lint、瀏覽器、Google API、live Supabase 或任何雲端部署。client 程式的 schema 宣告為 v11，實際升級驗證在 isolated DB 完成；未另開正式使用者庫做資料遷移。
 
 **結論：本次確認的本機 B 與版本防護已通過限定驗證。** 正式寫入 gate 仍保留；雲端 v2／server writer 防護、共享／公開新格式、正式 UI 與真實瀏覽器 blocked/versionchange 驗證仍未完成，不在本次結果中冒充通過。
+
+### 13.13 正式資料設定與行程地圖接線
+
+使用者要求正式接入專案，嚴格以 [OSM 動態設計](../../poc/osm-ui/) 及 [設定設計](../../poc/map-provider-settings/MapProviderSettingsDemo.tsx) 為準，不再新增另一個 PoC。使用者確認本批範圍為正式資料設定與行程地圖；開發沿用同機 maps 專案圖資，正式部署須明確設定資產位置。本批是**讀取與顯示接線**，不是移除第三階段的寫入／同步 gate。
+
+#### 正式 UI
+
+- [DataManagementModule](../../src/modules/data-management/DataManagementModule.tsx) 在原 WorkspaceLayout 加入「資料搬移／偏好設定」分頁；原備份、資料庫來源與管理員操作保留於資料搬移。資料操作期間禁止切頁，避免進度與錯誤訊息被藏起來。
+- [MapProviderSettings](../../src/modules/data-management/MapProviderSettings.tsx) 沿用設定稿的卡片、Google／OSM 下拉選單、SVG 示意、供應商 pill 與提示區；樣式限縮於該卡片，不匯入 demo 的全域 shell。進入偏好設定時聚焦供應商選單；示意圖明確標示不是實際底圖。
+- [provider-preference](../../src/geo/provider-preference.ts) 以瀏覽器 `travel-planner:map-provider` 保存，未設定仍為 Google；同頁事件與跨分頁 storage 事件更新訂閱。讀寫失敗／無效值顯示錯誤，不假裝儲存成功或默默改回 Google。
+- 偏好是裝置設定，不屬旅行業務資料；單機／雲端／混合模式共用，不改資料庫來源、backup、outbox、自動同步或帳號授權。
+
+#### 真實行程資料與渲染
+
+- [ItineraryMapService](../../src/modules/itinerary/itinerary-map.service.ts) 保留原 Google 解析、legacy center fallback 與明確失敗提示。OSM 僅使用通過既有驗證器的 StoredLocation，不查 Google details，不由名稱／地圖網址猜座標。
+- OSM 的 Region.center 需有合法 centerMetadata；沒有已確認來源時顯示沖繩資料集概覽並明確警告，不能宣稱已定位到原區域。Google-only／URL-only／非法位置逐筆列為未定位，不為它們造圖釘。
+- [workspace-map](../../src/geo/workspace-map.ts) 將正式行程既有 marker／handle 介面接至已完成的 neutral MapLibre renderer。Google 分支仍直接委派原 mountGoogleMap 與原 SDK/key 載入流程，沒有第二套 Google loader。
+- [ItineraryModule](../../src/modules/itinerary/ItineraryModule.tsx) 在原版面掛載 renderer，保留圖釘身分、當日順序、點擊編輯、首次 fit、縮放及全螢幕。OSM marker 尺寸／配色依原設計限縮覆寫，不改其他 geo demo 的視覺。
+- provider 切換立即遮蔽前一 provider 的資料，舊資料請求不回寫，OSM mount 可中止，過期 Google mount 完成後銷毀。載入／圖資失敗有明確提示與重試，不自動 fallback Google。
+- OSM 行程內路線估算明確停用，不偷偷執行 Google Routes；原路程試算頁、搜尋、新增地點、區域編輯尚未切換，設定卡片如實說明。既有記錄可讀；沒有開啟新格式 create/update/import，也沒有新增雲端 migration。
+
+#### 開發與正式圖資
+
+- [osm-dev-assets](../../scripts/osm-dev-assets.ts) 僅在 Vite 開發伺服器提供固定白名單資產：land/water/roads GeoJSON、MapLibre CSS／ES module／worker／shared module；預設讀取同機 `/home/tanguitar/workspaces/maps`，可由啟動程序環境變數 `OSM_PROJECT_DIR` 指定。資產失敗記錄並回應 503，不代理任意路徑或公共圖磚服務。
+- [osm-resources](../../src/geo/adapters/osm/osm-resources.ts) 共用既有設計稿的沖繩 GeoJSON style；原雙 renderer PoC 改為包裝此共用載入器，不複製另一套正式地圖邏輯。尚未做效能優化。
+- 正式部署須設定 `VITE_OSM_ASSET_BASE_URL`（HTTP/S 基底路徑，包含 `osm-vendor/` 與 `osm-assets/` 子目錄）；可額外以 `VITE_OSM_STYLE_URL` 指定 style。跨來源服務須自行提供相容的 CORS／worker／資產設定。未設定基底時明確拒絕 OSM，不能假裝 Vercel 會讀到開發機的 maps 目錄。
+
+#### 驗證狀態
+
+新增 provider preference、正式 itinerary 解析、renderer bridge 與設定卡片測試；涵蓋預設 Google、不查 Google 的 OSM 路徑、位置來源、未定位原因、非法座標、非同步 provider 擷取、身分／callback／fit 轉接、取消、部署設定錯誤及靜態設計結構。
+
+使用者另行授權聚焦測試與型別檢查後，本批結果：
+
+| 檢查 | 結果 |
+|---|---|
+| provider-preference、workspace-map、map-renderers、MapProviderSettings、itinerary-map.service、itinerary.service、collaborative-itinerary.service、shared-trip.service、google-map-controls | 9 檔、63 項全部通過 |
+| `tsc -p tsconfig.app.json --noEmit` | 通過 |
+| `tsc -p tsconfig.node.json --noEmit` | 通過 |
+| `tsc -p poc/map-provider/tsconfig.json --noEmit` | 通過 |
+
+Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。原 OSM UI 設計的 Vite preview-only 替換配合正式 import／mount 入口調整，仍維持原 mock Google-shaped 資料與 OSM 預覽 renderer；不把這些替換放進正式程式。
+
+**未執行 build、lint、瀏覽器或 git 檢查。** 尚未實測正式站的登入後選單、鍵盤焦點、跨分頁／快速切換、實際圖資載入與版面視覺，不能把靜態 markup／mock renderer 測試當作瀏覽器驗證。Google API key 在此環境無法使用，不重試真實 Google API；不連 live Supabase、不部署雲端。前一批 A／B 通過結果也不替代本次 UI 驗證。
