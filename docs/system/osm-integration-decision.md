@@ -1,5 +1,7 @@
 # 沖繩 OSM 整合決策評估
 
+第一階段的介面、預計檔案、實作批次與驗收條件見 [地圖抽換第一階段實作計畫](map-provider-poc-plan.md)。
+
 依據：Travel 原始碼、[初步評估](map-provider-assessment.md)、[maybedo.md](../../maybedo.md)，以及 `/home/tanguitar/workspaces/maps` 的核心程式與實際資料。maybedo 的內容作為設計想法討論，不直接視為實作規格。本次僅評估，未修改兩個專案的執行程式或資料庫。
 
 ## 建議決策
