@@ -5,7 +5,10 @@
   "scripts": {
     "start": "python3 server.py",
     "setup": "python3 scripts/download-data.py",
-    "test": "node scripts/smoke.mjs"
+    "build:tiles": "python3 scripts/build-tiles.py",
+    "test": "node scripts/smoke.mjs",
+    "test:tiles": "python3 scripts/test-tiles.py",
+    "test:loading": "node scripts/check-map-loading.mjs"
   },
   "dependencies": {
     "maplibre-gl": "6.15.0"

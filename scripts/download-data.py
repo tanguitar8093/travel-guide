@@ -26,6 +26,7 @@ query = '[out:json][timeout:120];(way[highway](25.98,127.58,26.9,128.36);way[nat
 download('https://overpass-api.de/api/interpreter?' + urlencode({'data':query}), ROOT / 'data/okinawa-osm.json')
 import runpy
 runpy.run_path(str(ROOT/'scripts/prepare-okinawa.py'), run_name='__main__')
+runpy.run_path(str(ROOT/'scripts/build-tiles.py'), run_name='__main__')
 places_file = ROOT / 'data/okinawa-places.json'
 import json
 needs_places = not places_file.is_file() or json.loads(places_file.read_text()).get('schemaVersion',0)<2

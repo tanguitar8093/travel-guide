@@ -5,18 +5,37 @@ import errno
 import gzip
 import hashlib
 import threading
+import re
+import sqlite3
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit, parse_qs
 from routing import Router, BOUNDS
 from search import PlaceSearch
 from maps_urls import parse_map_link
+from tiles import VectorTiles
 
 ROOT = Path(__file__).resolve().parent
 ROUTER = None
 SEARCH = None
+TILES = None
 GZIP_CACHE = {}
 GZIP_CACHE_LOCK = threading.Lock()
+
+def accepts_gzip(header):
+    encodings = {}
+    for part in header.split(','):
+        coding, *parameters = part.strip().lower().split(';')
+        quality = 1.0
+        for parameter in parameters:
+            key, separator, value = parameter.strip().partition('=')
+            if key == 'q' and separator:
+                try:
+                    quality = float(value)
+                except ValueError:
+                    quality = 0.0
+        encodings[coding] = quality
+    return encodings.get('gzip', encodings.get('*', 0)) > 0
 
 class Handler(BaseHTTPRequestHandler):
     def send(self, body, mime, status=200, cache_control='no-store',
@@ -27,8 +46,9 @@ class Handler(BaseHTTPRequestHandler):
             tag == '*' or tag.removeprefix('W/') == etag for tag in tags
         )
         self.send_response(304 if not_modified else status)
-        if not_modified:
-            self.send_header('ETag', etag)
+        if not_modified or status == 204:
+            if etag:
+                self.send_header('ETag', etag)
             self.send_header('Cache-Control', cache_control)
             if vary:
                 self.send_header('Vary', vary)
@@ -48,31 +68,20 @@ class Handler(BaseHTTPRequestHandler):
         if self.command!='HEAD':
             self.wfile.write(body)
 
-    def json(self, value, status=200):
-        self.send(json.dumps(value,ensure_ascii=False).encode(), 'application/json; charset=utf-8', status)
+    def json(self, value, status=200, cache_control='no-store'):
+        self.send(json.dumps(value,ensure_ascii=False).encode(), 'application/json; charset=utf-8',
+                  status, cache_control=cache_control)
 
     def send_static(self, filename, mime):
         path = ROOT / filename
         stat = path.stat()
         body = path.read_bytes()
-        cache_control = 'public, max-age=3600, stale-while-revalidate=86400'
+        cache_control = ('no-cache' if filename.startswith('public/') else
+                         'public, max-age=3600, stale-while-revalidate=86400')
         text_asset = mime.startswith('text/') or mime in {
             'application/javascript', 'application/geo+json'
         }
-        encodings = {}
-        for part in self.headers.get('Accept-Encoding', '').split(','):
-            coding, *parameters = part.strip().lower().split(';')
-            quality = 1.0
-            for parameter in parameters:
-                key, separator, value = parameter.strip().partition('=')
-                if key == 'q' and separator:
-                    try:
-                        quality = float(value)
-                    except ValueError:
-                        quality = 0.0
-            encodings[coding] = quality
-        accepts_gzip = encodings.get('gzip', encodings.get('*', 0)) > 0
-        if text_asset and accepts_gzip and len(body) >= 1024:
+        if text_asset and accepts_gzip(self.headers.get('Accept-Encoding', '')) and len(body) >= 1024:
             stamp = (stat.st_mtime_ns, stat.st_size)
             with GZIP_CACHE_LOCK:
                 cached = GZIP_CACHE.get(str(path))
@@ -98,6 +107,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = unquote(urlsplit(self.path).path)
+        if path == '/tiles.json' or path.startswith('/tiles/'):
+            if TILES is None:
+                return self.json({'error': 'Missing vector tiles. Run npm run build:tiles and restart the server.'}, 503)
+            if path == '/tiles.json':
+                return self.json(TILES.tilejson(), cache_control='no-cache')
+            match = re.fullmatch(r'/tiles/([a-f0-9]{64})/([0-9]{1,2})/([0-9]{1,5})/([0-9]{1,5})\.pbf', path)
+            if match is None or match[1] != TILES.version:
+                return self.json({'error': 'Unknown tile version or path.'}, 404)
+            try:
+                body = TILES.read(*map(int, match.groups()[1:]))
+            except ValueError as error:
+                return self.json({'error': str(error)}, 400)
+            except sqlite3.Error:
+                self.log_error('Failed reading vector tile: %s', path)
+                return self.json({'error': 'Vector tile database could not be read.'}, 503)
+            cache_control = 'public, max-age=31536000, immutable'
+            if body is None:
+                return self.send(b'', 'application/vnd.mapbox-vector-tile', 204,
+                                 cache_control=cache_control, vary='Accept-Encoding')
+            compressed = body.startswith(b'\x1f\x8b')
+            use_gzip = compressed and accepts_gzip(self.headers.get('Accept-Encoding', ''))
+            if compressed and not use_gzip:
+                body = gzip.decompress(body)
+            etag = '"' + hashlib.sha256(body).hexdigest() + '"'
+            return self.send(body, 'application/vnd.mapbox-vector-tile',
+                             cache_control=cache_control, etag=etag,
+                             vary='Accept-Encoding',
+                             content_encoding='gzip' if use_gzip else None)
         if path=='/api/search':
             if SEARCH is None:
                 return self.json({'error':'尚未安裝地點資料，請執行 npm run setup。'},503)
@@ -143,6 +180,10 @@ class Handler(BaseHTTPRequestHandler):
 
 if __name__=='__main__':
     port=int(os.environ.get('PORT',3000))
+    tiles_path = ROOT / 'data/okinawa.mbtiles'
+    if not tiles_path.is_file():
+        raise SystemExit('Missing vector tiles. Run npm run build:tiles before starting the map.')
+    TILES = VectorTiles(tiles_path)
     try:
         server=ThreadingHTTPServer((os.environ.get('HOST','0.0.0.0'),port),Handler)
     except OSError as error:
@@ -165,3 +206,4 @@ if __name__=='__main__':
         print('\n沖繩地圖服務已停止。',flush=True)
     finally:
         server.server_close()
+        TILES.close()

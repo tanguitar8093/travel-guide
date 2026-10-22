@@ -12,9 +12,10 @@ npm start
 
 開啟 http://localhost:3000。預設行程為那霸機場 → 國際通 → 首里城，可加入美國村、萬座毛、美麗海水族館、古宇利海灘，或點擊地圖加入自訂地點（最多 10 站）。可上下移動、移除地點、清空行程。行程保存在目前瀏覽器的 localStorage。
 
-全新環境需要 Node.js 22+、Python 3.10+：
+全新環境需要 Node.js 22+、Python 3.10+，以及製作圖磚用的 Tippecanoe（本環境使用 2.49.0）：
 
 ```bash
+sudo apt-get install tippecanoe # Ubuntu 24.04；macOS 可用 brew install tippecanoe
 npm ci
 npm run setup
 npm start
@@ -30,7 +31,24 @@ curl -fL https://download.geofabrik.de/asia/japan/kyushu-latest.osm.pbf -o /tmp/
 npm run setup
 ```
 
-下載的九州區域約 301 MB；只保留沖繩本島範圍道路、海岸線與水域。原始區域資料可以刪除。`scripts/prepare-okinawa.py` 產生本機 2D GeoJSON，無需 3D 或圖磚服務。地圖以海岸線、道路與景點為主。搜尋另外使用31,510 個具名稱的 OSM 節點與區域，包含餐廳、商店、住宿與景點；支援部分名稱與日文／英文／OSM 中文名稱及常用中文別名。不是完整門牌地址搜尋。
+下載的九州區域約 301 MB；只保留沖繩本島範圍道路、海岸線與水域。原始區域資料可以刪除。`scripts/prepare-okinawa.py` 產生中間 GeoJSON，setup 接著製作本機 2D 向量圖磚；不需要額外圖磚伺服器。地圖以海岸線、道路與景點為主。搜尋另外使用31,510 個具名稱的 OSM 節點與區域，包含餐廳、商店、住宿與景點；支援部分名稱與日文／英文／OSM 中文名稱及常用中文別名。不是完整門牌地址搜尋。
+
+## 向量底圖與快取
+
+MapLibre 只下載目前畫面需要的 MVT 圖磚，不再整份下載道路 GeoJSON。圖磚由現有 Python 服務讀取 `data/okinawa.mbtiles` 提供，執行時只使用 Python 內建 SQLite；Tippecanoe 僅在製圖時需要。
+
+- 圖層為 `land`、`water`、`coastline`、`roads`。海岸線獨立為線圖層，避免把圖磚裁切邊界畫成海岸線。
+- 產製 zoom 5–14；zoom 15–17 沿用 zoom 14 的圖磚。小比例尺只保留原本顯示的主要道路，zoom 10 起納入全部道路類型；幾何依比例尺簡化，不設定按密度丟棄道路。
+- 只改顯示資料；搜尋 catalog、原始路網及路線計算不變。即時計算的行程路線仍為 GeoJSON。
+- 圖磚網址含 MBTiles 的 SHA256 版本，快取一年且 immutable。更新圖資後產生新網址，避免沿用舊圖磚；網頁、JS/CSS 與圖磚索引每次重訪需驗證快取。API 回應不快取。
+
+已有 GeoJSON 時可單獨重建，不必重新下載 OSM：
+
+```bash
+npm run build:tiles
+```
+
+製圖使用兩個 worker，於同一檔案系統內完成後原子替換 MBTiles；失敗不覆蓋舊檔。**完成後重新啟動服務**才會發布新版本；舊程序持續讀取原本開啟的資料庫。圖磚檔缺失時啟動會明確報錯，不會默默改回整份 GeoJSON。資料與字型備妥後可離線運行，但第一次造訪的瀏覽器仍須連到此服務下載資源。
 
 ## 道路與交通時間
 
@@ -49,27 +67,33 @@ npm run setup
 
 - `GET /api/search?q=中本天婦羅`：本機 OSM 名稱搜尋，最多回傳 30 筆，含地址（若有）、類別與 OSM 來源連結。「波上城」會明確提示是否指波上宮。
 - `GET /api/health`：資料時間、道路數、範圍。
-- `GET /data/{land,water,roads}.geojson`：沖繩本機 2D 地圖。
+- `GET /tiles.json`：目前向量底圖的索引、版本網址、範圍及 zoom 層級。
+- `GET /tiles/{version}/{z}/{x}/{y}.pbf`：XYZ 向量圖磚；空白區域回傳 204，錯誤版本或座標明確回報錯誤。
+- `GET /data/{land,water,roads}.geojson`：保留供檢查的原始顯示資料，前端底圖不再下載。
 - `POST /api/route`：`{"points":[[127.6843,26.2144],[127.7192,26.2170]],"mode":"car"}`。mode 可為 `car`、`walk`、`bike`；回傳各段 GeoJSON、秒數、公尺數與吸附距離。
 
-靜態文字資源（包含地圖 GeoJSON）支援 gzip 傳輸、ETag 驗證與一小時瀏覽器快取；API 回應不快取。gzip 可減少遠端首次下載的資料量，重訪時則可沿用瀏覽器快取。
+圖磚沿用 MBTiles 的 gzip 傳輸內容，支援 ETag / 304 與 HEAD；不接受 gzip 的客戶端會取得未壓縮圖磚。其他靜態文字資源也支援 gzip 與 ETag。
 
 ```bash
 docker compose up --build -d
 ```
 
-先下載資料再啟動，`./data` 以唯讀 volume 掛載。Python HTTP server 適合本機 demo；公開環境需專用部署、TLS、限流與容量規劃。Docker 設定未實測。
+先在主機執行 setup 或 `npm run build:tiles`，確保 `data/okinawa.mbtiles` 與路網、搜尋資料均已備妥再啟動，`./data` 以唯讀 volume 掛載；容器執行時不需要 Tippecanoe。Python HTTP server 適合本機 demo；公開環境需專用部署、TLS、限流與容量規劃。Docker 設定未實測。
 
 ## 驗證
 
 ```bash
 python3 scripts/test-routing.py
 python3 scripts/test-search.py
+npm run test:tiles
 npx playwright install chromium
 npm test
+EXPECT_VECTOR=1 npm run test:loading
 ```
 
 服務需先啟動。可用 `PLAYWRIGHT_CHROMIUM_EXECUTABLE` 指定既有 Chromium。測試涵蓋道路 access / 單行道差異、各段加總、API 座標驗證、三種交通方式、增刪排序、自訂地點、保存行程、2D 樣式與手機畫面，輸出 `artifacts/okinawa-desktop.png` / `okinawa-mobile.png`。
+
+`test:tiles` 使用暫存資料庫測試 XYZ/TMS 轉換、gzip 協商、ETag、空白圖磚、錯誤座標與版本、更新後的網頁驗證。`test:loading` 使用全新瀏覽器 context 量測桌面初始視野的地圖壓縮回應大小（不含 JS、字型、HTTP 標頭），`EXPECT_VECTOR=1` 要求少於 1 MB、沒有底圖 GeoJSON 請求，並檢查陸地、街道與 zoom 17 overzoom 實際渲染。可用 `DEMO_URL` 指定另一個服務。時間量測包含瀏覽器渲染，會因網路、硬體與軟體 WebGL 而變動。
 
 ## 來源與授權
 
