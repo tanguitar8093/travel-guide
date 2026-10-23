@@ -1,0 +1,2 @@
+# Optional: required only to extract places/roads from a regional PBF.
+osmium

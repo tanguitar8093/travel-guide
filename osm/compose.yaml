@@ -1,0 +1,10 @@
+services:
+  osm:
+    build:
+      context: ..
+      dockerfile: osm/Dockerfile
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./data:/app/osm/data:ro
+    restart: unless-stopped

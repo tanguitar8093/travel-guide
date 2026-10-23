@@ -1,0 +1,174 @@
+{
+  "note": "Checksums describe original copied sources before Travel-specific edits.",
+  "method": "direct copy on the same filesystem, no compression",
+  "files": [
+    {
+      "source": "server.py",
+      "destination": "server.py",
+      "bytes": 10126,
+      "source_sha256": "b7c68d2d4691043f4f02c03bbfecd5ff525a9e3540e08d0285e915e1d8db0525"
+    },
+    {
+      "source": "routing.py",
+      "destination": "routing.py",
+      "bytes": 9159,
+      "source_sha256": "7859865c42099297360355be936c1036b08bed3f30eac102cb255f7f2f232989"
+    },
+    {
+      "source": "search.py",
+      "destination": "search.py",
+      "bytes": 6541,
+      "source_sha256": "db22b54fddd04008b9b750b7b478582eb15791bb880950f9a2370127b916d180"
+    },
+    {
+      "source": "tiles.py",
+      "destination": "tiles.py",
+      "bytes": 2230,
+      "source_sha256": "826e883bb6494fe1c70c9a049f58815942cc924093d3ccfa8fc0a56390a3bd23"
+    },
+    {
+      "source": "maps_urls.py",
+      "destination": "maps_urls.py",
+      "bytes": 4562,
+      "source_sha256": "a1f45eb79a351ec244d94a39e0130daaf7154583dd31f3c6381639810369dbd8"
+    },
+    {
+      "source": "sp2.py",
+      "destination": "sp2.py",
+      "bytes": 5262,
+      "source_sha256": "c3d3227581826414ad0ae4aeaf4b9f589bb173c08c3a348df813e23634ae9c09"
+    },
+    {
+      "source": "data/okinawa-osm.json",
+      "destination": "data/okinawa-osm.json",
+      "bytes": 73890471,
+      "source_sha256": "740ddadbc469f797eb09746440c820129523f3c5ca8bfd801215b2f71c0150cb"
+    },
+    {
+      "source": "data/okinawa-places.json",
+      "destination": "data/okinawa-places.json",
+      "bytes": 13207962,
+      "source_sha256": "63770a9d3ccbc8b2a0846ccbc95cb4bf9a43fec250e75ac95daaa8bfe7c01f26"
+    },
+    {
+      "source": "data/okinawa.mbtiles",
+      "destination": "data/okinawa.mbtiles",
+      "bytes": 9240576,
+      "source_sha256": "c1081241d8bd7b8250ff742636c08d177a8f1dd25bdf6601e1eb0635e36c1b97"
+    },
+    {
+      "source": "data/okinawa-land.geojson",
+      "destination": "data/okinawa-land.geojson",
+      "bytes": 1283432,
+      "source_sha256": "8f3cb7db64d4df1a4e3aae3ad8ad7d9352d38452b962b1b0dd2cb275dbf2eeea"
+    },
+    {
+      "source": "data/okinawa-water.geojson",
+      "destination": "data/okinawa-water.geojson",
+      "bytes": 635615,
+      "source_sha256": "52297915e4d4b514742adadfc21518817fcadd25f0bbf30261128adfa30adef2"
+    },
+    {
+      "source": "data/okinawa-roads.geojson",
+      "destination": "data/okinawa-roads.geojson",
+      "bytes": 33265833,
+      "source_sha256": "6bbaf2b6fbb95ff342315f8d38fc61eec95b380281b103b23ba37e2df5daf569"
+    },
+    {
+      "source": "scripts/download-data.py",
+      "destination": "scripts/download-data.py",
+      "bytes": 2292,
+      "source_sha256": "c9903a35a4d98063863ff8b096d72b0b51d1f3a5db3cf543c73dd83a79250e11"
+    },
+    {
+      "source": "scripts/prepare-okinawa.py",
+      "destination": "scripts/prepare-okinawa.py",
+      "bytes": 2366,
+      "source_sha256": "10105605911899defee2577a75c4062afa7d2b18be7a820cd2bf45919e6193b9"
+    },
+    {
+      "source": "scripts/build-tiles.py",
+      "destination": "scripts/build-tiles.py",
+      "bytes": 2522,
+      "source_sha256": "54643c24dfc8fe5b966c3e99c8b92f636e07851e408bdf0444a54671ebe03a46"
+    },
+    {
+      "source": "scripts/extract-places.py",
+      "destination": "scripts/extract-places.py",
+      "bytes": 5777,
+      "source_sha256": "1db52dba32daf759c8541388901196914da5465de8dc1b0339d245f745f67a06"
+    },
+    {
+      "source": "scripts/extract-okinawa.py",
+      "destination": "scripts/extract-okinawa.py",
+      "bytes": 1407,
+      "source_sha256": "44a78a1dfbd5d5b628ee484ff9112da9b064ded3f8558f86c822e0d2c1d60500"
+    },
+    {
+      "source": "scripts/test-server.py",
+      "destination": "scripts/test-server.py",
+      "bytes": 4571,
+      "source_sha256": "81612805c9cab46f964e3e29a459caca250dd32c4181c03dfdbcbb4a8e1f4e1d"
+    },
+    {
+      "source": "scripts/test-routing.py",
+      "destination": "scripts/test-routing.py",
+      "bytes": 1447,
+      "source_sha256": "d76294bcb57179d82ef5987300b5fb7885ce73fd1359329985fcf25e8f0892a1"
+    },
+    {
+      "source": "scripts/test-search.py",
+      "destination": "scripts/test-search.py",
+      "bytes": 1706,
+      "source_sha256": "328ac8e0014926ee78945204a392554652485cc2b0627be49b8abf6f8b20afe6"
+    },
+    {
+      "source": "scripts/test-tiles.py",
+      "destination": "scripts/test-tiles.py",
+      "bytes": 7240,
+      "source_sha256": "e598e8638e7c5a8d039aed8ba7d60cd32ad30551dd07a4f2011eb8cad5ff89c1"
+    },
+    {
+      "source": "scripts/test-map-urls.py",
+      "destination": "scripts/test-map-urls.py",
+      "bytes": 3342,
+      "source_sha256": "d3f9bb5f2dc84520e1b07b462e9626712c4849bdeadd362d117f23705625b7fb"
+    },
+    {
+      "source": "scripts/test-place-extraction.py",
+      "destination": "scripts/test-place-extraction.py",
+      "bytes": 1298,
+      "source_sha256": "78106e9d2eb12733aa54909287f821ba695966393590157459f1c85b3e508f34"
+    },
+    {
+      "source": "node_modules/maplibre-gl/dist/maplibre-gl.mjs",
+      "destination": "vendor/maplibre-gl/maplibre-gl.mjs",
+      "bytes": 1098062,
+      "source_sha256": "41198b23679a7d8892183408bbef2eabdc74745beb90261f6be0f660b7aeb2fd"
+    },
+    {
+      "source": "node_modules/maplibre-gl/dist/maplibre-gl-worker.mjs",
+      "destination": "vendor/maplibre-gl/maplibre-gl-worker.mjs",
+      "bytes": 518806,
+      "source_sha256": "1c69066368331aae63967ed24a9affcf962cf55fcc6d8f532a8b040f736dbcfa"
+    },
+    {
+      "source": "node_modules/maplibre-gl/dist/maplibre-gl-shared.mjs",
+      "destination": "vendor/maplibre-gl/maplibre-gl-shared.mjs",
+      "bytes": 0,
+      "source_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "source": "node_modules/maplibre-gl/dist/maplibre-gl.css",
+      "destination": "vendor/maplibre-gl/maplibre-gl.css",
+      "bytes": 71596,
+      "source_sha256": "a90798a1953017790e590f7e1bd35ff103a8a4263972cb47290b78adf86f8c20"
+    },
+    {
+      "source": "node_modules/maplibre-gl/LICENSE.txt",
+      "destination": "vendor/maplibre-gl/LICENSE.txt",
+      "bytes": 5984,
+      "source_sha256": "ee5fc05a0677eaf69601d2c7db0d9ecd6cc27c3abc1d0733bc9ed34707cf8ef2"
+    }
+  ]
+}

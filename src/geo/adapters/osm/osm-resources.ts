@@ -52,7 +52,7 @@ export async function createOsmStyle(baseUrl: string) {
   const service = baseUrl || '/local-map'
   const sourceUrl = new URL(`${service.replace(/\/$/, '')}/tiles.json`, window.location.origin)
   const response = await fetch(sourceUrl, { cache: 'no-cache' })
-  if (!response.ok) throw geoError('SERVICE_UNAVAILABLE', '沖繩向量圖磚尚未就緒，請在 maps 專案執行 npm run build:tiles 並重新啟動圖資服務。')
+  if (!response.ok) throw geoError('SERVICE_UNAVAILABLE', '沖繩向量圖磚尚未就緒，請在 Travel 專案執行 npm run osm:build:tiles 並重新啟動圖資服務。')
   const tiles: unknown = await response.json()
   if (typeof tiles !== 'object' || tiles === null ||
       !('tiles' in tiles) || !Array.isArray(tiles.tiles) || !tiles.tiles.length || !tiles.tiles.every(url => typeof url === 'string') ||

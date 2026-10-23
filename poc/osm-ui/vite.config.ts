@@ -1,18 +1,17 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
-import { readFile } from 'node:fs/promises'
+import { osmDevAssets } from '../../scripts/osm-dev-assets.ts'
 import path from 'node:path'
 
 const root = fileURLToPath(new URL('.', import.meta.url))
 const workspace = path.resolve(root, '../..')
-const maps = process.env.OSM_PROJECT_DIR || '/home/tanguitar/workspaces/maps'
 const local = (name: string) => JSON.stringify(path.join(root, name))
 
 // Preview-only substitutions: render the production page, not a copied layout.
 export default defineConfig({
   root,
-  plugins: [{
+  plugins: [osmDevAssets(), {
     name: 'travel-osm-ui-preview',
     enforce: 'pre',
     transform(code, id) {
@@ -73,28 +72,9 @@ export default defineConfig({
           .replace('from \'./WorkspaceInfoBar\'', 'from ' + local('preview-support.tsx'))
       }
     },
-    configureServer(server) {
-      server.middlewares.use(async (request, response, next) => {
-        const pathname = (request.url || '').split('?')[0]
-        const asset = /^\/osm-assets\/(land|water|roads)\.geojson$/.exec(pathname)
-        const vendor = /^\/osm-vendor\/(maplibre-gl(?:-worker|-shared)?\.mjs|maplibre-gl\.css)$/.exec(pathname)
-        if (!asset && !vendor) return next()
-        const filename = asset ? path.join(maps, 'data', `okinawa-${asset[1]}.geojson`)
-          : path.join(maps, 'node_modules/maplibre-gl/dist', vendor![1])
-        try {
-          const body = await readFile(filename)
-          response.setHeader('Content-Type', asset ? 'application/geo+json' : pathname.endsWith('.css') ? 'text/css' : 'text/javascript')
-          response.end(body)
-        } catch {
-          response.statusCode = 503
-          response.end('缺少 maps 專案的現有圖資或 MapLibre 檔案。')
-        }
-      })
-    },
   }, react()],
   server: {
     host: '127.0.0.1', port: 5174,
     fs: { allow: [workspace] },
-    proxy: { '/local-map': { target: process.env.OSM_SERVICE_URL || 'http://127.0.0.1:3000', rewrite: p => p.replace(/^\/local-map/, '') } },
   },
 })

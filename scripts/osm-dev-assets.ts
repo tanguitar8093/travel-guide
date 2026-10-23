@@ -3,6 +3,7 @@ import { request as httpRequest } from 'node:http'
 import { request as httpsRequest } from 'node:https'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { Plugin } from 'vite'
 
 export function osmDevAssets(): Plugin {
@@ -10,7 +11,7 @@ export function osmDevAssets(): Plugin {
     name: 'travel-osm-dev-assets',
     apply: 'serve',
     configureServer(server) {
-      const maps = process.env.OSM_PROJECT_DIR || '/home/tanguitar/workspaces/maps'
+      const maps = process.env.OSM_PROJECT_DIR || fileURLToPath(new URL('../osm/', import.meta.url))
       const port = Number(process.env.OSM_SERVICE_PORT || 3000)
       const configuredService = process.env.OSM_SERVICE_URL
       let child: ChildProcess | undefined
@@ -128,7 +129,7 @@ export function osmDevAssets(): Plugin {
             response.statusCode = 503
             response.setHeader('Content-Type', 'application/json; charset=utf-8')
             response.end(JSON.stringify({
-              error: `本機 OSM 服務尚未就緒：${cause instanceof Error ? cause.message : String(cause)}。請確認 maps 專案資料與 Python 環境。`,
+              error: `本機 OSM 服務尚未就緒：${cause instanceof Error ? cause.message : String(cause)}。請確認 Travel/osm 資料與 Python 環境。`,
             }))
           }
           return
@@ -137,7 +138,7 @@ export function osmDevAssets(): Plugin {
         const vendor = /^\/osm-vendor\/(maplibre-gl(?:-worker|-shared)?\.mjs|maplibre-gl\.css)$/.exec(pathname)
         if (!asset && !vendor) return next()
         const filename = asset ? path.join(maps, 'data', `okinawa-${asset[1]}.geojson`)
-          : path.join(maps, 'node_modules/maplibre-gl/dist', vendor![1])
+          : path.join(maps, 'vendor/maplibre-gl', vendor![1])
         try {
           const body = await readFile(filename)
           response.setHeader('Content-Type', asset ? 'application/geo+json' : pathname.endsWith('.css') ? 'text/css' : 'text/javascript')

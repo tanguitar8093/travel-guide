@@ -25,7 +25,11 @@
     "core-check:supabase": "node scripts/core-check-supabase.mjs",
     "core-check:google": "node scripts/core-check-google.mjs",
     "core-check:psql": "node scripts/core-check-psql.mjs",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "osm:start": "python3 osm/server.py",
+    "osm:setup": "python3 osm/scripts/download-data.py",
+    "osm:build:tiles": "python3 osm/scripts/build-tiles.py",
+    "osm:test": "python3 -B -m unittest discover -s osm/scripts -p 'test-*.py'"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",
@@ -46,5 +50,8 @@
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
     "vitest": "^5.0.5"
+  },
+  "engines": {
+    "node": ">=22.12.0"
   }
 }
