@@ -21,6 +21,39 @@
   text-align: center;
 }
 
+.auth-island-heading {
+  margin-bottom: 18px;
+}
+
+.auth-island-heading .auth-eyebrow {
+  margin-bottom: 8px;
+  font-size: 16px;
+  letter-spacing: .08em;
+}
+
+.auth-island-destination {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  color: #367e88;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  letter-spacing: .12em;
+}
+
+.auth-island-separator {
+  color: #87958a;
+}
+
+.auth-island-english {
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: .08em;
+}
+
 .auth-loading-caption {
   display: flex;
   align-items: baseline;
@@ -71,6 +104,13 @@
   font-size: 12px;
   line-height: 1.6;
   letter-spacing: .03em;
+}
+
+.auth-welcome-audio {
+  margin-top: 18px;
+  color: #6d8b74;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .auth-panel h1 {

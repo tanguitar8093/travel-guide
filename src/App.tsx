@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import './App.css'
 import { PublicItineraryModule } from './modules/public-itinerary/PublicItineraryModule'
 import { LabelModule } from './modules/label'
@@ -14,6 +15,15 @@ import { useMapProvider } from './geo/provider-preference'
 function RoutedApp() {
   const pathname = usePathname().replace(/\/+$/, '') || '/'
   const { provider } = useMapProvider()
+  const regionsDisabled = pathname === routes.regions && provider === 'osm'
+
+  useEffect(() => {
+    if (!regionsDisabled) return
+    window.history.replaceState(null, '', routes.itinerary)
+    window.dispatchEvent(new PopStateEvent('popstate'))
+  }, [regionsDisabled])
+
+  if (regionsDisabled) return <ItineraryModule />
 
   if (pathname === routes.publicItinerary) return <PublicItineraryModule />
 

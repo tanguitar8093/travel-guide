@@ -2258,7 +2258,7 @@ function ItineraryModule({
                   <strong>無法顯示區域地圖</strong>
                   <p>{visibleMapError}</p>
                   <button type="button" className="itinerary-secondary" onClick={() => setMapRetry(value => value + 1)}>重試地圖</button>
-                  <RouterLink to={routes.regions}>查看區域</RouterLink>
+                  {mapProvider !== 'osm' && <RouterLink to={routes.regions}>查看區域</RouterLink>}
                 </div>
               ) : mountedMapRegionId !== selectedRegion.id ? (
                 <div className="itinerary-map-overlay">

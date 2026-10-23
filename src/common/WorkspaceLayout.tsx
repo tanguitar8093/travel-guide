@@ -204,7 +204,7 @@ export function WorkspaceLayout({
       >
         <RouterLink
           className="workspace-brand"
-          to={routes.regions}
+          to={provider === 'osm' ? routes.itinerary : routes.regions}
           aria-label="首頁"
           onClick={closeOnMobileNavigation}
         >
@@ -215,7 +215,7 @@ export function WorkspaceLayout({
         </RouterLink>
         <div className="workspace-nav-caption">工作區</div>
         <nav className="workspace-nav" aria-label="主要導覽">
-          {navigationItems.map((item) => (
+          {navigationItems.filter((item) => provider !== 'osm' || item.id !== 'regions').map((item) => (
             <RouterLink
               key={item.id}
               to={item.path}

@@ -1,0 +1,22 @@
+.okinawa-login-scene {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 20px auto 0;
+}
+
+.okinawa-waves { animation: okinawa-wave 3.5s ease-in-out infinite alternate; }
+.okinawa-shore { animation: okinawa-shore 4s ease-in-out infinite alternate; }
+.okinawa-clouds { animation: okinawa-cloud 9s ease-in-out infinite alternate; }
+.okinawa-palm { transform-origin: 340px 242px; animation: okinawa-palm 4.5s ease-in-out infinite alternate; }
+.okinawa-sun { animation: okinawa-sun 5s ease-in-out infinite alternate; }
+
+@keyframes okinawa-wave { to { transform: translate(8px, 2px); opacity: .55; } }
+@keyframes okinawa-shore { to { transform: translateY(5px); opacity: .4; } }
+@keyframes okinawa-cloud { to { transform: translateX(12px); } }
+@keyframes okinawa-palm { to { transform: rotate(2deg); } }
+@keyframes okinawa-sun { to { opacity: .75; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .okinawa-login-scene * { animation: none; }
+}
