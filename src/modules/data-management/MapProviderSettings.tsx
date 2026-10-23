@@ -27,7 +27,7 @@ function MapIllustration({ osm }: { osm: boolean }) {
       </g>
     </svg>
     <div className="map-zoom-controls" aria-hidden="true"><span>+</span><span>−</span></div>
-    <div className="map-preview-label">{osm ? 'OSM' : 'Google'} 風格示意</div>
+    <div className="map-preview-label">{osm ? 'osm ‧ 沖繩' : 'Google'} 風格示意</div>
   </div>
 }
 
@@ -37,7 +37,7 @@ export function MapProviderSettings() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   useEffect(() => { input.current?.focus() }, [])
-  const name = provider === 'osm' ? 'OpenStreetMap' : provider === 'google' ? 'Google Maps' : '尚未選擇'
+  const name = provider === 'osm' ? 'osm ‧ 沖繩' : provider === 'google' ? 'Google Maps' : '尚未選擇'
   return <section className="map-provider-settings settings-card" aria-labelledby="map-settings-heading">
     <div className="settings-card-heading">
       <div className="settings-card-icon" aria-hidden="true">⌖</div>
@@ -51,14 +51,14 @@ export function MapProviderSettings() {
           if (value !== 'google' && value !== 'osm') throw new Error('請選擇有效的地圖供應商。')
           setMapProvider(value)
           setError('')
-          setNotice(`已儲存 ${value === 'osm' ? 'OpenStreetMap' : 'Google Maps'}；重新整理後仍會保留。`)
+          setNotice(`已儲存 ${value === 'osm' ? 'osm ‧ 沖繩' : 'Google Maps'}；重新整理後仍會保留。`)
         } catch (cause) {
           setNotice('')
           setError(cause instanceof Error ? cause.message : '地圖偏好儲存失敗。')
         }
       }}>
         {!provider && <option value="" disabled>請重新選擇</option>}
-        <option value="google">Google Maps</option><option value="osm">OpenStreetMap (OSM)</option>
+        <option value="google">Google Maps</option><option value="osm">osm ‧ 沖繩</option>
       </select>
       <p className="provider-description" id="map-provider-description">目前套用於正式行程地圖，依此瀏覽器保存；不切換資料庫來源，也不變更旅行資料。</p>
     </div>

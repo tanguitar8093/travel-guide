@@ -17,7 +17,7 @@ it('uses the designed provider card, select and illustration without loading any
   expect(html).toContain('<option value="google" selected="">Google Maps</option>')
   expect(html).toContain('此處為介面風格示意')
   expect(html).toContain('目前套用於正式行程地圖')
-  expect(html).toContain('OSM 位置寫入目前限單機模式')
+  expect(html).toContain('地圖座標寫入目前限單機模式')
   expect(html).not.toContain('<iframe')
   expect(html).not.toContain('<script')
 })
@@ -25,9 +25,9 @@ it('uses the designed provider card, select and illustration without loading any
 it('renders the OSM design with the persisted option selected', () => {
   state.provider = 'osm'
   const html = renderToStaticMarkup(<MapProviderSettings />)
-  expect(html).toContain('<option value="osm" selected="">OpenStreetMap (OSM)</option>')
+  expect(html).toContain('<option value="osm" selected="">osm ‧ 沖繩</option>')
   expect(html).toContain('map-illustration-osm')
-  expect(html).toContain('OSM 風格示意')
+  expect(html).toContain('osm ‧ 沖繩 風格示意')
 })
 
 it('surfaces preference-read failures without presenting a successful Google fallback', () => {

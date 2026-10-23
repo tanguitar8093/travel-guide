@@ -57,9 +57,9 @@ export default function MapProviderSettingsDemo() {
   return (
     <div className="demo-app">
       <aside className="demo-sidebar" aria-label="主要導覽">
-        <a className="demo-brand" href="#data-settings" aria-label="Travel Planner">
+        <a className="demo-brand" href="#data-settings" aria-label="旅圖 · TripMap">
           <span className="demo-brand-mark" aria-hidden="true">T</span>
-          <span><strong>TRAVEL PLANNER</strong><small>PLAN YOUR JOURNEY</small></span>
+          <span><strong>旅圖 · TripMap</strong><small>PLAN YOUR JOURNEY</small></span>
         </a>
         <div className="demo-nav-caption">工作區</div>
         <nav className="demo-nav">

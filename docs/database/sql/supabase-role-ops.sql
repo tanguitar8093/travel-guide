@@ -1,4 +1,4 @@
--- Supabase role operations for Travel Planner
+-- Supabase role operations for 旅圖 · TripMap
 -- Usage:
 -- 1) Replace the email in each block.
 -- 2) Run one block at a time in Supabase SQL Editor.

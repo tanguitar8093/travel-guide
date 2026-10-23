@@ -75,7 +75,7 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className="auth-shell">
         <section className="auth-panel auth-panel-loading" role="status" aria-label="正在確認登入狀態" aria-live="polite">
-          <p className="auth-eyebrow">TRAVEL PLANNER</p>
+          <p className="auth-eyebrow">旅圖 · TripMap</p>
           <TourGuideAnimation />
           <p className="auth-loading-caption">
             載入中
@@ -96,7 +96,7 @@ export function AuthGate({ children }: AuthGateProps) {
     return (
       <div className="auth-shell">
         <section className="auth-panel" aria-labelledby="auth-pending-title">
-          <p className="auth-eyebrow">TRAVEL PLANNER</p>
+          <p className="auth-eyebrow">旅圖 · TripMap</p>
           <h1 id="auth-pending-title">帳號已登入，等待開通工作區權限</h1>
           <p className="auth-copy">
             目前角色：{userRole ?? 'basic'}。請聯絡管理員升級為 member 後再使用。
@@ -117,7 +117,10 @@ export function AuthGate({ children }: AuthGateProps) {
   return (
     <div className="auth-shell">
       <section className="auth-panel" aria-label={mode === 'signIn' ? '登入' : '建立新帳號'}>
-        <p className="auth-eyebrow">TRAVEL PLANNER</p>
+        <div className="auth-brand">
+          <p className="auth-eyebrow">旅圖 · TripMap</p>
+          <p className="auth-tagline" lang="en">Your Journey, Your Map.</p>
+        </div>
         {mode === 'signIn' ? <TourGuideAnimation /> : (
           <>
             <h1 id="auth-title">建立新帳號</h1>

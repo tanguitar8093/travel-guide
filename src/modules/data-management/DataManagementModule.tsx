@@ -90,7 +90,7 @@ function DataManagementModule() {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `travel-planner-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `trip-map-backup-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       window.setTimeout(() => URL.revokeObjectURL(url), 0);
       setNotice(
@@ -519,7 +519,7 @@ function DataManagementModule() {
               className="data-management-file-input"
               type="file"
               accept=".json,application/json"
-              aria-label="選擇 Travel Planner 備份檔"
+              aria-label="選擇 旅圖 · TripMap 備份檔"
               disabled={busy}
               onChange={(event) => void handleFileSelected(event)}
             />

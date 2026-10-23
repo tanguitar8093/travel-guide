@@ -8,6 +8,7 @@ import { HybridStatus } from './HybridStatus';
 import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 import { useAdminLayoutDebug } from './useAdminLayoutDebug';
 import { startLayoutDebug } from './layout-debug';
+import { useMapProvider } from '../geo/provider-preference';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "public-itinerary" | "route-calculator" | "data";
 
@@ -61,6 +62,7 @@ export function WorkspaceLayout({
   shellClassName = "",
 }: WorkspaceLayoutProps) {
   const { user, errorMessage, clearError, signOut } = useAuth();
+  const { provider } = useMapProvider();
   const layoutDebug = useAdminLayoutDebug();
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -207,8 +209,8 @@ export function WorkspaceLayout({
           onClick={closeOnMobileNavigation}
         >
           <span>
-            <strong>行程規劃</strong>
-            <small>TRAVEL PLANNER</small>
+            <strong>{provider === 'osm' ? '旅圖 ‧ 沖繩' : '旅圖'}</strong>
+            <small>{provider === 'osm' ? 'TripMap．Okinawa' : '旅圖 · TripMap'}</small>
           </span>
         </RouterLink>
         <div className="workspace-nav-caption">工作區</div>

@@ -7657,7 +7657,7 @@ button:disabled { opacity: .6; cursor: wait; }
 		}[item.transport] ?? item.transport) + "</span>" : "") + (item.travelDurationMinutes !== void 0 ? "<span>路程約 " + item.travelDurationMinutes + " 分鐘</span>" : "") + (item.travelDistanceMeters !== void 0 ? "<span>" + item.travelDistanceMeters / 1e3 + " 公里</span>" : "");
 	}
 	function shell(content, itinerary = false) {
-		return "<div class=\"workspace-layout " + (section === "regions" ? "region-app-shell" : section === "places" ? "place-app-shell" : section === "labels" ? "app-shell" : "itinerary-app-shell") + "\" data-sidebar-open=\"" + sidebarOpen + "\"><aside id=\"workspace-sidebar\" class=\"workspace-sidebar\" aria-label=\"工作區側欄\" " + (!sidebarOpen ? "inert" : "") + "><div class=\"workspace-brand\"><span><strong>行程規劃</strong><small>TRAVEL PLANNER</small></span></div><div class=\"workspace-nav-caption\">工作區</div><nav class=\"workspace-nav\" aria-label=\"主要導覽\">" + [
+		return "<div class=\"workspace-layout " + (section === "regions" ? "region-app-shell" : section === "places" ? "place-app-shell" : section === "labels" ? "app-shell" : "itinerary-app-shell") + "\" data-sidebar-open=\"" + sidebarOpen + "\"><aside id=\"workspace-sidebar\" class=\"workspace-sidebar\" aria-label=\"工作區側欄\" " + (!sidebarOpen ? "inert" : "") + "><div class=\"workspace-brand\"><span><strong>行程規劃</strong><small>旅圖 · TripMap</small></span></div><div class=\"workspace-nav-caption\">工作區</div><nav class=\"workspace-nav\" aria-label=\"主要導覽\">" + [
 			[
 				"◎",
 				"區域",
