@@ -13,6 +13,8 @@ interface AuthGateProps {
 export function AuthGate({ children }: AuthGateProps) {
   const {
     status,
+    loginWelcomeRequired,
+    completeLoginWelcome,
     userRole,
     hasWorkspaceAccess,
     errorMessage: authErrorMessage,
@@ -26,21 +28,57 @@ export function AuthGate({ children }: AuthGateProps) {
     "idle" | "playing" | "blocked" | "failed" | "finished"
   >("idle");
   const welcomeAudio = useRef<HTMLAudioElement | null>(null);
+  const playPending = useRef(false);
+  const playGeneration = useRef(0);
+  const playbackFinished = useRef(false);
+  const isSignedOut = status === "unauthenticated";
 
   useEffect(
     () => () => {
+      // Invalidate an interrupted play promise (including StrictMode effect cleanup).
+      playGeneration.current += 1;
+      playPending.current = false;
       welcomeAudio.current?.pause();
     },
     [],
   );
 
   useEffect(() => {
-    if (welcomeSound === "finished" && status !== "loading" && !isSubmitting) {
+    if (loginWelcomeRequired && !isSignedOut) {
+      playWelcomeSound();
+    }
+    if (isSignedOut) {
+      stopWelcomeSound();
+    }
+    // Start alongside data loading; entering the workspace still waits for onended.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginWelcomeRequired, isSignedOut]);
+
+  useEffect(() => {
+    if (welcomeSound === "finished" && status === "authenticated" && !loginWelcomeRequired) {
       setWelcomeSound("idle");
     }
-  }, [welcomeSound, status, isSubmitting]);
+  }, [welcomeSound, status, loginWelcomeRequired]);
+
+  useEffect(() => {
+    if (!loginWelcomeRequired || (welcomeSound !== "blocked" && welcomeSound !== "failed")) return;
+    // Retry on browser activation without adding controls or changing the welcome screen.
+    const retry = () => playWelcomeSound();
+    window.addEventListener("pointerdown", retry);
+    window.addEventListener("keydown", retry);
+    window.addEventListener("focus", retry);
+    return () => {
+      window.removeEventListener("pointerdown", retry);
+      window.removeEventListener("keydown", retry);
+      window.removeEventListener("focus", retry);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loginWelcomeRequired, welcomeSound]);
 
   function stopWelcomeSound() {
+    playGeneration.current += 1;
+    playPending.current = false;
+    playbackFinished.current = false;
     const audio = welcomeAudio.current;
     welcomeAudio.current = null;
     if (audio) {
@@ -52,27 +90,37 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   function playWelcomeSound() {
+    if (playPending.current || playbackFinished.current) return;
     let audio = welcomeAudio.current;
+    if (audio && !audio.paused) return;
     if (!audio) {
       audio = new Audio(loginSoundUrl);
       welcomeAudio.current = audio;
       audio.onended = () => {
-        if (welcomeAudio.current === audio) setWelcomeSound("finished");
+        if (welcomeAudio.current === audio) {
+          playbackFinished.current = true;
+          setWelcomeSound("finished");
+          completeLoginWelcome();
+        }
       };
       audio.onerror = () => {
         if (welcomeAudio.current === audio) setWelcomeSound("failed");
       };
     }
-    if (audio.error) audio.load();
+    // Resume the existing element at its current position; load() would restart it.
+    const generation = ++playGeneration.current;
+    playPending.current = true;
     setWelcomeSound("playing");
     void audio.play().catch((cause) => {
-      if (welcomeAudio.current === audio) {
+      if (welcomeAudio.current === audio && generation === playGeneration.current) {
         setWelcomeSound(
           cause instanceof DOMException && cause.name === "NotAllowedError"
             ? "blocked"
             : "failed",
         );
       }
+    }).finally(() => {
+      if (generation === playGeneration.current) playPending.current = false;
     });
   }
 
@@ -90,13 +138,9 @@ export function AuthGate({ children }: AuthGateProps) {
   }
 
   const visibleError = formErrorMessage ?? authErrorMessage;
-  const waitingForSound =
-    welcomeSound === "playing" ||
-    welcomeSound === "blocked" ||
-    welcomeSound === "failed";
-  const showingOkinawaWelcome =
-    waitingForSound ||
-    (welcomeSound === "finished" && status === "loading");
+  const showingOkinawaWelcome = status !== "unauthenticated" && (
+    Boolean(loginWelcomeRequired) || (welcomeSound === "finished" && status === "loading")
+  );
 
   if (status === "loading" || showingOkinawaWelcome) {
     return (
@@ -139,22 +183,7 @@ export function AuthGate({ children }: AuthGateProps) {
               Your Journey, Your Map.
             </p>
           )}
-          {(welcomeSound === "blocked" || welcomeSound === "failed") && (
-            <div className="auth-welcome-audio">
-              <p>
-                {welcomeSound === "blocked"
-                  ? "播放迎賓音效，開始沖繩之旅。"
-                  : "音效暫時無法播放，請重試。"}
-              </p>
-              <button
-                type="button"
-                className="auth-secondary"
-                onClick={playWelcomeSound}
-              >
-                {welcomeSound === "blocked" ? "播放迎賓音效" : "重試音效"}
-              </button>
-            </div>
-          )}
+
         </section>
       </div>
     );

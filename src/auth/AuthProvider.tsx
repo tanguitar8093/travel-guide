@@ -1,3 +1,4 @@
+import { hasPendingLoginWelcome, requestLoginWelcome, clearLoginWelcome } from './login-welcome'
 import { adminSyncInfoKey, canConfigureSyncInfo } from '../common/useAdminSyncInfo'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { setPublicCatalogAccount } from '../modules/public-itinerary/catalog-runtime'
@@ -27,6 +28,7 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const [loginWelcomeRequired, setLoginWelcomeRequired] = useState(hasPendingLoginWelcome)
   const [session, setSession] = useState<AuthContextValue['session']>(null)
   const [status, setStatus] = useState<AuthStatus>('loading')
   const [userRole, setUserRole] = useState<AuthContextValue['userRole']>(null)
@@ -125,6 +127,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     const unsubscribe = subscribeSessionChange((nextSession, event) => {
       setErrorMessage(null)
+      if (nextSession && event === 'SIGNED_IN' && !currentUserId.current) {
+        requestLoginWelcome()
+        setLoginWelcomeRequired(true)
+      }
       if (
         nextSession &&
         currentUserId.current === nextSession.user.id &&
@@ -165,7 +171,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, [])
 
+  function completeLoginWelcome() {
+    clearLoginWelcome()
+    setLoginWelcomeRequired(false)
+  }
+
   function clearLocalAuthState() {
+    completeLoginWelcome()
     sessionGeneration.current += 1
     deactivateHybridAccount()
     setPublicCatalogAccount(null)
@@ -180,8 +192,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   async function signInWithGoogle(): Promise<void> {
     setErrorMessage(null)
+    requestLoginWelcome()
     const error = await signInWithGoogleGateway(window.location.origin)
     if (error) {
+      clearLoginWelcome()
       setErrorMessage(error.message)
       throw error
     }
@@ -239,6 +253,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     <AuthContext.Provider
       value={{
         status,
+        loginWelcomeRequired,
+        completeLoginWelcome,
         session,
         user: session?.user ?? null,
         userRole,

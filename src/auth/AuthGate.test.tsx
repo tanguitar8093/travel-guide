@@ -5,6 +5,8 @@ import type { AuthContextValue } from './auth-context'
 
 const mockAuth = vi.hoisted(() => ({
   value: {
+    loginWelcomeRequired: false,
+    completeLoginWelcome: vi.fn(),
     status: 'unauthenticated',
     session: null,
     user: null,
@@ -95,4 +97,19 @@ describe('AuthGate role access control', () => {
     expect(html).toContain('目前角色：basic')
     expect(html).not.toContain('should not show workspace')
   })
+})
+
+it('keeps a new login behind the Okinawa welcome even after authentication succeeds', () => {
+  mockAuth.value = { ...mockAuth.value, status: 'authenticated', hasWorkspaceAccess: true, loginWelcomeRequired: true }
+  const html = renderGate()
+  expect(html).toContain('Okinawa')
+  expect(html).toContain('準備出發')
+  expect(html).not.toContain('workspace content')
+})
+
+it('uses the normal loading icon after the login welcome is complete', () => {
+  mockAuth.value = { ...mockAuth.value, status: 'loading', loginWelcomeRequired: false }
+  const html = renderGate()
+  expect(html).toContain('class="tour-guide"')
+  expect(html).not.toContain('Okinawa')
 })
