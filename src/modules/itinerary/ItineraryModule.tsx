@@ -38,6 +38,7 @@ import type { PublicItinerary } from '../public-itinerary/models';
 import { useAuth } from '../../auth/useAuth';
 import type { SharedPublicItinerary } from '../public-itinerary/shared-catalog';
 import { PublicationDialog } from '../public-itinerary/PublicationDialog';
+import { ItinerarySortableList } from "./ItinerarySortableList";
 
 function PreviewLayout({ children }: ComponentProps<typeof WorkspaceLayout>) {
   return <div className="itinerary-app-shell sharing-readonly"><main className="itinerary-main">{children}</main></div>;
@@ -1062,18 +1063,8 @@ function ItineraryModule({
     }
   }
 
-  function moveItem(item: ItineraryItem, direction: -1 | 1) {
-    if (!canEditItems) return;
-    if (!hasPendingDayReorder) itineraryController.beginEdit(item.tripId);
-    const index = dayItems.findIndex((candidate) => candidate.id === item.id);
-    const targetIndex = index + direction;
-    if (index < 0 || targetIndex < 0 || targetIndex >= dayItems.length) return;
-    const orderedIds = dayItems.map((candidate) => candidate.id);
-    [orderedIds[index], orderedIds[targetIndex]] = [
-      orderedIds[targetIndex],
-      orderedIds[index],
-    ];
-
+  function reorderDayCards(orderedIds: string[]) {
+    if (!canEditItems || interactionBusy || itemFormVisible) return;
     setDayOrderDraftIds(orderedIds);
     setNotice("已暫存順序變更，記得按「儲存排序」。");
   }
@@ -1873,12 +1864,21 @@ function ItineraryModule({
                     </div>
                     <div className="itinerary-items-scroll">
                       {dayItems.length ? (
-                        <ol className="itinerary-item-list">
-                          {dayItems.map((item, index) => {
+                        <ItinerarySortableList
+                          key={`${selectedTripId}:${selectedDate}`}
+                          items={dayItems}
+                          disabled={!canEditItems || interactionBusy || itemFormVisible}
+                          getName={item => places.find(place => place.id === item.placeId)?.name ?? "地點已不存在"}
+                          onStart={() => {
+                            if (!hasPendingDayReorder && selectedTripId) itineraryController.beginEdit(selectedTripId);
+                          }}
+                          onReorder={reorderDayCards}
+                        >
+                          {(item, index, orderedItems) => {
                             const place = places.find(
                               (candidate) => candidate.id === item.placeId,
                             );
-                            const previousItem = dayItems[index - 1];
+                            const previousItem = orderedItems[index - 1];
                             const previousPlace = previousItem
                               ? places.find(
                                   (candidate) =>
@@ -1911,10 +1911,7 @@ function ItineraryModule({
                               ? getPlaceMapUrl(place)
                               : undefined;
                             return (
-                              <li className="itinerary-item-row" key={item.id}>
-                                <span className="itinerary-order">
-                                  {String(index + 1).padStart(2, "0")}
-                                </span>
+                              <>
                                 <div className="itinerary-item-copy">
                                   <div className="itinerary-item-title">
                                     <strong>
@@ -1934,10 +1931,10 @@ function ItineraryModule({
                                         href={mapUrl}
                                         target="_blank"
                                         rel="noreferrer"
-                                        aria-label={`在地圖開啟${place?.name}`}
-                                        title="在地圖開啟"
+                                        aria-label={`導航至${place?.name}`}
+                                        title="導航"
                                       >
-                                        ⌖ 地圖 ↗
+                                        ⌖ 導航 ↗
                                       </a>
                                     )}
                                     {place?.notes?.trim() && (
@@ -2024,30 +2021,6 @@ function ItineraryModule({
                                   {item.note && <p>{item.note}</p>}
                                 </div>
                                 {!readonly && <div className="itinerary-item-actions">
-                                  <button
-                                    type="button"
-                                    aria-label="往前移"
-                                    disabled={
-                                      interactionBusy ||
-                                      !canEditItems ||
-                                      index === 0
-                                    }
-                                    onClick={() => void moveItem(item, -1)}
-                                  >
-                                    ↑
-                                  </button>
-                                  <button
-                                    type="button"
-                                    aria-label="往後移"
-                                    disabled={
-                                      interactionBusy ||
-                                      !canEditItems ||
-                                      index === dayItems.length - 1
-                                    }
-                                    onClick={() => void moveItem(item, 1)}
-                                  >
-                                    ↓
-                                  </button>
                                   {previousItem && (
                                     <button
                                       type="button"
@@ -2093,10 +2066,10 @@ function ItineraryModule({
                                     移除
                                   </button>
                                 </div>}
-                              </li>
+                              </>
                             );
-                          })}
-                        </ol>
+                          }}
+                        </ItinerarySortableList>
                       ) : (
                         !itemFormVisible && (
                           <div className="itinerary-day-empty">
@@ -2291,7 +2264,7 @@ function ItineraryModule({
                             target="_blank"
                             rel="noreferrer"
                           >
-                            開啟地圖 ↗
+                            導航 ↗
                           </a>
                         )}
                         <RouterLink to={routes.places}>編輯</RouterLink>

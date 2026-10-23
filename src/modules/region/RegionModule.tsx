@@ -551,7 +551,7 @@ function RegionModule() {
                   <section className="region-legacy-location">
                     <span>地圖座標：{selectedRegion.center.latitude}, {selectedRegion.center.longitude}</span>
                     <a className="region-map-link" href={googleMapsNavigationUrl(selectedRegion.center)} target="_blank" rel="noreferrer">
-                      在 Google Maps 開啟 ↗
+                      導航 ↗
                     </a>
                   </section>
                 ) : provider === 'osm' ? (
@@ -588,7 +588,7 @@ function RegionModule() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      在 Google Maps 開啟 ↗
+                      導航 ↗
                     </a>
                   </section>
                 ) : (

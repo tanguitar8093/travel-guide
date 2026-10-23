@@ -1432,7 +1432,7 @@ function PlaceModule() {
                           target="_blank"
                           rel="noreferrer"
                         >
-                          在 Google Maps 開啟 ↗
+                          導航 ↗
                         </a>
                       </>
                     ) : (
@@ -1474,7 +1474,7 @@ function PlaceModule() {
                       target="_blank"
                       rel="noreferrer"
                     >
-                      在 Google Maps 開啟 ↗
+                      導航 ↗
                     </a>
                   </section>
                 )}
@@ -1489,7 +1489,7 @@ function PlaceModule() {
                         target="_blank"
                         rel="noreferrer"
                       >
-                        開啟地圖連結 ↗
+                        導航 ↗
                       </a>
                     )}
                   </div>
