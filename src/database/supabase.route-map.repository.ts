@@ -1,5 +1,4 @@
 import { supabase } from './supabase.client'
-import { assertLegacyGeoWrite } from './geo-format'
 import { EntityNotFoundError, ValidationError } from './errors'
 import type { NewRouteMap, NewRouteMapPlace, RouteMap, RouteMapChanges, RouteMapPlace, RouteMapPlaceChanges } from './models'
 import { validateRouteMap, validateRouteMapPlace } from './validation'
@@ -13,12 +12,15 @@ interface MapRow {
   origin_google_place_id: string | null
   destination_google_place_id: string | null
   transport: string
+  origin: RouteMap['origin'] | null
+  destination: RouteMap['destination'] | null
 }
 
 interface PlaceRow {
   id: string
   route_map_id: string
-  google_place_id: string
+  google_place_id: string | null
+  location: RouteMapPlace['location'] | null
   name: string | null
 }
 
@@ -31,6 +33,7 @@ function mapInput(input: NewRouteMap) {
     name: input.name, trip_id: input.tripId ?? null, selected_date: input.selectedDate ?? null,
     origin_google_place_id: input.originGooglePlaceId ?? null,
     destination_google_place_id: input.destinationGooglePlaceId ?? null, transport: input.transport,
+    origin: input.origin ?? null, destination: input.destination ?? null,
   }
 }
 
@@ -41,26 +44,29 @@ function normalizeMap(row: MapRow): RouteMap {
     ...(row.selected_date ? { selectedDate: row.selected_date } : {}),
     ...(row.origin_google_place_id ? { originGooglePlaceId: row.origin_google_place_id } : {}),
     ...(row.destination_google_place_id ? { destinationGooglePlaceId: row.destination_google_place_id } : {}),
+    ...(row.origin ? { origin: row.origin } : {}),
+    ...(row.destination ? { destination: row.destination } : {}),
   }
 }
 
 function placeInput(input: NewRouteMapPlace) {
-  return { route_map_id: input.routeMapId, google_place_id: input.googlePlaceId, name: input.name ?? null }
+  return { route_map_id: input.routeMapId, google_place_id: input.googlePlaceId ?? null, location: input.location ?? null, name: input.name ?? null }
 }
 
 function normalizePlace(row: PlaceRow): RouteMapPlace {
   return {
-    id: row.id, routeMapId: row.route_map_id, googlePlaceId: row.google_place_id,
+    id: row.id, routeMapId: row.route_map_id,
+    ...(row.google_place_id ? { googlePlaceId: row.google_place_id } : {}),
+    ...(row.location ? { location: row.location } : {}),
     ...(row.name ? { name: row.name } : {}),
   }
 }
 
-const mapColumns = 'id,name,trip_id,selected_date,origin_google_place_id,destination_google_place_id,transport'
-const placeColumns = 'id,route_map_id,google_place_id,name'
+const mapColumns = 'id,name,trip_id,selected_date,origin_google_place_id,destination_google_place_id,transport,origin,destination'
+const placeColumns = 'id,route_map_id,google_place_id,name,location'
 
 export class SupabaseRouteMapRepository {
   async create(input: NewRouteMap): Promise<string> {
-    assertLegacyGeoWrite(input)
     validateRouteMap(input)
     const owner = await requireAuthenticatedUserId()
     const { data, error } = await withSupabaseTimeout(Promise.resolve(
@@ -71,7 +77,6 @@ export class SupabaseRouteMapRepository {
   }
 
   async update(id: string, changes: RouteMapChanges): Promise<void> {
-    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) throw new EntityNotFoundError('Route map', id)
     const next = { ...current, ...changes }
@@ -118,7 +123,6 @@ export class SupabaseRouteMapRepository {
 
 export class SupabaseRouteMapPlaceRepository {
   async create(input: NewRouteMapPlace): Promise<string> {
-    assertLegacyGeoWrite(input)
     validateRouteMapPlace(input)
     // The database derives ownership from the parent, including admin-owned maps.
     const { data, error } = await withSupabaseTimeout(Promise.resolve(
@@ -129,7 +133,6 @@ export class SupabaseRouteMapPlaceRepository {
   }
 
   async update(id: string, changes: RouteMapPlaceChanges): Promise<void> {
-    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) throw new EntityNotFoundError('Route map place', id)
     const next = { ...current, ...changes }

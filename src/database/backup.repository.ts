@@ -99,7 +99,7 @@ function validateUniqueIds<T extends { id: string }>(records: T[], entity: strin
   }
 }
 
-function validateReferences(backup: NormalizedTravelBackup): void {
+function validateReferences(backup: NormalizedTravelBackup, allowSharedEndpoints = false): void {
   const regionIds = new Set(backup.data.regions.map((region) => region.id))
   const placeIds = new Set(backup.data.places.map((place) => place.id))
   const labelById = new Map(backup.data.labels.map((label) => [label.id, label]))
@@ -114,7 +114,7 @@ function validateReferences(backup: NormalizedTravelBackup): void {
   for (const map of backup.data.routeMaps) {
     for (const side of ['origin', 'destination'] as const) {
       const endpoint = getRouteMapEndpoint(map, side)
-      if (endpoint?.kind === 'shared-place') {
+      if (endpoint?.kind === 'shared-place' && !allowSharedEndpoints) {
         throw new ValidationError('私人備份不包含共享文件；請先移除共享地點端點或改選私人位置。')
       }
       if (endpoint?.kind === 'place' && !placeIds.has(endpoint.placeId)) {
@@ -196,7 +196,7 @@ function validateReferences(backup: NormalizedTravelBackup): void {
   }
 }
 
-function validateBackup(value: unknown): NormalizedTravelBackup {
+function validateBackup(value: unknown, allowSharedEndpoints = false): NormalizedTravelBackup {
   const root = requireRecord(value, '備份')
   requireExactKeys(root, backupKeys)
   if (root.format !== 'travel-planner-backup' || (root.version !== 1 && root.version !== 2 && root.version !== 3)) {
@@ -276,8 +276,17 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
     exportedAt: root.exportedAt,
     data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
   }
-  validateReferences(backup)
+  validateReferences(backup, allowSharedEndpoints)
   return backup
+}
+
+export function validateSyncData(data: Record<string, readonly object[]>): NormalizedTravelBackup {
+  return validateBackup({
+    format: 'travel-planner-backup',
+    version: Object.values(data).flat().some(hasGeoFormatFields) ? 3 : 2,
+    exportedAt: new Date().toISOString(),
+    data,
+  }, true)
 }
 
 export class BackupRepository {

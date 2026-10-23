@@ -75,9 +75,11 @@ import type { BackupCounts, TravelBackup } from './backup.repository'
 import { labels as indexedLabels } from './label.repository'
 import { itineraryItems as indexedItineraryItems, places as indexedPlaces, regions as indexedRegions, trips as indexedTrips } from './repositories'
 import { getDatabaseMode, type DatabaseMode } from './runtime'
-import { ValidationError } from './errors'
-import { hasGeoFormatFields } from './geo-format'
 import { hybridBackend } from './hybrid.backend'
+import { requireHybridStore, runHybridTask } from './hybrid.runtime'
+import { DEFAULT_OSM_REGION, DEFAULT_OSM_REGION_ID, accountOsmRegionId } from '../geo/osm-coverage'
+import { getMapProvider } from '../geo/provider-preference'
+import { database } from './database'
 import {
   supabaseBackupRepository,
   supabaseItineraryItems,
@@ -191,20 +193,35 @@ function activeBackend(): DatabaseBackend {
   return databaseBackends[getDatabaseMode()]
 }
 
-// Keep new-format writes isolated until backup and cloud/sync formats are ready.
-function assertReleasedLocationWrite(input: object): void {
-  if (!hasGeoFormatFields(input)) return
-  if (getDatabaseMode() === 'indexeddb') return
-  throw new ValidationError('OSM 位置資料目前只開放單機模式寫入；雲端與混合模式的備份/同步格式整合尚未完成。')
+export async function prepareMapWorkspace(): Promise<void> {
+  if (getMapProvider() !== 'osm') return
+  const mode = getDatabaseMode()
+  if (mode === 'hybrid') {
+    const store = requireHybridStore()
+    const id = await accountOsmRegionId(store.getWorkspaceOwnerId())
+    if (await store.read(repositories => repositories.regions.getById(id))) return
+    await runHybridTask(active => {
+      if (active !== store) throw new Error('帳號已切換，未建立預設區域。')
+      return active.mutateDatabase('regions.prepareOsm', async storage => {
+        if (!await storage.regions.get(id)) await storage.regions.add({ ...DEFAULT_OSM_REGION, id })
+      })
+    })
+  } else if (mode === 'supabase') {
+    await supabaseRegions.prepareOsmRegion()
+  } else {
+    await database.transaction('rw', database.regions, async () => {
+      if (!await database.regions.get(DEFAULT_OSM_REGION_ID)) {
+        await database.regions.add({ ...DEFAULT_OSM_REGION, id: DEFAULT_OSM_REGION_ID })
+      }
+    })
+  }
 }
 
 export const routeMaps: DatabaseBackend['routeMaps'] = {
   create: (input) => {
-    assertReleasedLocationWrite(input)
     return activeBackend().routeMaps.create(input)
   },
   update: (id, changes) => {
-    assertReleasedLocationWrite(changes)
     return activeBackend().routeMaps.update(id, changes)
   },
   delete: (id) => activeBackend().routeMaps.delete(id),
@@ -215,11 +232,9 @@ export const routeMaps: DatabaseBackend['routeMaps'] = {
 
 export const routeMapPlaces: DatabaseBackend['routeMapPlaces'] = {
   create: (input) => {
-    assertReleasedLocationWrite(input)
     return activeBackend().routeMapPlaces.create(input)
   },
   update: (id, changes) => {
-    assertReleasedLocationWrite(changes)
     return activeBackend().routeMapPlaces.update(id, changes)
   },
   delete: (id) => activeBackend().routeMapPlaces.delete(id),
@@ -230,11 +245,9 @@ export const routeMapPlaces: DatabaseBackend['routeMapPlaces'] = {
 
 export const regions = {
   create(input: Parameters<typeof indexedRegions.create>[0]) {
-    assertReleasedLocationWrite(input)
     return activeBackend().regions.create(input)
   },
   update(id: string, changes: Parameters<typeof indexedRegions.update>[1]) {
-    assertReleasedLocationWrite(changes)
     return activeBackend().regions.update(id, changes)
   },
   delete(id: string) {
@@ -250,11 +263,9 @@ export const regions = {
 
 export const places = {
   create(input: Parameters<typeof indexedPlaces.create>[0]) {
-    assertReleasedLocationWrite(input)
     return activeBackend().places.create(input)
   },
   update(id: string, changes: Parameters<typeof indexedPlaces.update>[1]) {
-    assertReleasedLocationWrite(changes)
     return activeBackend().places.update(id, changes)
   },
   delete(id: string) {
@@ -360,10 +371,6 @@ export const backupRepository = {
     return activeBackend().backupRepository.validateImport(value)
   },
   replaceAll(value: unknown) {
-    const backup = indexedBackupRepository.validateImport(value)
-    if (backup.version === 3) {
-      throw new ValidationError('新位置備份尚未開放正式匯入；需先完成雲端同步與正式 UI 整合。')
-    }
     return activeBackend().backupRepository.replaceAll(value)
   },
   clearAllData() {

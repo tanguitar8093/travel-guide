@@ -3,6 +3,7 @@ import {
   labels,
   places,
   regions,
+  prepareMapWorkspace,
 } from '../../database'
 import type {
   Label,
@@ -56,6 +57,7 @@ export class PlaceService {
   }
 
   async loadWorkspace(): Promise<PlaceWorkspace> {
+    await prepareMapWorkspace()
     const [placeRecords, labelRecords, regionRecords] = await Promise.all([
       places.list(),
       labels.list(),

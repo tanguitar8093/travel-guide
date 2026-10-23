@@ -5,10 +5,11 @@ import { syncCloudAdapter } from './sync-cloud.adapter'
 import { supabase } from './supabase.client'
 import { activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore } from './hybrid.runtime'
 import { setDatabaseMode, setSyncMode } from './runtime'
-import { regions, labels, places, trips, itineraryItems, routeMaps, routeMapPlaces } from './index'
+import { regions, labels, places, trips, itineraryItems, routeMaps, routeMapPlaces, prepareMapWorkspace } from './index'
 import { SyncDatabase } from './sync.database'
 import { placeController } from '../modules/place/place.controller'
 import { setDatabaseModeRole } from './mode-access'
+import { accountOsmRegionId } from '../geo/osm-coverage'
 
 const sql = new PGlite()
 const migrations = import.meta.glob<string>('../../supabase/migrations/*.sql', {
@@ -179,6 +180,36 @@ it('automatically persists an admin label, place and itinerary item in productio
   expect((await sql.query('select label_id from public.place_labels where place_id=$1 and label_id=$2', [placeId, labelId])).rows)
     .toEqual([{ label_id: labelId }])
 
+  saved.set('travel-planner:map-provider', 'osm')
+  await vi.waitFor(() => expect(getHybridStatus().syncing).toBe(false), { timeout: 5000, interval: 10 })
+  rpc.mockClear()
+  await prepareMapWorkspace()
+  await prepareMapWorkspace()
+  const osmRegionId = await accountOsmRegionId(uid)
+  const location = {
+    source: 'osm', kind: 'point', reference: { provider: 'osm', id: 'node/123' },
+    coordinate: { latitude: 26.4, longitude: 127.9 },
+  } as const
+  const osmPlaceId = await places.create({ name: 'OSM local', location, regionIds: [osmRegionId], labelIds: [] })
+  const osmMapId = await routeMaps.create({
+    name: 'OSM map', transport: 'WALKING', origin: { kind: 'place', placeId: osmPlaceId },
+  })
+  const osmMarkerId = await routeMapPlaces.create({ routeMapId: osmMapId, name: 'OSM marker', location })
+  await routeMaps.update(osmMapId, { destination: { kind: 'route-map-place', routeMapPlaceId: osmMarkerId } })
+  expect((await places.getById(osmPlaceId))?.location).toEqual(location)
+  expect(await store.listTasks()).toHaveLength(5)
+  expect(rpc).not.toHaveBeenCalled()
+  expect((await sql.query('select id from public.places where id=$1', [osmPlaceId])).rows).toEqual([])
+  await vi.advanceTimersByTimeAsync(2000)
+  await vi.waitFor(async () => {
+    expect(getHybridStatus().error).toBeUndefined()
+    expect(await store.listTasks()).toEqual([])
+  }, { timeout: 5000, interval: 10 })
+  expect((await sql.query<{ location: unknown }>('select location from public.places where id=$1', [osmPlaceId])).rows[0].location).toEqual(location)
+  expect((await sql.query<{ origin: unknown; destination: unknown }>('select origin,destination from public.route_maps where id=$1', [osmMapId])).rows[0]).toEqual({
+    origin: { kind: 'place', placeId: osmPlaceId }, destination: { kind: 'route-map-place', routeMapPlaceId: osmMarkerId },
+  })
+
   // Reopen the same local account and verify its committed data survives.
   setSyncMode('manual')
   await activateHybridAccount(account, 'admin')
@@ -186,4 +217,5 @@ it('automatically persists an admin label, place and itinerary item in productio
   expect(new Set((await places.getById(placeId))?.labelIds)).toEqual(new Set([labelId, targetLabelId]))
   expect((await places.getById(secondPlaceId))?.labelIds).toEqual([targetLabelId])
   expect(await itineraryItems.findByTripId(tripId)).toEqual([expect.objectContaining({ id: itemId, placeId, travelDistanceMeters: 12300 })])
+  expect((await places.getById(osmPlaceId))?.location).toEqual(location)
 }, 20000)

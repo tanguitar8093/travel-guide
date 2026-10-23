@@ -1,4 +1,4 @@
-import { BackupRepository, type NormalizedTravelBackup } from './backup.repository'
+import { validateSyncData, type NormalizedTravelBackup } from './backup.repository'
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter, type CloudSyncSnapshot } from './sync-cloud.adapter'
@@ -24,7 +24,7 @@ function validateRecords(records: Array<{ entity: SyncEntityName; record: SyncRe
     if (!entities.includes(row.entity)) throw new ValidationError('雲端資料種類不正確。')
     if (row.record) data[row.entity].push(row.record)
   }
-  return new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data })
+  return validateSyncData(data)
 }
 
 function cloudFingerprint(snapshot: CloudSyncSnapshot): string {

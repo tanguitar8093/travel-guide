@@ -74,7 +74,7 @@ export function MapProviderSettings() {
     </div>
     <div className="provider-notice" role="note">
       <strong>整合範圍</strong>　OSM 行程地圖不會查 Google 座標；舊 Google-only 地點會列為未定位。
-      地點搜尋／新增與路程試算已支援 OSM；OSM 使用固定區域，區域資料僅供檢視。雲端與混合模式的新格式同步仍在整合，地圖座標寫入目前限單機模式。
+      地點搜尋／新增與路程試算已支援 OSM；OSM 使用固定區域，區域資料僅供檢視。混合模式先儲存於本機，再透過既有背景同步上傳位置與路線端點；離線操作會保留在待同步清單。
     </div>
   </section>
 }

@@ -1,4 +1,4 @@
-import { places, regions, trips } from '../../database'
+import { places, regions, trips, prepareMapWorkspace } from '../../database'
 import type { NewRegion, Place, Region, RegionChanges, Trip } from '../../database'
 import {
   getGooglePlaceDetails,
@@ -36,6 +36,7 @@ export class RegionService {
   }
 
   async loadWorkspace(): Promise<RegionWorkspace> {
+    await prepareMapWorkspace()
     const [regionRecords, placeRecords, tripRecords] = await Promise.all([
       regions.list(),
       places.list(),

@@ -17,6 +17,7 @@ vi.mock('../../geo/osm-service', () => ({ routeOsmLocations: mocks.osmEstimate }
 
 vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
+  prepareMapWorkspace: vi.fn().mockResolvedValue(undefined),
   itineraryItems: {
     getById: mocks.getItem,
     findByTripAndDate: mocks.listItems,

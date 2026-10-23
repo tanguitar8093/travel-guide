@@ -36,7 +36,7 @@ it('upgrades a populated version 7 database without seeding or losing personal a
   expect(await db.regions.get('existing')).toMatchObject({ name: '台北' })
   expect(await db.routeMaps.get('map')).toMatchObject({ name: '既有路線' })
   expect(await db.publicItineraries.count()).toBe(0)
-  expect(db.verno).toBe(10)
+  expect(db.verno).toBe(12)
 })
 it('uses production stores and repositories for publish, apply, editing, deletion, withdrawal and reopening', async () => {
   const db = new TravelDatabase(`sharing-integrated-${crypto.randomUUID()}`)

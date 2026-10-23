@@ -45,7 +45,7 @@ describe('sync cloud adapter', () => {
     await expect(syncCloudAdapter.pull('0')).rejects.toThrow('Permission denied')
   })
 
-  it('rejects new-format changes and frozen payloads before any RPC call', async () => {
+  it('uploads new-format changes without modifying the frozen payload', async () => {
     const task: SyncTask = {
       operationId: 'new-geo', account: { projectId: 'test', userId: 'member' }, deviceId: 'device',
       protocolVersion: 1, operation: 'place.create', createdAt: new Date().toISOString(), status: 'pending', attempts: 0,
@@ -58,11 +58,18 @@ describe('sync cloud adapter', () => {
       }],
     }
     const before = structuredClone(task)
-    await expect(syncCloudAdapter.push(task)).rejects.toThrow('尚未支援')
+    rpc.mockResolvedValue({ data: { status: 'applied', operationId: task.operationId, cursor: '1', changes: [] }, error: null })
+    await syncCloudAdapter.push(task)
     expect(task).toEqual(before)
+    expect(rpc.mock.calls[0][1].p_task.changes).toEqual(task.changes)
     task.uploadChanges = structuredClone(task.changes)
-    task.changes = []
-    await expect(syncCloudAdapter.push(task)).rejects.toThrow('尚未支援')
-    expect(rpc).not.toHaveBeenCalled()
+    await syncCloudAdapter.push(task)
+    expect(task.uploadChanges).toEqual(before.changes)
+    const malformed = structuredClone(task)
+    const record = malformed.uploadChanges?.[0].after
+    if (!record || !('location' in record) || !record.location) throw new Error('Missing test location')
+    Object.assign(record.location.coordinate, { latitude: 100 })
+    await expect(syncCloudAdapter.push(malformed)).rejects.toThrow('緯度')
+    expect(rpc).toHaveBeenCalledTimes(2)
   })
 })

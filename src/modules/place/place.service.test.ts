@@ -8,6 +8,7 @@ vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
   ...await import('../../database/repositories'),
   labels: (await import('../../database/label.repository')).labels,
+  prepareMapWorkspace: vi.fn().mockResolvedValue(undefined),
 }))
 vi.mock('../../database/runtime', () => ({
   getDatabaseMode: () => 'indexeddb',

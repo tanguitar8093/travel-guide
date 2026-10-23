@@ -60,7 +60,7 @@ describe('read-only hybrid preview', () => {
   it('rejects invalid cloud references without applying anything', async () => {
     await expect(previewHybridSync(store, { snapshot: async () => snapshot([
       { entity: 'places', id: 'place', version: 'v1', record: { id: 'place', name: 'Place', googlePlaceId: 'google', regionIds: ['missing'], labelIds: [] } },
-    ]) })).rejects.toThrow('missing region')
+    ]) })).rejects.toThrow('使用的區域「missing」不存在')
     expect(await database.places.count()).toBe(0)
     expect(await database.outbox.count()).toBe(0)
   })

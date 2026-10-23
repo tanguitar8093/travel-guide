@@ -1,32 +1,34 @@
 import { ValidationError } from './errors'
 import type { SyncChange, SyncTask } from './sync.types'
+import { validateRouteEndpoint } from './route-endpoint'
+import { validateLocationMetadata, validateStoredLocation } from './location.validation'
 
 export function hasGeoFormatFields(value: object): boolean {
   return ['location', 'centerMetadata', 'mapProvider', 'origin', 'destination'].some(key => Object.hasOwn(value, key))
 }
 
-export function assertLegacyGeoWrite(value: object): void {
-  if (hasGeoFormatFields(value)) {
-    throw new ValidationError('雲端尚未支援新位置／端點格式；未送出寫入，也未捨棄新欄位。')
+function validateGeoFields(value: object): void {
+  if ('location' in value && value.location !== undefined) validateStoredLocation(value.location)
+  if ('centerMetadata' in value && value.centerMetadata !== undefined) validateLocationMetadata(value.centerMetadata)
+  if ('mapProvider' in value && value.mapProvider !== undefined && value.mapProvider !== 'google' && value.mapProvider !== 'osm') {
+    throw new ValidationError('區域的地圖供應商無效。')
+  }
+  if ('origin' in value && value.origin !== undefined) validateRouteEndpoint(value.origin)
+  if ('destination' in value && value.destination !== undefined) validateRouteEndpoint(value.destination)
+}
+
+function validateSyncChanges(changes: readonly SyncChange[]): void {
+  for (const change of changes) {
+    if (change.after) validateGeoFields(change.after)
   }
 }
 
-export function assertLegacySyncChanges(changes: readonly SyncChange[]): void {
-  if (changes.some(change =>
-    (change.before && hasGeoFormatFields(change.before)) || (change.after && hasGeoFormatFields(change.after)))) {
-    throw new ValidationError('新位置／端點格式尚未支援雲端同步；本機資料與待同步清單仍保留，未送出或改寫任務。')
-  }
-}
-
-export function assertLegacySyncTask(task: SyncTask): void {
+export function validateSyncTask(task: SyncTask): void {
   if (task.protocolVersion !== 1) throw new ValidationError('尚未支援此同步協定版本；任務仍保留。')
-  assertLegacySyncChanges(task.changes)
-  if (task.uploadChanges) assertLegacySyncChanges(task.uploadChanges)
+  validateSyncChanges(task.changes)
+  if (task.uploadChanges) validateSyncChanges(task.uploadChanges)
   if (task.sharedTrip) {
-    for (const document of [task.sharedTrip.before, task.sharedTrip.after]) {
-      if (hasGeoFormatFields(document.region) || document.places.some(hasGeoFormatFields)) {
-        throw new ValidationError('共享行程尚未支援新位置格式；未送出任務。')
-      }
-    }
+    validateGeoFields(task.sharedTrip.after.region)
+    task.sharedTrip.after.places.forEach(validateGeoFields)
   }
 }

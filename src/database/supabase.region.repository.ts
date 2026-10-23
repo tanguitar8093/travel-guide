@@ -1,14 +1,17 @@
 import { supabase } from './supabase.client'
-import { assertLegacyGeoWrite } from './geo-format'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { NewRegion, Region, RegionChanges } from './models'
 import { validateRegion } from './validation'
+import { DEFAULT_OSM_REGION, accountOsmRegionId } from '../geo/osm-coverage'
+import { requireAuthenticatedUserId } from './supabase.utils'
 
 interface SupabaseRegionRow {
   id: string
   name: string
   center: { latitude?: number; longitude?: number } | null
   google_place_id: string | null
+  map_provider: Region['mapProvider'] | null
+  center_metadata: Region['centerMetadata'] | null
   zoom: number | string
 }
 
@@ -46,6 +49,8 @@ function normalizeRegion(row: SupabaseRegionRow): Region {
         }
       : {}),
     ...(row.google_place_id ? { googlePlaceId: row.google_place_id } : {}),
+    ...(row.map_provider ? { mapProvider: row.map_provider } : {}),
+    ...(row.center_metadata ? { centerMetadata: row.center_metadata } : {}),
     zoom: Number(row.zoom),
   }
 }
@@ -55,6 +60,8 @@ function toSupabaseRegionInput(input: NewRegion) {
     name: input.name,
     center: input.center ?? null,
     google_place_id: input.googlePlaceId ?? null,
+    map_provider: input.mapProvider ?? null,
+    center_metadata: input.centerMetadata ?? null,
     zoom: input.zoom,
   }
 }
@@ -72,8 +79,18 @@ function mapSupabaseError(error: { code?: string; message: string }, fallback: s
 }
 
 export class SupabaseRegionRepository {
+  async prepareOsmRegion(): Promise<void> {
+    const owner = await requireAuthenticatedUserId()
+    const id = await accountOsmRegionId(owner)
+    const { error } = await withTimeout(Promise.resolve(
+      supabase.from('regions').upsert({
+        id, owner_uid: owner, ...toSupabaseRegionInput(DEFAULT_OSM_REGION),
+      }, { onConflict: 'id', ignoreDuplicates: true }),
+    ), 'prepare OSM region')
+    if (error) throw mapSupabaseError(error, id)
+  }
+
   async create(input: NewRegion): Promise<string> {
-    assertLegacyGeoWrite(input)
     validateRegion(input)
     const regionId = crypto.randomUUID()
 
@@ -93,7 +110,6 @@ export class SupabaseRegionRepository {
   }
 
   async update(id: string, changes: RegionChanges): Promise<void> {
-    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) {
       throw new EntityNotFoundError('Region', id)

@@ -7,6 +7,7 @@ import {
   routeMapPlaces,
   trips,
   ValidationError,
+  prepareMapWorkspace,
 } from '../../database'
 import type {
   ItineraryItem,
@@ -44,6 +45,7 @@ export class ItineraryService {
   }
 
   async loadWorkspace(_tripId?: string): Promise<ItineraryWorkspace> {
+    await prepareMapWorkspace()
     const [tripRecords, regionRecords, placeRecords] = await Promise.all([
       trips.list(),
       regions.list(),

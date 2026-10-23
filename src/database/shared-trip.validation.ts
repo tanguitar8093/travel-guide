@@ -1,5 +1,6 @@
 import { BackupRepository } from './backup.repository'
 import { ValidationError } from './errors'
+import { hasGeoFormatFields } from './geo-format'
 import type { SharedTripDocument, SharedTripSnapshot } from './shared-trip.types'
 import type { SharedTripItem, SharedTripPlace } from './trip-collaboration.types'
 
@@ -35,7 +36,9 @@ export function parseSharedTripDocument(value: unknown): SharedTripDocument {
     }
   }
   const backup = new BackupRepository().validateImport({
-    format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(),
+    format: 'travel-planner-backup',
+    version: [object(row.region), ...row.places.map(object)].some(hasGeoFormatFields) ? 3 : 2,
+    exportedAt: new Date().toISOString(),
     data: {
       regions: [row.region], labels: [], routeMaps: [], routeMapPlaces: [],
       trips: [{ id: trip.id, name: trip.name, regionId: trip.regionId, startDate: trip.startDate, endDate: trip.endDate }],

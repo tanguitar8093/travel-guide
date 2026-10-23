@@ -1,4 +1,4 @@
-import { BackupRepository } from './backup.repository'
+import { validateSyncData } from './backup.repository'
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
 import { syncCloudAdapter } from './sync-cloud.adapter'
@@ -55,9 +55,7 @@ export async function previewHybridSync(
     remote.set(key, row)
     data[row.entity].push(row.record)
   }
-  new BackupRepository().validateImport({
-    format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data,
-  })
+  validateSyncData(data)
   const current = await store.inspectSyncState()
   assertCurrent()
   if (comparable(local) !== comparable(current)) {

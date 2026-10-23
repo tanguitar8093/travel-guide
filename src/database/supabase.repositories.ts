@@ -1,5 +1,6 @@
 import { supabase } from './supabase.client'
-import { assertLegacyGeoWrite } from './geo-format'
+import { hasGeoFormatFields } from './geo-format'
+import { sameStoredLocation } from './location.validation'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { BackupCounts } from './backup.repository'
 import { backupRepository as indexedBackupRepository } from './backup.repository'
@@ -36,6 +37,7 @@ interface SupabasePlaceRow {
   maps_url: string | null
   google_place_id: string | null
   notes: string | null
+  location: Place['location'] | null
   place_regions?: Array<{ region_id: string }> | null
   place_labels?: Array<{ label_id: string }> | null
 }
@@ -105,6 +107,7 @@ function normalizePlace(row: SupabasePlaceRow): Place {
     ...(row.maps_url ? { mapsUrl: row.maps_url } : {}),
     ...(row.google_place_id ? { googlePlaceId: row.google_place_id } : {}),
     ...(row.notes ? { notes: row.notes } : {}),
+    ...(row.location ? { location: row.location } : {}),
     regionIds: (row.place_regions ?? []).map((entry) => entry.region_id),
     labelIds: (row.place_labels ?? []).map((entry) => entry.label_id),
   }
@@ -117,6 +120,7 @@ function toPlaceInput(input: NewPlace) {
     maps_url: input.mapsUrl ?? null,
     google_place_id: input.googlePlaceId ?? null,
     notes: input.notes ?? null,
+    location: input.location ?? null,
   }
 }
 
@@ -227,7 +231,7 @@ async function loadPlaceRowsByIds(ids: string[]): Promise<Place[]> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,location,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .in('id', ids),
     ),
     'list places',
@@ -241,7 +245,7 @@ async function loadPlaceRows(): Promise<Place[]> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,location,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .order('name', { ascending: true }),
     ),
     'list places',
@@ -382,7 +386,7 @@ async function assertPlaceExistsById(placeId: string): Promise<Place> {
     Promise.resolve(
       supabase
         .from('places')
-        .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
+        .select('id,name,icon,maps_url,google_place_id,notes,location,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
         .eq('id', placeId)
         .maybeSingle(),
     ),
@@ -569,9 +573,26 @@ export class SupabaseLabelRepository {
 }
 
 export class SupabasePlaceRepository {
+  private async saveGeoPlace(id: string, input: NewPlace, create: boolean): Promise<string> {
+    const record: NewPlace = {
+      name: input.name, regionIds: input.regionIds, labelIds: input.labelIds,
+      ...(input.icon !== undefined && { icon: input.icon }),
+      ...(input.mapsUrl !== undefined && { mapsUrl: input.mapsUrl }),
+      ...(input.googlePlaceId !== undefined && { googlePlaceId: input.googlePlaceId }),
+      ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.location !== undefined && { location: input.location }),
+    }
+    const { data, error } = await withSupabaseTimeout(Promise.resolve(
+      supabase.rpc('app_save_place', { p_id: id, p_record: record, p_create: create }),
+    ), 'save place with relations')
+    if (error) throw mapSupabaseError(error, id)
+    if (data !== id) throw new ValidationError('地點儲存結果不符，請重新載入確認。')
+    return id
+  }
+
   async create(input: NewPlace): Promise<string> {
-    assertLegacyGeoWrite(input)
     validatePlace(input)
+    if (input.location) return this.saveGeoPlace(crypto.randomUUID(), input, true)
     await Promise.all([
       ...input.regionIds.map((regionId) => assertRegionExists(regionId)),
       ...input.labelIds.map((labelId) => assertLabelExists(labelId)),
@@ -603,7 +624,6 @@ export class SupabasePlaceRepository {
   }
 
   async update(id: string, changes: PlaceChanges): Promise<void> {
-    assertLegacyGeoWrite(changes)
     const current = await this.getById(id)
     if (!current) {
       throw new EntityNotFoundError('Place', id)
@@ -611,12 +631,16 @@ export class SupabasePlaceRepository {
 
     const next = { ...current, ...changes }
     validatePlace(next)
+    if (current.location || Object.hasOwn(changes, 'location')) {
+      await this.saveGeoPlace(id, next, false)
+      return
+    }
     await Promise.all([
       ...next.regionIds.map((regionId) => assertRegionExists(regionId)),
       ...next.labelIds.map((labelId) => assertLabelExists(labelId)),
     ])
 
-    const staleEstimateIds = current.googlePlaceId !== next.googlePlaceId
+    const staleEstimateIds = current.googlePlaceId !== next.googlePlaceId || !sameStoredLocation(current.location, next.location)
       ? await collectStaleItineraryItemIds(id)
       : []
 
@@ -700,7 +724,7 @@ export class SupabasePlaceRepository {
       Promise.resolve(
         supabase
           .from('places')
-          .select('id,name,icon,maps_url,google_place_id,notes,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
+          .select('id,name,icon,maps_url,google_place_id,notes,location,place_regions!place_regions_place_id_fkey(region_id),place_labels!place_labels_place_id_fkey(label_id)')
           .eq('id', id)
           .maybeSingle(),
       ),
@@ -1144,7 +1168,7 @@ export class SupabaseBackupRepository {
 
     return {
       format: 'travel-planner-backup' as const,
-      version: 2 as const,
+      version: [...regions, ...places, ...routeMaps, ...routeMapPlaces].some(hasGeoFormatFields) ? 3 as const : 2 as const,
       exportedAt: new Date().toISOString(),
       data: { regions, places, labels, trips, itineraryItems, routeMaps, routeMapPlaces },
     }
@@ -1152,7 +1176,6 @@ export class SupabaseBackupRepository {
 
   async previewReplaceAll(value: unknown): Promise<CloudBackupPreview> {
     const backup = this.validateImport(value)
-    if (backup.version === 3) throw new ValidationError('雲端尚未支援備份 v3；未送出覆蓋預覽。')
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
         supabase.rpc('app_backup_preview_replace', {
@@ -1171,7 +1194,6 @@ export class SupabaseBackupRepository {
     }
 
     const backup = this.validateImport(value)
-    if (backup.version === 3) throw new ValidationError('雲端尚未支援備份 v3；未送出覆蓋操作。')
     const { data, error } = await withSupabaseTimeout(
       Promise.resolve(
         supabase.rpc('app_backup_apply_replace', {

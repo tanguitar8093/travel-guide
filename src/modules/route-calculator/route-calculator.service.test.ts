@@ -209,7 +209,7 @@ it('does not reinterpret missing shared endpoints as private place IDs', async (
   mocks.getById.mockResolvedValue({ ...saved, id: 'missing', location: osmLocation })
   await expect(new RouteCalculatorService().resolveEndpoint({ source: 'selection', selection: {
     kind: 'shared-place', tripId: 'shared-trip', placeId: 'missing',
-  } })).rejects.toThrow('Shared place')
+  } })).rejects.toThrow('找不到共同行程地點「missing」')
   expect(mocks.getById).not.toHaveBeenCalled()
 })
 

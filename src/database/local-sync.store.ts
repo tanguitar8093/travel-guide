@@ -1,7 +1,7 @@
 import Dexie, { type Transaction } from 'dexie'
 import { ValidationError } from './errors'
-import { assertLegacySyncTask } from './geo-format'
-import { BackupRepository } from './backup.repository'
+import { validateSyncTask } from './geo-format'
+import { validateSyncData } from './backup.repository'
 import type { CloudSyncRecord } from './sync-cloud.adapter'
 import { LabelRepository } from './label.repository'
 import { ItineraryItemRepository, PlaceRepository, RegionRepository, TripRepository } from './repositories'
@@ -186,7 +186,7 @@ export class LocalSyncStore {
       ))
       const task = tasks.find((task) => !task.sharedTrip || !blockedTrips.has(task.sharedTrip.tripId))
       if (!task) return undefined
-      assertLegacySyncTask(task)
+      validateSyncTask(task)
       if (options.retryOnly && (!task.uploadChanges || task.status === 'conflict')) return undefined
       if (task.status === 'conflict') throw new ValidationError('有待處理的衝突；已停止同步，本機資料仍保留。')
       if (task.sharedTrip?.predecessorOperationId) throw new ValidationError('共享行程的前序操作尚未完成，不能上傳。')
@@ -327,7 +327,7 @@ export class LocalSyncStore {
         const [entity] = JSON.parse(key) as [SyncEntityName, string]
         data[entity].push(record)
       }
-      new BackupRepository().validateImport({ format: 'travel-planner-backup', version: 2, exportedAt: new Date().toISOString(), data })
+      validateSyncData(data)
       this.remoteTransactions.add(transaction)
       try {
         for (const row of applicable) {

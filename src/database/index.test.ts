@@ -43,28 +43,35 @@ describe('database barrel exports', () => {
     expect(typeof database.routeMapPlaces.findByRouteMapId).toBe('function')
   })
 
-  it.each(['indexeddb', 'supabase', 'hybrid'] as const)(
-    'keeps OSM location writes isolated to IndexedDB in %s mode', async mode => {
+  it.each(['indexeddb', 'supabase'] as const)(
+    'forwards new location formats to the existing %s backend without dropping fields', async mode => {
       const runtime = await import('./runtime')
       vi.spyOn(runtime, 'getDatabaseMode').mockReturnValue(mode)
-      const { places, regions, routeMaps, routeMapPlaces, backupRepository, ValidationError } = await import('./index')
+      const { places, regions, routeMaps, routeMapPlaces } = await import('./index')
       const indexed = await import('./repositories')
       const routeMapRepository = await import('./route-map.repository')
-      const placeCreate = vi.spyOn(indexed.places, 'create').mockResolvedValue('place')
-      const placeUpdate = vi.spyOn(indexed.places, 'update').mockResolvedValue(undefined)
-      const regionCreate = vi.spyOn(indexed.regions, 'create').mockResolvedValue('region')
-      const regionUpdate = vi.spyOn(indexed.regions, 'update').mockResolvedValue(undefined)
-      const routeCreate = vi.spyOn(routeMapRepository.routeMaps, 'create').mockResolvedValue('map')
-      const routeUpdate = vi.spyOn(routeMapRepository.routeMaps, 'update').mockResolvedValue(undefined)
-      const markerCreate = vi.spyOn(routeMapRepository.routeMapPlaces, 'create').mockResolvedValue('marker')
-      const markerUpdate = vi.spyOn(routeMapRepository.routeMapPlaces, 'update').mockResolvedValue(undefined)
+      const cloud = await import('./supabase.repositories')
+      const cloudRegions = await import('./supabase.region.repository')
+      const cloudMaps = await import('./supabase.route-map.repository')
+      const placeBackend = mode === 'indexeddb' ? indexed.places : cloud.supabasePlaces
+      const regionBackend = mode === 'indexeddb' ? indexed.regions : cloudRegions.supabaseRegions
+      const mapBackend = mode === 'indexeddb' ? routeMapRepository.routeMaps : cloudMaps.supabaseRouteMaps
+      const markerBackend = mode === 'indexeddb' ? routeMapRepository.routeMapPlaces : cloudMaps.supabaseRouteMapPlaces
+      const placeCreate = vi.spyOn(placeBackend, 'create').mockResolvedValue('place')
+      const placeUpdate = vi.spyOn(placeBackend, 'update').mockResolvedValue(undefined)
+      const regionCreate = vi.spyOn(regionBackend, 'create').mockResolvedValue('region')
+      const regionUpdate = vi.spyOn(regionBackend, 'update').mockResolvedValue(undefined)
+      const routeCreate = vi.spyOn(mapBackend, 'create').mockResolvedValue('map')
+      const routeUpdate = vi.spyOn(mapBackend, 'update').mockResolvedValue(undefined)
+      const markerCreate = vi.spyOn(markerBackend, 'create').mockResolvedValue('marker')
+      const markerUpdate = vi.spyOn(markerBackend, 'update').mockResolvedValue(undefined)
       const location = { source: 'user', kind: 'user-picked', coordinate: { latitude: 26.4, longitude: 127.9 } } as const
       const writes = [
         () => places.create({ name: 'Place', regionIds: [], labelIds: [], location }),
         () => places.update('place', { location }),
         () => places.update('place', { location: undefined }),
         () => regions.create({
-        name: 'Region', center: location.coordinate, centerMetadata: { source: 'user', kind: 'map-center' }, zoom: 12,
+          name: 'Region', center: location.coordinate, centerMetadata: { source: 'user', kind: 'map-center' }, zoom: 12,
         }),
         () => regions.update('region', { centerMetadata: undefined }),
       ]
@@ -75,25 +82,17 @@ describe('database barrel exports', () => {
         () => routeMapPlaces.create({ routeMapId: 'map', name: 'Marker', location }),
         () => routeMapPlaces.update('marker', { location: undefined }),
       )
-      if (mode === 'indexeddb') {
-        for (const write of writes) expect(write).not.toThrow()
-        expect(placeCreate).toHaveBeenCalled()
-        expect(placeUpdate).toHaveBeenCalled()
-        expect(regionCreate).toHaveBeenCalled()
-        expect(regionUpdate).toHaveBeenCalled()
-        expect(routeCreate).toHaveBeenCalled()
-        expect(routeUpdate).toHaveBeenCalled()
-        expect(markerCreate).toHaveBeenCalled()
-        expect(markerUpdate).toHaveBeenCalled()
-      } else {
-        for (const write of writes) expect(write).toThrow(ValidationError)
-        expect(placeCreate).not.toHaveBeenCalled()
-        expect(regionCreate).not.toHaveBeenCalled()
-      }
-      expect(() => backupRepository.replaceAll({
-        format: 'travel-planner-backup', version: 3, exportedAt: '2026-10-23T00:00:00.000Z',
-        data: { regions: [], places: [], labels: [], trips: [], itineraryItems: [], routeMaps: [], routeMapPlaces: [] },
-      })).toThrow(ValidationError)
+      for (const write of writes) await write()
+      expect(placeCreate).toHaveBeenCalled()
+      expect(placeUpdate).toHaveBeenCalled()
+      expect(regionCreate).toHaveBeenCalled()
+      expect(regionUpdate).toHaveBeenCalled()
+      expect(routeCreate).toHaveBeenCalled()
+      expect(routeUpdate).toHaveBeenCalled()
+      expect(markerCreate).toHaveBeenCalled()
+      expect(markerUpdate).toHaveBeenCalled()
+      expect(placeCreate.mock.calls[0][0]).toHaveProperty('location', location)
+      expect(routeCreate.mock.calls[0][0]).toHaveProperty('origin', origin)
     },
   )
 
