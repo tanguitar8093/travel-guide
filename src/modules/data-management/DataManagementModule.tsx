@@ -1,3 +1,4 @@
+import { AdminCreateAccount } from './AdminCreateAccount';
 import { useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import type { BackupCounts, DatabaseMode, SyncMode, TravelBackup } from "../../database";
@@ -411,12 +412,14 @@ function DataManagementModule() {
                   }
                 }}
               />
-              <span>顯示資料模式、同步資訊與共享同步操作</span>
+              <span>顯示資料模式、同步資訊、共享同步操作與建立帳號</span>
             </label>
             <p>顯示各模組頁首的資料模式與儲存提示；混合模式另顯示待同步數量、失敗與衝突、最近同步時間及儲存耗時。行程中的重新載入／同步共享行程按鈕也會依此設定顯示；同步錯誤與衝突處理仍會保留。設定依管理員帳號記住於此瀏覽器。</p>
             {syncInfo.error && <div className="data-management-feedback data-management-error" role="alert">無法讀取資訊顯示設定：{syncInfo.error}</div>}
           </section>
         )}
+
+        {syncInfo.visible && <AdminCreateAccount />}
 
         {layoutDebug.canConfigure && (
           <section className="data-management-card data-management-admin-info" aria-labelledby="admin-layout-debug-heading">

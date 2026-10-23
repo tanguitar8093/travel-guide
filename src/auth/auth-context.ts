@@ -11,6 +11,7 @@ export interface AuthContextValue {
   userRole: UserRole | null
   hasWorkspaceAccess: boolean
   errorMessage: string | null
+  signInWithGoogle(): Promise<void>
   signInWithPassword(email: string, password: string): Promise<void>
   signUpWithPassword(email: string, password: string): Promise<{ requiresEmailConfirmation: boolean }>
   signOut(): Promise<void>

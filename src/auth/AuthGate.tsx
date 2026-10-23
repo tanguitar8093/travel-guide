@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
 import { TourGuideAnimation } from "../common/TourGuideAnimation";
-import { useMapProvider } from "../geo/provider-preference";
 import { OkinawaLoginScene } from "./OkinawaLoginScene";
 import loginSoundUrl from "../../media/okiniwa-login.wav";
 import "./AuthGate.css";
@@ -12,26 +11,16 @@ interface AuthGateProps {
 }
 
 export function AuthGate({ children }: AuthGateProps) {
-  const { provider } = useMapProvider();
   const {
     status,
     userRole,
     hasWorkspaceAccess,
     errorMessage: authErrorMessage,
-    signInWithPassword,
-    signUpWithPassword,
+    signInWithGoogle,
     signOut,
     clearError,
   } = useAuth();
-  const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
-  const [loginMethod, setLoginMethod] = useState<"choose" | "password">("choose");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
-  const [formNoticeMessage, setFormNoticeMessage] = useState<string | null>(
-    null,
-  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeSound, setWelcomeSound] = useState<
     "idle" | "playing" | "blocked" | "failed" | "finished"
@@ -87,49 +76,15 @@ export function AuthGate({ children }: AuthGateProps) {
     });
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function handleGoogleSignIn() {
     setFormErrorMessage(null);
-    setFormNoticeMessage(null);
     clearError();
-
-    if (mode === "signUp" && password !== confirmPassword) {
-      setFormErrorMessage("兩次密碼輸入不一致。");
-      return;
-    }
-
     setIsSubmitting(true);
-
     try {
-      if (mode === "signIn") {
-        if (provider === "osm") playWelcomeSound();
-        await signInWithPassword(email.trim(), password);
-        return;
-      }
-
-      const { requiresEmailConfirmation } = await signUpWithPassword(
-        email.trim(),
-        password,
-      );
-      setPassword("");
-      setConfirmPassword("");
-      setMode("signIn");
-
-      if (requiresEmailConfirmation) {
-        setFormNoticeMessage("註冊成功，請到信箱完成驗證後再登入。");
-      } else {
-        setFormNoticeMessage("註冊成功，你已經可以直接登入。");
-      }
+      await signInWithGoogle();
     } catch (error) {
       stopWelcomeSound();
-      setFormErrorMessage(
-        error instanceof Error
-          ? error.message
-          : mode === "signUp"
-            ? "註冊失敗，請稍後再試。"
-            : "登入失敗，請稍後再試。",
-      );
-    } finally {
+      setFormErrorMessage(error instanceof Error ? error.message : "登入失敗，請稍後再試。");
       setIsSubmitting(false);
     }
   }
@@ -141,8 +96,7 @@ export function AuthGate({ children }: AuthGateProps) {
     welcomeSound === "failed";
   const showingOkinawaWelcome =
     waitingForSound ||
-    (welcomeSound === "finished" && status === "loading") ||
-    (provider === "osm" && mode === "signIn" && isSubmitting);
+    (welcomeSound === "finished" && status === "loading");
 
   if (status === "loading" || showingOkinawaWelcome) {
     return (
@@ -239,143 +193,25 @@ export function AuthGate({ children }: AuthGateProps) {
 
   return (
     <div className="auth-shell">
-      <section
-        className="auth-panel"
-        aria-label={mode === "signIn" ? "登入" : "建立新帳號"}
-      >
+      <section className="auth-panel" aria-label="登入">
         <div className="auth-brand">
           <p className="auth-eyebrow">旅圖 · TripMap</p>
-          <p className="auth-tagline" lang="en">
-            Your Journey, Your Map.
-          </p>
+          <p className="auth-tagline" lang="en">Your Journey, Your Map.</p>
         </div>
-        {mode === "signIn" ? (
-          <TourGuideAnimation />
-        ) : (
-          <>
-            <h1 id="auth-title">建立新帳號</h1>
-            <p className="auth-copy">
-              註冊完成後會寄出驗證信，完成驗證後才能登入。
-            </p>
-          </>
-        )}
-
-        {mode === "signIn" && loginMethod === "choose" ? (
-          <div className="auth-form" aria-label="選擇登入方式">
-            <p className="auth-method-heading">選擇登入方式</p>
-            <button className="auth-secondary auth-google-login" type="button" disabled>
-              Google 登入<span className="auth-method-note">即將開放</span>
-            </button>
-            <button className="auth-submit" type="button" onClick={() => setLoginMethod("password")}>
-              帳號登入
-            </button>
-            {visibleError && <p className="auth-error" role="alert">{visibleError}</p>}
-            <button className="auth-switch" type="button" onClick={() => {
-              setFormErrorMessage(null);
-              setFormNoticeMessage(null);
-              clearError();
-              setMode("signUp");
-            }}>
-              沒有帳號？建立一個新帳號
-            </button>
-          </div>
-        ) : (
-          <form className="auth-form" onSubmit={handleSubmit}>
-            <label className="auth-field">
-              <span>電子郵件</span>
-              <input
-                autoComplete="email"
-                inputMode="email"
-                name="email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                placeholder="you@example.com"
-                required
-              />
-            </label>
-
-            <label className="auth-field">
-              <span>{mode === "signIn" ? "密碼" : "設定密碼"}</span>
-              <input
-                autoComplete={
-                  mode === "signIn" ? "current-password" : "new-password"
-                }
-                name="password"
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder={mode === "signIn" ? "輸入密碼" : "設定密碼"}
-                required
-              />
-            </label>
-
-            {mode === "signUp" && (
-              <label className="auth-field">
-                <span>確認密碼</span>
-                <input
-                  autoComplete="new-password"
-                  name="confirmPassword"
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                  placeholder="再輸入一次密碼"
-                  required
-                />
-              </label>
-            )}
-
-            {formNoticeMessage && (
-              <p className="auth-notice" role="status">
-                {formNoticeMessage}
-              </p>
-            )}
-
-            {visibleError && (
-              <p className="auth-error" role="alert">
-                {visibleError}
-              </p>
-            )}
-
-            <button className="auth-submit" type="submit" disabled={isSubmitting}>
-              {isSubmitting
-                ? mode === "signIn"
-                  ? "登入中..."
-                  : "註冊中..."
-                : mode === "signIn"
-                  ? "登入"
-                  : "註冊"}
-            </button>
-
-            <button
-              className="auth-switch"
-              type="button"
-              onClick={() => {
-                setFormErrorMessage(null);
-                setFormNoticeMessage(null);
-                clearError();
-                setMode(mode === "signIn" ? "signUp" : "signIn");
-                setConfirmPassword("");
-                setLoginMethod("password");
-              }}
-            >
-              {mode === "signIn"
-                ? "沒有帳號？建立一個新帳號"
-                : "我已經有帳號，回到登入"}
-            </button>
-            {mode === "signIn" && (
-              <button className="auth-switch" type="button" disabled={isSubmitting} onClick={() => {
-                setLoginMethod("choose");
-                setPassword("");
-                setFormErrorMessage(null);
-                setFormNoticeMessage(null);
-                clearError();
-              }}>
-                返回選擇登入方式
-              </button>
-            )}
-          </form>
-        )}
+        <TourGuideAnimation />
+        <div className="auth-form">
+          <button className="auth-secondary auth-google-login" type="button"
+            disabled={isSubmitting} onClick={() => void handleGoogleSignIn()}>
+            <svg className="auth-google-logo" viewBox="0 0 48 48" aria-hidden="true">
+              <path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.92H24.8v7.42h10.54a9.02 9.02 0 0 1-3.91 5.92v4.92h6.33c3.7-3.41 5.85-8.43 5.85-14.34Z" />
+              <path fill="#34A853" d="M24.8 43.6c5.28 0 9.71-1.75 12.95-4.8l-6.33-4.92c-1.75 1.18-3.99 1.89-6.62 1.89-5.1 0-9.42-3.45-10.96-8.1H7.3v5.07A19.56 19.56 0 0 0 24.8 43.6Z" />
+              <path fill="#FBBC05" d="M13.84 27.67a11.75 11.75 0 0 1 0-7.5V15.1H7.3a19.56 19.56 0 0 0 0 17.64l6.54-5.07Z" />
+              <path fill="#EA4335" d="M24.8 12.07c2.88 0 5.45 1 7.49 2.96l5.62-5.62A18.8 18.8 0 0 0 24.8 4.25 19.56 19.56 0 0 0 7.3 15.1l6.54 5.07c1.54-4.65 5.86-8.1 10.96-8.1Z" />
+            </svg>
+            {isSubmitting ? "前往 Google…" : "Google 登入"}
+          </button>
+          {visibleError && <p className="auth-error" role="alert">{visibleError}</p>}
+        </div>
       </section>
     </div>
   );

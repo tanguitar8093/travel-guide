@@ -267,3 +267,9 @@
   outline: 2px solid #558662;
   outline-offset: 3px;
 }
+
+.auth-google-logo {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+}

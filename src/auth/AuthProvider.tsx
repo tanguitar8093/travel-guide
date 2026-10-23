@@ -1,3 +1,4 @@
+import { adminSyncInfoKey, canConfigureSyncInfo } from '../common/useAdminSyncInfo'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { setPublicCatalogAccount } from '../modules/public-itinerary/catalog-runtime'
 import { activateHybridAccount, deactivateHybridAccount } from '../database/hybrid.runtime'
@@ -13,6 +14,7 @@ import {
   fetchCurrentSession,
   fetchUserRole,
   signInWithPassword as signInWithPasswordGateway,
+  signInWithGoogle as signInWithGoogleGateway,
   signOutLocally,
   signUpWithPassword as signUpWithPasswordGateway,
   subscribeSessionChange,
@@ -176,6 +178,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     clearLocalAuthStorage()
   }
 
+  async function signInWithGoogle(): Promise<void> {
+    setErrorMessage(null)
+    const error = await signInWithGoogleGateway(window.location.origin)
+    if (error) {
+      setErrorMessage(error.message)
+      throw error
+    }
+  }
+
   async function signInWithPassword(email: string, password: string): Promise<void> {
     const error = await signInWithPasswordGateway(email, password)
     if (error) {
@@ -189,6 +200,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     email: string,
     password: string,
   ): Promise<{ requiresEmailConfirmation: boolean }> {
+    if (!canConfigureSyncInfo(status, userRole, hasWorkspaceAccess) || !session?.user ||
+      window.localStorage.getItem(adminSyncInfoKey(session.user.id)) !== 'true') {
+      throw new Error('只有開啟管理員資訊顯示的管理員可以建立帳號。')
+    }
     const emailRedirectTo = configuredEmailRedirectTo || window.location.origin
     const { requiresEmailConfirmation, error } = await signUpWithPasswordGateway(
       email,
@@ -229,6 +244,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         userRole,
         hasWorkspaceAccess,
         errorMessage,
+        signInWithGoogle,
         signInWithPassword,
         signUpWithPassword,
         signOut,

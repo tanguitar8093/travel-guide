@@ -1,3 +1,4 @@
+import { createClient } from '@supabase/supabase-js'
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js'
 
 import {
@@ -63,7 +64,16 @@ export async function signUpWithPassword(
   password: string,
   emailRedirectTo: string,
 ): Promise<{ requiresEmailConfirmation: boolean; error: Error | null }> {
-  const { data, error } = await supabase.auth.signUp({
+  const url = import.meta.env.VITE_SUPABASE_URL
+  const key = import.meta.env.VITE_SUPABASE_ANON_KEY
+  if (!url || !key) throw new Error('缺少 Supabase 設定。')
+  // Creating an account must never replace the signed-in administrator's session.
+  const registrationClient = createClient(
+    url,
+    key,
+    { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } },
+  )
+  const { data, error } = await registrationClient.auth.signUp({
     email,
     password,
     options: {
@@ -87,5 +97,13 @@ export function clearLocalAuthStorage(): void {
 
 export async function signOutLocally(): Promise<Error | null> {
   const { error } = await supabase.auth.signOut({ scope: 'local' })
+  return error ?? null
+}
+
+export async function signInWithGoogle(redirectTo: string): Promise<Error | null> {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo },
+  })
   return error ?? null
 }
