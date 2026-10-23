@@ -284,7 +284,7 @@ describe('local sync foundation', () => {
     await expect(store.mutate('outer', async (repositories) => {
       await repositories.regions.create({ name: 'Outer', zoom: 10, googlePlaceId: 'outer' })
       await createRegion()
-    })).rejects.toThrow('cannot be nested')
+    })).rejects.toThrow('不可巢狀')
     expect(await database.regions.count()).toBe(0)
     expect(await store.listTasks()).toEqual([])
   })

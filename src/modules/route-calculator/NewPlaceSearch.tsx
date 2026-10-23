@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { mountOsmAutocomplete } from '../../geo/osm-service'
 import type { OsmLocationCandidate } from '../../geo/osm-service'
-import { PlaceSearchHeading } from './PlaceSearchHeading'
+import { OsmSearchHeading } from '../../geo/OsmSearchHeading'
 
 export function NewPlaceSearch({ disabled, onConfirm }: {
   disabled: boolean
@@ -40,7 +40,7 @@ export function NewPlaceSearch({ disabled, onConfirm }: {
     return () => { active = false; cleanup?.() }
   }, [attempt])
   return <div>
-    <div className="route-new-search-title"><PlaceSearchHeading /></div>
+    <div className="route-new-search-title"><OsmSearchHeading title="新地點搜尋" /></div>
     <div ref={host} inert={disabled} aria-busy={loading} />
     {loading && <p role="status" className="route-field-hint">載入搜尋中…</p>}
     <label className="route-new-place-name">

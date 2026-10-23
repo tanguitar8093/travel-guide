@@ -83,15 +83,15 @@ export class LocalSyncStore {
     operation: string,
     work: (repositories: LocalSyncStore['repositories']) => Promise<Result>,
   ): Promise<Result> {
-    if (!operation.trim()) throw new ValidationError('Sync operation must not be empty.')
+    if (!operation.trim()) throw new ValidationError('同步操作名稱不可空白。')
     if (Dexie.currentTransaction?.db === this.database) {
-      throw new ValidationError('A local sync operation cannot be nested in another transaction.')
+      throw new ValidationError('本機同步操作不可巢狀執行於另一筆交易內。')
     }
     const assertCurrent = this.context.capture(this.database.account)
     return this.database.transaction('rw', this.database.tables, async (transaction) => {
       assertCurrent()
       const metadata = await this.database.syncMetadata.get('workspace')
-      if (!metadata) throw new ValidationError('Prepare the local workspace before editing.')
+      if (!metadata) throw new ValidationError('請先準備本機工作區，再進行編輯。')
       const mutation: TrackedMutation = { assertCurrent, touched: new Map() }
       this.mutations.set(transaction, mutation)
       try {
@@ -427,7 +427,7 @@ export class LocalSyncStore {
     }
     const mutation = this.mutations.get(root)
     if (!mutation || Dexie.currentTransaction?.db !== this.database) {
-      throw new ValidationError('Local sync writes require a tracked transaction.')
+      throw new ValidationError('本機同步寫入必須在受追蹤的交易內執行。')
     }
     mutation.assertCurrent()
     const key = JSON.stringify([entity, id])

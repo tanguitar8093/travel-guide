@@ -138,7 +138,7 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-sort-hint { margin: 0; padding: 8px 16px 0; color: #849087; font-size: 10px; }
 .itinerary-sort-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .itinerary-item-sortable { cursor: grab; -webkit-touch-callout: none; }
-.itinerary-item-pressing { border-radius: 8px; background-color: #dcebe0; box-shadow: inset 0 0 0 1px #a9c0ac; transition: background-color .2s ease, box-shadow .2s ease; }
+.itinerary-item-pressing { border-radius: 8px; background-color: #dcebe0; box-shadow: inset 0 0 0 1px #a9c0ac; transition: background-color .1s ease, box-shadow .1s ease; }
 .itinerary-item-sortable .itinerary-drag-handle { width: 29px; height: 29px; min-width: 0; min-height: 0; display: grid; place-items: center; box-sizing: border-box; margin: 0; border: 0; padding: 0; border-radius: 50%; color: #648a74; background: #eef4ef; font: 600 10px Inter, "Noto Sans TC", sans-serif; line-height: normal; letter-spacing: normal; cursor: grab; appearance: none; }
 .itinerary-drag-handle:focus-visible { outline: 2px solid #648a74; outline-offset: 3px; }
 .itinerary-list-dragging { user-select: none; }

@@ -7,6 +7,7 @@ import { AdminInfo } from "../../common/AdminInfo";
 import {
   formatTravelDistance,
   transportOptions,
+  transportOptionsForProvider,
 } from "../../common/route-estimate";
 import { RouteCalculatorController } from "./route-calculator.controller";
 import type {
@@ -33,6 +34,7 @@ const activeRouteMapStorageKey =
 
 export default function RouteCalculatorModule() {
   const { provider, error: providerError } = useMapProvider();
+  const availableTransportOptions = transportOptionsForProvider(provider);
   const dataRevision = useHybridDataRevision();
   const [controller] = useState(() => new RouteCalculatorController());
   const [places, setPlaces] = useState<Place[]>([]);
@@ -58,6 +60,7 @@ export default function RouteCalculatorModule() {
   const [origin, setOrigin] = useState<RouteEndpoint | null>(null);
   const [destination, setDestination] = useState<RouteEndpoint | null>(null);
   const [transport, setTransport] = useState("DRIVING");
+  const transportAvailable = availableTransportOptions.some(option => option.value === transport);
   const [tripSettingsOpen, setTripSettingsOpen] = useState(false);
   const [result, setResult] = useState<RouteCalculationResult>();
   const [calculating, setCalculating] = useState(false);
@@ -686,6 +689,10 @@ export default function RouteCalculatorModule() {
   async function calculate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy || resolving.origin || resolving.destination) return;
+    if (!transportAvailable) {
+      setError("請重新選擇目前地圖支援的交通方式。");
+      return;
+    }
     if (!origin || !destination) {
       setError("請選擇有效的起點與終點。");
       return;
@@ -964,13 +971,17 @@ export default function RouteCalculatorModule() {
                       );
                     }}
                   >
-                    {transportOptions.map((option) => (
+                    {!transportAvailable && <option value={transport} disabled hidden>請重新選擇交通方式</option>}
+                    {availableTransportOptions.map((option) => (
                       <option value={option.value} key={option.value}>
-                        {option.label}{provider === 'osm' && !['DRIVING', 'WALKING', 'BICYCLING'].includes(option.value) ? '（OSM 不支援）' : ''}
+                        {option.label}
                       </option>
                     ))}
                   </select>
                 </label>
+                {!transportAvailable && (
+                  <p className="route-field-hint" role="status">請重新選擇目前地圖支援的交通方式。</p>
+                )}
                 {!configured && (
                   <p className="route-inline-error" role="alert">
                     {providerError ?? '尚未設定 Google Maps API key，無法計算路程。'}
@@ -989,6 +1000,7 @@ export default function RouteCalculatorModule() {
                     resolving.origin ||
                     resolving.destination ||
                     !configured ||
+                    !transportAvailable ||
                     !origin ||
                     !destination
                   }

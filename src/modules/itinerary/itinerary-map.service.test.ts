@@ -101,7 +101,7 @@ describe('real itinerary provider resolution', () => {
       location: { source: 'user', kind: 'point', coordinate: { latitude: NaN, longitude: 127 } },
     })])
     expect(result.markers).toEqual([])
-    expect(result.unlocatedPlaces).toMatchObject([{ id: 'bad', reason: expect.stringContaining('Latitude') }])
+    expect(result.unlocatedPlaces).toMatchObject([{ id: 'bad', reason: expect.stringContaining('緯度') }])
     expect(mocks.details).not.toHaveBeenCalled()
   })
 
@@ -110,7 +110,7 @@ describe('real itinerary provider resolution', () => {
     await expect(new ItineraryMapService().loadRecords({
       ...region, center: { latitude: 100, longitude: 127 },
       centerMetadata: { source: 'user', kind: 'map-center' },
-    }, [])).rejects.toThrow('Latitude')
+    }, [])).rejects.toThrow('緯度')
     expect(mocks.details).not.toHaveBeenCalled()
   })
 

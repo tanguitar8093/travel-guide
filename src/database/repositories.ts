@@ -1,7 +1,8 @@
 import Dexie from 'dexie'
 import { database, type TravelDatabase } from './database'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
-import { sameStoredLocation } from './location.validation'
+import { findDuplicatePlace, sameStoredLocation } from './location.validation'
+import { placeDuplicateMessage } from '../geo/place-duplicate'
 import { clearRouteEndpointReferences } from './route-endpoint'
 import type {
   ItineraryItem,
@@ -91,7 +92,7 @@ export class RegionRepository {
           throw new EntityInUseError(
             'Region',
             id,
-            'one or more places or trips still reference it.',
+            '仍有地點或行程使用此區域。',
           )
         }
         await this.database.regions.delete(id)
@@ -129,6 +130,10 @@ export class PlaceRepository {
         const linkedRegions = (await this.database.regions.bulkGet(input.regionIds))
           .filter((region): region is Region => region !== undefined)
         validatePlaceRegionProviders(input, linkedRegions)
+        if (input.location) {
+          const duplicate = findDuplicatePlace(await this.database.places.toArray(), input)
+          if (duplicate) throw new ValidationError(placeDuplicateMessage(duplicate.place.name, duplicate.reason))
+        }
         await this.database.places.add({ ...input, id })
       },
     )
@@ -151,6 +156,12 @@ export class PlaceRepository {
         const linkedRegions = (await this.database.regions.bulkGet(next.regionIds))
           .filter((region): region is Region => region !== undefined)
         validatePlaceRegionProviders(next, linkedRegions)
+        if (next.location && (current.name !== next.name || !current.location ||
+            current.location.coordinate.latitude !== next.location.coordinate.latitude ||
+            current.location.coordinate.longitude !== next.location.coordinate.longitude)) {
+          const duplicate = findDuplicatePlace(await this.database.places.toArray(), next, id)
+          if (duplicate) throw new ValidationError(placeDuplicateMessage(duplicate.place.name, duplicate.reason))
+        }
         await this.database.places.put(next)
 
         if (current.googlePlaceId !== next.googlePlaceId || !sameStoredLocation(current.location, next.location)) {
@@ -219,7 +230,7 @@ export class PlaceRepository {
           throw new EntityInUseError(
             'Place',
             id,
-            'remove its itinerary items before deleting it.',
+            '請先移除使用此地點的行程項目，再刪除此地點。',
           )
         }
         await clearRouteEndpointReferences(this.database, endpoint => endpoint.kind === 'place' && endpoint.placeId === id)
@@ -283,7 +294,7 @@ export class TripRepository {
         required(await this.database.regions.get(next.regionId), 'Region', next.regionId)
         const items = await this.database.itineraryItems.where('tripId').equals(id).toArray()
         if (items.some((item) => item.date < next.startDate || item.date > next.endDate)) {
-          throw new ValidationError('Trip dates cannot exclude an existing itinerary item.')
+          throw new ValidationError('行程日期必須涵蓋所有既有的行程項目。')
         }
         await this.database.trips.put(next)
       },
@@ -436,7 +447,7 @@ export class ItineraryItemRepository {
         nextIds.size !== orderedIds.length ||
         orderedIds.some((id) => !currentIds.has(id))
       ) {
-        throw new ValidationError('The reordered itinerary items do not match this trip day.')
+        throw new ValidationError('排序清單與當日行程項目不一致，請重新載入後再試。')
       }
 
       const previousById = new Map<string, string | undefined>()
@@ -482,7 +493,7 @@ export class ItineraryItemRepository {
     required(place, 'Place', item.placeId)
 
     if (item.date < tripRecord.startDate || item.date > tripRecord.endDate) {
-      throw new ValidationError('Itinerary item date must be within the trip dates.')
+      throw new ValidationError('行程項目日期必須在行程起訖日期內。')
     }
   }
 }

@@ -3,7 +3,7 @@ import type { SyncAccount } from './sync.types'
 
 export function validateSyncAccount(account: SyncAccount): SyncAccount {
   if (!account.projectId?.trim() || !account.userId?.trim()) {
-    throw new ValidationError('Sync project and user IDs must not be empty.')
+    throw new ValidationError('同步專案與使用者識別碼不可空白。')
   }
   return { projectId: account.projectId, userId: account.userId }
 }
@@ -33,7 +33,7 @@ export class SyncAccountContext {
       if (generation !== this.generation ||
           this.current?.projectId !== account.projectId ||
           this.current?.userId !== account.userId) {
-        throw new ValidationError('The sync account is inactive or has changed.')
+        throw new ValidationError('同步帳號尚未啟用或已切換，請重新操作。')
       }
     }
     assertCurrent()

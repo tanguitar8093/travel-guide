@@ -62,7 +62,7 @@ export class LabelRepository {
           throw new EntityInUseError(
             'Label',
             id,
-            'remove its child labels and place assignments before deleting it.',
+            '請先移除子標籤與地點的標籤關聯，再刪除此標籤。',
           )
         }
 
@@ -116,7 +116,7 @@ export class LabelRepository {
 
     while (currentId !== undefined) {
       if (currentId === id || visited.has(currentId)) {
-        throw new ValidationError('Label hierarchy must not contain a cycle.')
+        throw new ValidationError('標籤階層不可形成循環。')
       }
 
       visited.add(currentId)

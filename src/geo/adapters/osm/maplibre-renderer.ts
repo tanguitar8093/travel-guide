@@ -62,7 +62,7 @@ export function createMapLibreRenderer(config: {
       const runtimeError = (event: { error: Error }) => {
         if (ready && !destroyed) {
           if (options.events?.onError) options.events.onError(toGeoError(event.error))
-          else console.error('MapLibre renderer error', event.error)
+          else console.error('MapLibre 地圖繪製失敗', event.error)
         }
       }
       const destroy = () => {

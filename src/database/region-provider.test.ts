@@ -95,10 +95,10 @@ describe('provider-specific regions', () => {
       name: '京都', location: {
         ...location, coordinate: { latitude: 35.68, longitude: 139.76 },
       }, regionIds: [osmRegionId], labelIds: [],
-    })).rejects.toThrow('Okinawa dataset coverage')
+    })).rejects.toThrow('沖繩圖資範圍')
     await expect(places.create({
       name: '京都 Google', googlePlaceId: 'google-place', regionIds: [osmRegionId], labelIds: [],
-    })).rejects.toThrow('Google region')
+    })).rejects.toThrow('Google 區域')
 
     const id = await places.create({
       name: '海中道路', location, regionIds: [osmRegionId], labelIds: [],
@@ -113,6 +113,92 @@ describe('provider-specific regions', () => {
     await expect(regions.create({
       ...DEFAULT_OSM_REGION,
       center: { latitude: 35.68, longitude: 139.76 },
-    })).rejects.toThrow('Okinawa dataset coverage')
+    })).rejects.toThrow('沖繩圖資範圍')
+  })
+
+  it('requires coordinates for OSM places even when a navigation URL is provided', async () => {
+    const database = new TravelDatabase(`required-coordinate-${crypto.randomUUID()}`)
+    databases.push(database)
+    const regionId = await new RegionRepository(database).create(DEFAULT_OSM_REGION)
+    const places = new PlaceRepository(database)
+    await expect(places.create({
+      name: '未定位', mapsUrl: 'https://example.com/maps', regionIds: [regionId], labelIds: [],
+    })).rejects.toThrow('只有導航網址')
+    expect(await database.places.count()).toBe(0)
+  })
+
+  it('rejects identical coordinate pairs across sources and names but permits editing the same place', async () => {
+    const database = new TravelDatabase(`unique-coordinate-${crypto.randomUUID()}`)
+    databases.push(database)
+    const regionId = await new RegionRepository(database).create(DEFAULT_OSM_REGION)
+    const places = new PlaceRepository(database)
+    const location = {
+      source: 'user' as const, kind: 'user-picked' as const,
+      coordinate: { latitude: 26.33, longitude: 127.92 },
+    }
+    const input = { name: '原地點', location, regionIds: [regionId], labelIds: [] }
+    const id = await places.create(input)
+    await expect(places.create({
+      ...input, name: '另一名稱', location: {
+        ...location, source: 'osm', reference: { provider: 'osm', id: 'node/123' },
+      },
+    })).rejects.toThrow('原地點')
+    await expect(places.update(id, { name: '改名', location })).resolves.toBeUndefined()
+    const second = await places.create({
+      ...input, name: '第二地點',
+      location: { ...location, coordinate: { latitude: 26.34, longitude: 127.92 } },
+    })
+    await expect(places.update(second, { location })).rejects.toThrow('改名')
+    await expect(places.update(second, { location: undefined, mapsUrl: 'https://example.com/' })).rejects.toThrow('只有導航網址')
+    expect(await database.places.count()).toBe(2)
+    expect((await places.getById(second))?.location?.coordinate.latitude).toBe(26.34)
+  })
+
+  it('serializes concurrent duplicate creations in the same IndexedDB transaction scope', async () => {
+    const database = new TravelDatabase(`concurrent-coordinate-${crypto.randomUUID()}`)
+    databases.push(database)
+    const regionId = await new RegionRepository(database).create(DEFAULT_OSM_REGION)
+    const places = new PlaceRepository(database)
+    const input = {
+      name: '同一位置', regionIds: [regionId], labelIds: [],
+      location: { source: 'user' as const, kind: 'user-picked' as const,
+        coordinate: { latitude: 26.33, longitude: 127.92 } },
+    }
+    const results = await Promise.allSettled([
+      places.create(input),
+      places.create({
+        ...input, name: '同位置的另一入口',
+        location: { ...input.location, coordinate: { latitude: 26.3302, longitude: 127.92 } },
+      }),
+    ])
+    expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1)
+    expect(await database.places.count()).toBe(1)
+  })
+
+  it('rejects nearby coordinates or matching names on create and update without blocking metadata edits', async () => {
+    const database = new TravelDatabase(`nearby-place-${crypto.randomUUID()}`)
+    databases.push(database)
+    const regionId = await new RegionRepository(database).create(DEFAULT_OSM_REGION)
+    const places = new PlaceRepository(database)
+    const input = {
+      name: '原地點', regionIds: [regionId], labelIds: [],
+      location: { source: 'user' as const, kind: 'user-picked' as const,
+        coordinate: { latitude: 26.33, longitude: 127.92 } },
+    }
+    await places.create(input)
+    const nearby = { ...input.location, coordinate: { latitude: 26.3302, longitude: 127.92 } }
+    const far = { ...input.location, coordinate: { latitude: 26.34, longitude: 127.92 } }
+    await expect(places.create({ ...input, name: '其他入口', location: nearby }))
+      .rejects.toThrow('和「原地點」距離不到 50 公尺')
+    await expect(places.create({ ...input, location: far }))
+      .rejects.toThrow('和「原地點」名稱相同')
+    const second = await places.create({ ...input, name: '第二地點', location: far })
+    await expect(places.update(second, { name: '原地點' })).rejects.toThrow('名稱相同')
+    await expect(places.update(second, { location: nearby })).rejects.toThrow('距離不到 50 公尺')
+    expect(await places.getById(second)).toMatchObject({ name: '第二地點', location: far })
+    await database.places.add({ ...input, id: 'legacy-copy', name: '舊副本', location: nearby })
+    await expect(places.update('legacy-copy', { notes: '保留既有資料的備註修改' })).resolves.toBeUndefined()
+    await expect(places.update('legacy-copy', { name: '改名後仍過近' })).rejects.toThrow('距離不到 50 公尺')
+    expect(await database.places.count()).toBe(3)
   })
 })

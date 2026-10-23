@@ -42,7 +42,7 @@ export function createGoogleRenderer(loadSdk: () => Promise<GoogleRendererSdk>):
           sdkError = error
           if (!ready) failMount?.(error)
           else if (options.events?.onError) options.events.onError(toGeoError(error))
-          else console.error('Google renderer error', error)
+          else console.error('Google 地圖繪製失敗', error)
         })
         if (sdkError) throw sdkError
         map = new sdk.Map(container, {

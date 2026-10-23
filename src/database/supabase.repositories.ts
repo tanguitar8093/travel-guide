@@ -74,7 +74,7 @@ function mapSupabaseError(error: SupabaseErrorLike, fallback: string): Error {
   }
 
   if (error.code === '23503') {
-    return new EntityInUseError('Record', fallback, 'one or more related records still reference it.')
+    return new EntityInUseError('Record', fallback, '仍有其他相關資料使用此筆資料。')
   }
 
   return new Error(error.message)
@@ -475,7 +475,7 @@ export class SupabaseLabelRepository {
     let currentParent = next.parentId
     while (currentParent !== undefined) {
       if (currentParent === id || visited.has(currentParent)) {
-        throw new ValidationError('Label hierarchy must not contain a cycle.')
+        throw new ValidationError('標籤階層不可形成循環。')
       }
 
       visited.add(currentParent)
@@ -518,7 +518,7 @@ export class SupabaseLabelRepository {
       throw new EntityInUseError(
         'Label',
         id,
-        'remove its child labels and place assignments before deleting it.',
+        '請先移除子標籤與地點的標籤關聯，再刪除此標籤。',
       )
     }
 
@@ -684,7 +684,7 @@ export class SupabasePlaceRepository {
       throw new EntityInUseError(
         'Place',
         id,
-        'remove its itinerary items before deleting it.',
+        '請先移除使用此地點的行程項目，再刪除此地點。',
       )
     }
 
@@ -783,7 +783,7 @@ export class SupabaseTripRepository {
       const date = (row as { date: string }).date
       return date < next.startDate || date > next.endDate
     })) {
-      throw new ValidationError('Trip dates cannot exclude an existing itinerary item.')
+      throw new ValidationError('行程日期必須涵蓋所有既有的行程項目。')
     }
 
     const { error } = await withSupabaseTimeout(
@@ -839,7 +839,7 @@ export class SupabaseItineraryItemRepository {
     await assertPlaceExistsById(input.placeId)
 
     if (input.date < trip.startDate || input.date > trip.endDate) {
-      throw new ValidationError('Itinerary item date must be within the trip dates.')
+      throw new ValidationError('行程項目日期必須在行程起訖日期內。')
     }
 
     const itineraryItemId = crypto.randomUUID()
@@ -889,7 +889,7 @@ export class SupabaseItineraryItemRepository {
     const trip = await assertTripExists(next.tripId)
     await assertPlaceExistsById(next.placeId)
     if (next.date < trip.startDate || next.date > trip.endDate) {
-      throw new ValidationError('Itinerary item date must be within the trip dates.')
+      throw new ValidationError('行程項目日期必須在行程起訖日期內。')
     }
 
     const { error } = await withSupabaseTimeout(
@@ -1012,7 +1012,7 @@ export class SupabaseItineraryItemRepository {
       nextIds.size !== orderedIds.length ||
       orderedIds.some((id) => !currentIds.has(id))
     ) {
-      throw new ValidationError('The reordered itinerary items do not match this trip day.')
+      throw new ValidationError('排序清單與當日行程項目不一致，請重新載入後再試。')
     }
 
     const previousById = new Map<string, string | undefined>()

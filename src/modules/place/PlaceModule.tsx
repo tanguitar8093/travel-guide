@@ -1,4 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { findDuplicatePlace } from "../../database/location.validation";
+import { placeDuplicateMessage } from "../../geo/place-duplicate";
 import type { FormEvent } from "react";
 import type { Label, NewPlace, Place, PlaceIcon, Region } from "../../database";
 import { placeIcons } from "../../database";
@@ -356,6 +358,26 @@ function PlaceModule() {
 
   const orderedLabels = useMemo(() => flattenLabels(labels), [labels]);
   const selectedPlace = places.find((place) => place.id === selectedPlaceId);
+  const coordinateChanged =
+    creating ||
+    !selectedPlace?.location ||
+    selectedPlace.location.coordinate.latitude !==
+      draft.location?.coordinate.latitude ||
+    selectedPlace.location.coordinate.longitude !==
+      draft.location?.coordinate.longitude;
+  const duplicatePlace = coordinateChanged || selectedPlace?.name !== draft.name
+    ? findDuplicatePlace(
+        places,
+        draft,
+        creating ? undefined : selectedPlaceId,
+      )
+    : undefined;
+  const locationSaveError =
+    provider === "osm" && !draft.location
+      ? ""
+      : duplicatePlace
+        ? placeDuplicateMessage(duplicatePlace.place.name, duplicatePlace.reason)
+        : "";
   const selectedGooglePlaceId = selectedPlace?.googlePlaceId;
   const draftGoogleDetails =
     googleDetailsForId === draft.googlePlaceId ? googleDetails : null;
@@ -679,6 +701,10 @@ function PlaceModule() {
     event.preventDefault();
     if (!provider) {
       setError(providerError ?? "請先選擇地圖供應商。");
+      return;
+    }
+    if (locationSaveError) {
+      setError(locationSaveError);
       return;
     }
     setSaving(true);
@@ -1137,7 +1163,12 @@ function PlaceModule() {
                     <button
                       className="save-button"
                       type="submit"
-                      disabled={saving || !provider || !draft.name.trim()}
+                      disabled={
+                        saving ||
+                        !provider ||
+                        !draft.name.trim() ||
+                        Boolean(locationSaveError)
+                      }
                     >
                       {saving ? "儲存中…" : creating ? "建立地點" : "儲存變更"}
                     </button>
@@ -1163,7 +1194,7 @@ function PlaceModule() {
                         />
                         <small>
                           {provider === "osm"
-                            ? "搜尋沖繩 OSM 名稱或輸入「緯度, 經度」，再選取結果。地點名稱請自行命名；Google 連結只作導航，不擷取其座標。"
+                            ? ""
                             : "選擇結果可連結或更換 Google 地點；資料庫只保存 place_id，地點名稱請填寫你自己的名稱。"}
                         </small>
                       </>
@@ -1179,6 +1210,11 @@ function PlaceModule() {
                           JavaScript API。
                         </span>
                       </div>
+                    )}
+                    {locationSaveError && (
+                      <p className="form-inline-error" role="alert">
+                        {locationSaveError}
+                      </p>
                     )}
                     {provider === "osm" && draft.location && (
                       <div className="google-selection">
@@ -1372,7 +1408,12 @@ function PlaceModule() {
                   <button
                     className="save-button"
                     type="submit"
-                    disabled={saving || !provider || !draft.name.trim()}
+                    disabled={
+                      saving ||
+                      !provider ||
+                      !draft.name.trim() ||
+                      Boolean(locationSaveError)
+                    }
                   >
                     {saving ? "儲存中…" : creating ? "建立地點" : "儲存變更"}
                   </button>

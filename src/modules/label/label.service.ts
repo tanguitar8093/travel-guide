@@ -49,7 +49,7 @@ export class LabelService {
     const visited = new Set<string>()
     const visit = (node: LabelTreeNode): void => {
       if (visited.has(node.id)) {
-        throw new ValidationError('Label hierarchy must not contain a cycle.')
+        throw new ValidationError('標籤階層不可形成循環。')
       }
       visited.add(node.id)
       for (const child of node.children) {
@@ -62,7 +62,7 @@ export class LabelService {
     }
 
     if (visited.size !== nodes.size) {
-      throw new ValidationError('Label hierarchy must not contain a cycle.')
+      throw new ValidationError('標籤階層不可形成循環。')
     }
 
     return roots

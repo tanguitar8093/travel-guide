@@ -164,58 +164,6 @@ div.workspace-layout > main.route-calculator-main { height: 100dvh; min-height: 
   .route-source-switch button { padding-inline: 5px; font-size: 11px; }
   .route-marker-panel { padding-inline: 14px; }
 }
-.route-search-heading {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-}
-
-.route-search-help {
-  width: 22px;
-  height: 22px;
-  border: 1px solid #b9c8c2;
-  border-radius: 50%;
-  background: #fff;
-  color: #547268;
-  cursor: pointer;
-}
-
-.route-search-dialog {
-  width: min(430px, calc(100vw - 32px));
-  border: 1px solid #d8e2dd;
-  border-radius: 16px;
-  padding: 22px;
-  color: #293e35;
-}
-
-.route-search-dialog::backdrop {
-  background: rgb(22 40 32 / 35%);
-}
-
-.route-search-dialog-heading {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.route-search-dialog-heading button {
-  border: 0;
-  background: transparent;
-  font-size: 24px;
-  cursor: pointer;
-}
-
-.route-search-dialog dt {
-  font-weight: 600;
-  margin-top: 12px;
-}
-
-.route-search-dialog dd {
-  margin: 4px 0 0;
-  overflow-wrap: anywhere;
-}
-
 .route-new-search-title {
   margin-bottom: 10px;
 }

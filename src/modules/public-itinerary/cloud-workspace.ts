@@ -9,8 +9,8 @@ export function createCloudWorkspaceCore(catalog: PublicItineraryCatalog, ownerI
   const assertCurrent = capturePublicCatalogAccount(ownerId)
   const cloud = createCatalogCloud(ownerId)
   const core = createSharedCatalogCore(catalog, ownerId, { id: '',
-    async read() { throw new Error('Cloud publication requires a source snapshot') },
-    async write() { throw new Error('Cloud apply uses an atomic RPC') },
+    async read() { throw new Error('雲端發布需要來源快照。') },
+    async write() { throw new Error('雲端套用必須使用不可分割的遠端程序呼叫（RPC）。') },
   }, assertCurrent, true, async sourceId => clonePublicSnapshot(await cloud.call('source', { sourceTripId: sourceId }) as PublicSnapshot))
   return {
     ...core,

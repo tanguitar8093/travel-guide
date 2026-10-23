@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent, PointerEvent, ReactNode } from "react";
 import type { ItineraryItem } from "../../database/models";
 
-export const itineraryDragDelay = 200;
+export const itineraryDragDelay = 100;
 
 export function moveItineraryCard(ids: readonly string[], id: string, index: number): string[] {
   const next = ids.filter(candidate => candidate !== id);

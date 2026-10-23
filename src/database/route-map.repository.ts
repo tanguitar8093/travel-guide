@@ -52,7 +52,7 @@ export class RouteMapRepository {
     if (!map.tripId) return
     if (!await this.storage.trips.get(map.tripId)) throw new EntityNotFoundError('Trip', map.tripId)
     const existing = await this.findByTripId(map.tripId)
-    if (existing && existing.id !== id) throw new ValidationError('This trip already has a route map.')
+    if (existing && existing.id !== id) throw new ValidationError('此行程已有試算地圖。')
   }
 
   private referenceTables() {
@@ -123,7 +123,7 @@ export class RouteMapPlaceRepository {
     }
     for (const [index, reference] of identities) {
       const existing = await this.storage.routeMapPlaces.where(index).equals([place.routeMapId, reference]).first()
-      if (existing && existing.id !== id) throw new ValidationError('This location is already on the route map.')
+      if (existing && existing.id !== id) throw new ValidationError('此地點已加入試算地圖。')
     }
   }
 }

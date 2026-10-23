@@ -25,7 +25,7 @@ describe('backup repository validation', () => {
   })
 
   it.each([-1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('rejects invalid distance %s', (distance) => {
-    expect(() => validateItineraryItem(distanceBackup(distance).data.itineraryItems[0])).toThrow('Travel distance')
+    expect(() => validateItineraryItem(distanceBackup(distance).data.itineraryItems[0])).toThrow('路程距離')
   })
 
   it('accepts a valid backup', () => {

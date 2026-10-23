@@ -14,40 +14,40 @@ import type {
 } from './models'
 
 export function validateRouteMap(map: NewRouteMap): void {
-  requireText(map.name, 'Route map name')
-  if (map.tripId !== undefined) requireText(map.tripId, 'Trip ID')
-  if (map.selectedDate !== undefined) requireDate(map.selectedDate, 'Selected date')
-  if (map.originGooglePlaceId !== undefined) requireText(map.originGooglePlaceId, 'Origin Google Place ID')
-  if (map.destinationGooglePlaceId !== undefined) requireText(map.destinationGooglePlaceId, 'Destination Google Place ID')
+  requireText(map.name, '試算地圖名稱')
+  if (map.tripId !== undefined) requireText(map.tripId, '行程識別碼')
+  if (map.selectedDate !== undefined) requireDate(map.selectedDate, '選取日期')
+  if (map.originGooglePlaceId !== undefined) requireText(map.originGooglePlaceId, '起點 Google 地點識別碼')
+  if (map.destinationGooglePlaceId !== undefined) requireText(map.destinationGooglePlaceId, '終點 Google 地點識別碼')
   if (map.originGooglePlaceId && map.originGooglePlaceId === map.destinationGooglePlaceId) {
-    throw new ValidationError('Route endpoints must be different.')
+    throw new ValidationError('起點與終點不可相同。')
   }
   const origin = getRouteMapEndpoint({ ...map, id: 'validation' }, 'origin')
   const destination = getRouteMapEndpoint({ ...map, id: 'validation' }, 'destination')
   if (origin && destination && routeEndpointKey(origin) === routeEndpointKey(destination)) {
-    throw new ValidationError('Route endpoints must be different.')
+    throw new ValidationError('起點與終點不可相同。')
   }
   if (!['DRIVING', 'TRANSIT', 'WALKING', 'BICYCLING', 'TWO_WHEELER'].includes(map.transport)) {
-    throw new ValidationError('Route map transport is invalid.')
+    throw new ValidationError('試算地圖的交通方式無效。')
   }
 }
 
 export function validateRouteMapPlace(place: NewRouteMapPlace): void {
-  requireText(place.routeMapId, 'Route map ID')
-  if (place.googlePlaceId !== undefined) requireText(place.googlePlaceId, 'Google Place ID')
+  requireText(place.routeMapId, '試算地圖識別碼')
+  if (place.googlePlaceId !== undefined) requireText(place.googlePlaceId, 'Google 地點識別碼')
   if (place.location !== undefined) {
     validateStoredLocation(place.location)
-    requireText(place.name, 'Route map place name')
+    requireText(place.name, '試算地圖地點名稱')
   }
   if (place.googlePlaceId === undefined && place.location === undefined) {
-    throw new ValidationError('Route map place requires a Google ID or stored location.')
+    throw new ValidationError('試算地圖地點需要 Google 地點識別碼或已儲存的座標。')
   }
-  if (place.name !== undefined) requireText(place.name, 'Route map place name')
+  if (place.name !== undefined) requireText(place.name, '試算地圖地點名稱')
 }
 
 function requireText(value: unknown, field: string): asserts value is string {
   if (typeof value !== 'string' || !value.trim()) {
-    throw new ValidationError(`${field} must not be empty.`)
+    throw new ValidationError(`${field}不可空白。`)
   }
 }
 
@@ -56,57 +56,57 @@ function requireDate(value: string, field: string): void {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value) ||
       !Number.isFinite(timestamp) ||
       new Date(timestamp).toISOString().slice(0, 10) !== value) {
-    throw new ValidationError(`${field} must be a valid YYYY-MM-DD date.`)
+    throw new ValidationError(`${field}必須是有效日期，格式為 YYYY-MM-DD。`)
   }
 }
 
 function requireIds(ids: string[], field: string): void {
   if (!Array.isArray(ids)) {
-    throw new ValidationError(`${field} must be an array of IDs.`)
+    throw new ValidationError(`${field}必須是識別碼清單。`)
   }
   for (const id of ids) {
-    requireText(id, `${field} entry`)
+    requireText(id, `${field}中的識別碼`)
   }
 }
 
 export function validateRegion(
   region: Omit<Region, 'id' | 'center' | 'centerMetadata'> & { center?: unknown; centerMetadata?: unknown },
 ): void {
-  requireText(region.name, 'Region name')
+  requireText(region.name, '區域名稱')
   if (region.mapProvider !== undefined && !['google', 'osm'].includes(region.mapProvider)) {
-    throw new ValidationError('Region map provider is invalid.')
+    throw new ValidationError('區域的地圖供應商無效。')
   }
   if (region.googlePlaceId !== undefined) {
-    requireText(region.googlePlaceId, 'Google Place ID')
+    requireText(region.googlePlaceId, 'Google 地點識別碼')
   }
   if (region.center !== undefined) {
     if (typeof region.center !== 'object' || region.center === null || Array.isArray(region.center) ||
         !('latitude' in region.center) || !('longitude' in region.center)) {
-      throw new ValidationError('Region center must be a coordinate pair.')
+      throw new ValidationError('區域中心必須包含緯度與經度。')
     }
     validateCoordinatePair(region.center.latitude, region.center.longitude)
   } else if (region.googlePlaceId === undefined) {
-    throw new ValidationError('Select a Google Maps place for the region.')
+    throw new ValidationError('請為區域選取 Google Maps 地點。')
   }
 
   if (region.centerMetadata !== undefined) {
     validateLocationMetadata(region.centerMetadata)
     if (region.center === undefined) {
-      throw new ValidationError('Region center metadata requires a center.')
+      throw new ValidationError('設定區域中心的來源資料時，必須同時提供中心座標。')
     }
   }
 
   if (region.mapProvider === 'osm') {
     if (region.googlePlaceId !== undefined || !region.center || !region.centerMetadata) {
-      throw new ValidationError('OSM regions require an OSM-owned center and cannot use a Google place ID.')
+      throw new ValidationError('OSM 區域需要已確認來源的中心座標，且不可使用 Google 地點識別碼。')
     }
     if (!isInsideOkinawaOsmCoverage(region.center)) {
-      throw new ValidationError('OSM region center is outside the current Okinawa dataset coverage.')
+      throw new ValidationError('OSM 區域中心超出目前沖繩圖資範圍。')
     }
   }
 
   if (!Number.isFinite(region.zoom) || region.zoom < 0 || region.zoom > 22) {
-    throw new ValidationError('Region zoom must be between 0 and 22.')
+    throw new ValidationError('區域的地圖縮放層級必須介於 0 與 22。')
   }
 }
 
@@ -117,109 +117,111 @@ export function validatePlaceRegionProviders(
   const linkedRegions = regions.filter(region => place.regionIds.includes(region.id))
   if (place.location) {
     if (place.googlePlaceId !== undefined) {
-      throw new ValidationError('A place cannot use Google and OSM locations at the same time.')
+      throw new ValidationError('同一地點不可同時使用 Google 與 OSM 位置。')
     }
     if (!place.regionIds.length || linkedRegions.some(region => region.mapProvider !== 'osm')) {
-      throw new ValidationError('OSM locations must belong only to an OSM region.')
+      throw new ValidationError('OSM 地點只能歸屬於 OSM 區域。')
     }
     if (!isInsideOkinawaOsmCoverage(place.location.coordinate)) {
-      throw new ValidationError('OSM locations are limited to the current Okinawa dataset coverage.')
+      throw new ValidationError('OSM 地點僅限於目前沖繩圖資範圍內。')
     }
   } else if (place.googlePlaceId && linkedRegions.some(region => region.mapProvider === 'osm')) {
-    throw new ValidationError('Google Places must belong only to a Google region.')
+    throw new ValidationError('Google 地點只能歸屬於 Google 區域。')
+  } else if (linkedRegions.some(region => region.mapProvider === 'osm')) {
+    throw new ValidationError('請先搜尋並選取地點，或輸入有效的緯度、經度；只有導航網址不能建立 OSM 地點。')
   }
 }
 
 export function validatePlace(place: Omit<Place, 'id'>): void {
-  requireText(place.name, 'Place name')
+  requireText(place.name, '地點名稱')
   if (place.location !== undefined) validateStoredLocation(place.location)
   if (
     place.icon !== undefined &&
     !placeIcons.some((icon) => icon === place.icon)
   ) {
-    throw new ValidationError('Place icon is not supported.')
+    throw new ValidationError('不支援此地點圖示。')
   }
   if (place.googlePlaceId !== undefined) {
-    requireText(place.googlePlaceId, 'Google Place ID')
+    requireText(place.googlePlaceId, 'Google 地點識別碼')
   }
-  requireIds(place.regionIds, 'regionIds')
-  requireIds(place.labelIds, 'labelIds')
+  requireIds(place.regionIds, '所屬區域')
+  requireIds(place.labelIds, '地點標籤')
 
   if (place.notes !== undefined && typeof place.notes !== 'string') {
-    throw new ValidationError('Place notes must be text.')
+    throw new ValidationError('地點備註必須是文字。')
   }
 
   if (place.mapsUrl !== undefined) {
-    requireText(place.mapsUrl, 'Maps URL')
+    requireText(place.mapsUrl, '導航網址')
     let url: URL
     try {
       url = new URL(place.mapsUrl)
     } catch {
-      throw new ValidationError('Maps URL must be a valid absolute URL.')
+      throw new ValidationError('導航網址必須是有效的完整網址。')
     }
 
     if (url.protocol !== 'https:' && url.protocol !== 'http:') {
-      throw new ValidationError('Maps URL must use HTTP or HTTPS.')
+      throw new ValidationError('導航網址必須使用 HTTP 或 HTTPS。')
     }
   }
 
   if (place.googlePlaceId === undefined && place.mapsUrl === undefined && place.location === undefined) {
-    throw new ValidationError('Select a Google Maps place, provide a map URL or a stored location.')
+    throw new ValidationError('請選取 Google Maps 地點、填寫導航網址，或提供已儲存的座標。')
   }
 }
 
 export function validateLabel(label: Omit<Label, 'id'>): void {
-  requireText(label.name, 'Label name')
-  requireText(label.color, 'Label color')
+  requireText(label.name, '標籤名稱')
+  requireText(label.color, '標籤顏色')
   if (label.parentId !== undefined) {
-    requireText(label.parentId, 'Parent label ID')
+    requireText(label.parentId, '上層標籤識別碼')
   }
 }
 
 export function validateTrip(trip: Omit<Trip, 'id'>): void {
-  requireText(trip.name, 'Trip name')
-  requireText(trip.regionId, 'Trip region ID')
-  requireDate(trip.startDate, 'Trip startDate')
-  requireDate(trip.endDate, 'Trip endDate')
+  requireText(trip.name, '行程名稱')
+  requireText(trip.regionId, '行程區域識別碼')
+  requireDate(trip.startDate, '行程開始日期')
+  requireDate(trip.endDate, '行程結束日期')
 
   if (trip.endDate < trip.startDate) {
-    throw new ValidationError('Trip endDate must be on or after startDate.')
+    throw new ValidationError('行程結束日期不可早於開始日期。')
   }
 }
 
 export function validateItineraryItem(item: Omit<ItineraryItem, 'id'>): void {
-  requireText(item.tripId, 'Trip ID')
-  requireText(item.placeId, 'Place ID')
-  requireDate(item.date, 'Itinerary item date')
+  requireText(item.tripId, '行程識別碼')
+  requireText(item.placeId, '地點識別碼')
+  requireDate(item.date, '行程項目日期')
 
   if (!Number.isInteger(item.order) || item.order < 0) {
-    throw new ValidationError('Itinerary item order must be a non-negative integer.')
+    throw new ValidationError('行程項目順序必須是大於或等於 0 的整數。')
   }
 
   if (item.arrivalTime !== undefined &&
       (typeof item.arrivalTime !== 'string' ||
        !/^([01]\d|2[0-3]):[0-5]\d$/.test(item.arrivalTime))) {
-    throw new ValidationError('Arrival time must use the HH:mm format.')
+    throw new ValidationError('抵達時間必須使用 HH:mm 格式。')
   }
 
   if (item.durationMinutes !== undefined &&
       (!Number.isInteger(item.durationMinutes) || item.durationMinutes <= 0)) {
-    throw new ValidationError('Duration must be a positive number of minutes.')
+    throw new ValidationError('停留時間必須是大於 0 的分鐘數。')
   }
 
   if (item.travelDurationMinutes !== undefined &&
       (!Number.isInteger(item.travelDurationMinutes) || item.travelDurationMinutes < 0)) {
-    throw new ValidationError('Travel duration must be a non-negative number of minutes.')
+    throw new ValidationError('路程時間必須是大於或等於 0 的分鐘數。')
   }
 
   if (item.transport !== undefined && typeof item.transport !== 'string') {
-    throw new ValidationError('Transport must be text.')
+    throw new ValidationError('交通方式必須是文字。')
   }
   if (item.travelDistanceMeters !== undefined &&
       (!Number.isSafeInteger(item.travelDistanceMeters) || item.travelDistanceMeters < 0)) {
-    throw new ValidationError('Travel distance must be a non-negative integer number of meters.')
+    throw new ValidationError('路程距離必須是大於或等於 0 的整數公尺數。')
   }
   if (item.note !== undefined && typeof item.note !== 'string') {
-    throw new ValidationError('Itinerary item note must be text.')
+    throw new ValidationError('行程項目備註必須是文字。')
   }
 }

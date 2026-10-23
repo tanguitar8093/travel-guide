@@ -17,7 +17,7 @@ const SUPABASE_TIMEOUT_MS = 8000
 function withTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => {
-      reject(new Error(`Supabase ${label} request timed out.`))
+      reject(new Error(`Supabase 請求逾時（${label}），請稍後再試。`))
     }, SUPABASE_TIMEOUT_MS)
 
     promise
@@ -61,7 +61,7 @@ function toSupabaseRegionInput(input: NewRegion) {
 
 function mapSupabaseError(error: { code?: string; message: string }, fallback: string): Error {
   if (error.code === '23503') {
-    return new EntityInUseError('Region', fallback, 'one or more places or trips still reference it.')
+    return new EntityInUseError('Region', fallback, '仍有地點或行程使用此區域。')
   }
 
   if (error.code === '42501') {

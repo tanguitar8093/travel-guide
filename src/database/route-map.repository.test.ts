@@ -41,10 +41,10 @@ it('rejects invalid references, duplicate trip maps and duplicate marker IDs', a
   await expect(maps.create({ name: 'Bad', tripId: 'missing', transport: 'WALKING' })).rejects.toThrow()
   const { tripId } = await setupTrip()
   const id = await maps.create({ name: 'Map', tripId, transport: 'WALKING' })
-  await expect(maps.create({ name: 'Duplicate', tripId, transport: 'DRIVING' })).rejects.toThrow('already')
+  await expect(maps.create({ name: 'Duplicate', tripId, transport: 'DRIVING' })).rejects.toThrow('已有試算地圖')
   await expect(markers.create({ routeMapId: 'missing', googlePlaceId: 'p' })).rejects.toThrow()
   await markers.create({ routeMapId: id, googlePlaceId: 'p' })
-  await expect(markers.create({ routeMapId: id, googlePlaceId: 'p' })).rejects.toThrow('already')
+  await expect(markers.create({ routeMapId: id, googlePlaceId: 'p' })).rejects.toThrow('已加入試算地圖')
 })
 
 it('cascades trip deletion only to its maps and markers, preserving unrelated data', async () => {
@@ -186,6 +186,6 @@ it('normalizes old backups and validates the new graph before accepting v2', () 
     data: { ...empty, routeMaps: [{ id: 'map', name: 'Map', transport: 'WALKING' }], routeMapPlaces: [{ id: 'p', routeMapId: 'map', googlePlaceId: 'g' }] },
   }
   expect(backupRepository.validateImport(value).data.routeMapPlaces).toHaveLength(1)
-  expect(() => backupRepository.validateImport({ ...value, data: { ...value.data, routeMaps: [] } })).toThrow('missing map')
-  expect(() => backupRepository.validateImport({ ...value, data: { ...value.data, routeMapPlaces: [{ ...value.data.routeMapPlaces[0], latitude: 25 }] } })).toThrow('unsupported')
+  expect(() => backupRepository.validateImport({ ...value, data: { ...value.data, routeMaps: [] } })).toThrow('地圖不存在')
+  expect(() => backupRepository.validateImport({ ...value, data: { ...value.data, routeMapPlaces: [{ ...value.data.routeMapPlaces[0], latitude: 25 }] } })).toThrow('不支援')
 })

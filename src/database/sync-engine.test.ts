@@ -146,7 +146,7 @@ describe('manual hybrid sync', () => {
       context.deactivate()
       return snapshot()
     })
-    await expect(checkHybridOnLogin(store, adapter, lock)).rejects.toThrow('account')
+    await expect(checkHybridOnLogin(store, adapter, lock)).rejects.toThrow('帳號')
     expect(await database.regions.count()).toBe(1)
   })
 
@@ -253,7 +253,7 @@ describe('manual hybrid sync', () => {
       context.deactivate()
       return { protocolVersion: 1, cursor: '0', records: [remoteRegion()] }
     })
-    await expect(syncHybridManually(store, adapter, lock)).rejects.toThrow('account')
+    await expect(syncHybridManually(store, adapter, lock)).rejects.toThrow('帳號')
     expect(await database.regions.count()).toBe(0)
   })
 

@@ -1,4 +1,5 @@
 import type { GoogleTravelMode } from '../modules/place/google-places.service'
+import type { GeoProvider } from '../geo/contracts'
 
 export const transportOptions: ReadonlyArray<{ value: GoogleTravelMode; label: string }> = [
   { value: 'DRIVING', label: '開車' },
@@ -7,6 +8,15 @@ export const transportOptions: ReadonlyArray<{ value: GoogleTravelMode; label: s
   { value: 'BICYCLING', label: '單車' },
   { value: 'TWO_WHEELER', label: '機車／二輪車' },
 ]
+
+export function transportOptionsForProvider(provider: GeoProvider | undefined): typeof transportOptions {
+  if (provider === 'google') return transportOptions
+  if (provider === 'osm') {
+    return transportOptions.filter(option =>
+      option.value === 'DRIVING' || option.value === 'WALKING' || option.value === 'BICYCLING')
+  }
+  return []
+}
 
 export function isGoogleTravelMode(value: string): value is GoogleTravelMode {
   return transportOptions.some((option) => option.value === value)

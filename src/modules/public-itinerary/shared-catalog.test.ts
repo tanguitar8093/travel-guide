@@ -200,6 +200,6 @@ it('applies the shared catalog into an isolated tracked account workspace and re
   expect((await store.listTasks())[0].changes).toHaveLength(5)
   expect(await b.publicItineraries.count()).toBe(0)
   context.deactivate()
-  await expect(core.apply(row.id)).rejects.toThrow('account')
+  await expect(core.apply(row.id)).rejects.toThrow('帳號')
   expect(await core.list()).toHaveLength(1)
 })

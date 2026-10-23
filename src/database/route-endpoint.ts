@@ -6,19 +6,19 @@ import type { RouteMap } from './models'
 import type { SharedTripSnapshot } from './shared-trip.types'
 
 function object(value: unknown): Record<string, unknown> {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('Route endpoint must be an object.')
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ValidationError('路線端點必須是物件。')
   return value as Record<string, unknown>
 }
 
 function keys(value: Record<string, unknown>, required: string[], optional: string[] = []): void {
   if (required.some(key => !Object.hasOwn(value, key)) ||
       Object.keys(value).some(key => !required.includes(key) && !optional.includes(key))) {
-    throw new ValidationError('Route endpoint has missing or unsupported fields.')
+    throw new ValidationError('路線端點缺少必要欄位，或包含不支援的欄位。')
   }
 }
 
 function text(value: unknown): void {
-  if (typeof value !== 'string' || !value.trim()) throw new ValidationError('Route endpoint IDs and names must not be empty.')
+  if (typeof value !== 'string' || !value.trim()) throw new ValidationError('路線端點的識別碼與名稱不可空白。')
 }
 
 export function validateRouteEndpoint(value: unknown): asserts value is RouteEndpointSelection {
@@ -50,12 +50,12 @@ export function validateRouteEndpoint(value: unknown): asserts value is RouteEnd
         if (location.name !== undefined) text(location.name)
         const reference = object(location.reference)
         keys(reference, ['provider', 'id'])
-        if (reference.provider !== 'google') throw new ValidationError('Google endpoint requires a Google reference.')
+        if (reference.provider !== 'google') throw new ValidationError('Google 路線端點需要 Google 地點參照。')
         text(reference.id)
-      } else throw new ValidationError('Route endpoint location kind is invalid.')
+      } else throw new ValidationError('路線端點的位置類型無效。')
       break
     }
-    default: throw new ValidationError('Route endpoint kind is invalid.')
+    default: throw new ValidationError('路線端點類型無效。')
   }
 }
 
@@ -81,7 +81,7 @@ export function getRouteMapEndpoint(
     validateRouteEndpoint(endpoint)
     if (googlePlaceId !== undefined &&
         (endpoint.kind !== 'location' || endpoint.value.kind !== 'google' || endpoint.value.reference.id !== googlePlaceId)) {
-      throw new ValidationError('Legacy and neutral route endpoints conflict.')
+      throw new ValidationError('舊版路線端點與新版端點資料不一致。')
     }
     return endpoint
   }
@@ -101,17 +101,17 @@ export async function assertRouteEndpointReference(
   if (endpoint.kind === 'route-map-place') {
     const marker = await storage.routeMapPlaces.get(endpoint.routeMapPlaceId)
     if (!marker) throw new EntityNotFoundError('Route map place', endpoint.routeMapPlaceId)
-    if (marker.routeMapId !== mapId) throw new ValidationError('Route endpoint marker belongs to another map.')
+    if (marker.routeMapId !== mapId) throw new ValidationError('路線端點的標記屬於另一張地圖。')
   }
   if (endpoint.kind === 'shared-place') {
     if (!storage.tables.some(table => table.name === 'sharedItineraries')) {
-      throw new ValidationError('Shared endpoints require an account-scoped shared workspace.')
+      throw new ValidationError('共享路線端點需要使用目前帳號的共享工作區。')
     }
     const snapshot = await storage.table<SharedTripSnapshot, string>('sharedItineraries').get(endpoint.tripId)
     if (!snapshot?.document || snapshot.document.trip.id !== endpoint.tripId ||
         !['owner', 'editor', 'viewer'].includes(snapshot.document.trip.access) ||
         !snapshot.document.places.some(place => place.id === endpoint.placeId)) {
-      throw new ValidationError('Shared endpoint is unavailable; select a location you can access.')
+      throw new ValidationError('共享路線端點無法使用，請選擇有權限存取的地點。')
     }
   }
 }

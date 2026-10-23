@@ -11,7 +11,7 @@ export interface SupabaseErrorLike {
 export function withSupabaseTimeout<T>(promise: Promise<T>, label: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = window.setTimeout(() => {
-      reject(new Error(`Supabase ${label} request timed out.`))
+      reject(new Error(`Supabase 請求逾時（${label}），請稍後再試。`))
     }, SUPABASE_TIMEOUT_MS)
 
     promise

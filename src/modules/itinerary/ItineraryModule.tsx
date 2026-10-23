@@ -29,6 +29,7 @@ import { SearchableSelectDialog } from "../../common/SearchableSelectDialog";
 import {
   formatTravelDistance,
   transportOptions,
+  transportOptionsForProvider,
 } from "../../common/route-estimate";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
@@ -191,6 +192,7 @@ function ItineraryModule({
 }) {
   const itineraryController = controller;
   const { provider: mapProvider, error: mapPreferenceError } = useMapProvider();
+  const availableTransportOptions = transportOptionsForProvider(mapProvider);
   const Layout = readonly ? PreviewLayout : WorkspaceLayout;
   const databaseMode = useDatabaseMode();
   const { user } = useAuth();
@@ -947,6 +949,11 @@ function ItineraryModule({
   async function handleItemSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedTripId) return;
+    if (mapProvider !== 'google' && itemDraft.transport &&
+        !availableTransportOptions.some(option => option.value === itemDraft.transport)) {
+      setError("請重新選擇目前地圖支援的交通方式，或清除交通方式。");
+      return;
+    }
     if (!itemDraft.placeId) {
       setError("請從搜尋結果中選擇地點。");
       placePickerInputRef.current?.focus();
@@ -1749,7 +1756,14 @@ function ItineraryModule({
                               disabled={interactionBusy}
                             >
                               <option value="">選擇前往方式</option>
+                              {mapProvider !== 'google' && itemDraft.transport &&
+                                !availableTransportOptions.some(option => option.value === itemDraft.transport) && (
+                                  <option value={itemDraft.transport} disabled hidden>
+                                    請重新選擇交通方式
+                                  </option>
+                                )}
                               {itemDraft.transport &&
+                                mapProvider === 'google' &&
                                 !transportOptions.some(
                                   (option) =>
                                     option.value === itemDraft.transport,
@@ -1758,7 +1772,7 @@ function ItineraryModule({
                                     舊資料：{itemDraft.transport}
                                   </option>
                                 )}
-                              {transportOptions.map((option) => (
+                              {availableTransportOptions.map((option) => (
                                 <option value={option.value} key={option.value}>
                                   {option.label}
                                 </option>

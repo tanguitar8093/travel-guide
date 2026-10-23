@@ -39,6 +39,20 @@ it('accepts explicitly entered user coordinates without a network request or fak
   expect(request).not.toHaveBeenCalled()
 })
 
+it('deduplicates nearby results regardless of name and equal names regardless of distance, preserving result order', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({
+    results: [
+      { id: 'node/1', name: '原地點', coordinates: [127.6, 26.2] },
+      { id: 'way/2', name: '另一入口', coordinates: [127.6, 26.2002] },
+      { id: 'node/3', name: '原地點', coordinates: [127.7, 26.3] },
+      { id: 'node/4', name: '其他地點', coordinates: [127.8, 26.4] },
+      { id: 'node/5', name: '附近但超過門檻', coordinates: [127.6, 26.2005] },
+    ],
+  })))
+  expect((await searchOsmLocations('地點')).map(candidate => candidate.id))
+    .toEqual(['node/1', 'node/4', 'node/5'])
+})
+
 it('parses exact Google place pins through the maps project parser and retains navigation URLs', async () => {
   request.mockResolvedValue(new Response(JSON.stringify({
     name: 'Kaichu Rd, Uruma, Okinawa, 日本', lat: 26.3316539, lng: 127.927996, inBounds: true,
@@ -95,7 +109,7 @@ it('marks view-center URLs for confirmation and rejects places outside local map
 it('rejects invalid parser responses and malformed coordinate input', async () => {
   request.mockResolvedValue(new Response(JSON.stringify({ name: 'bad', lat: 26.2, lng: 127.6, inBounds: true, resolved_url: 'x' })))
   await expect(searchOsmLocations('https://maps.google.com/?q=26.2,127.6')).rejects.toThrow('格式不正確')
-  await expect(searchOsmLocations('91, 127')).rejects.toThrow('Latitude')
+  await expect(searchOsmLocations('91, 127')).rejects.toThrow('緯度')
   await expect(searchOsmLocations('26.2 127.6')).rejects.toThrow('緯度')
 })
 

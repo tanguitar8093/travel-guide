@@ -144,7 +144,7 @@ describe('durable conflict resolution', () => {
       context.deactivate()
       return { protocolVersion: 1, cursor, records: [remote] }
     })
-    await expect(resolveConflictReview(store, review.token, 'cloud', adapter, lock)).rejects.toThrow('account')
+    await expect(resolveConflictReview(store, review.token, 'cloud', adapter, lock)).rejects.toThrow('帳號')
     expect(await database.outbox.count()).toBe(1)
   })
 

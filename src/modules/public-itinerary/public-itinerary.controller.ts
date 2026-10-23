@@ -60,7 +60,7 @@ export function createPublicItineraryController(userId: string): PublicItinerary
   }
   // Catalog browsing never depends on the current account's private workspace.
   const browsing = createSharedCatalogCore(catalog, '', { id: '',
-    read: async () => { throw new Error('No personal workspace') }, write: async () => { throw new Error('No personal workspace') } })
+    read: async () => { throw new Error('目前沒有可用的個人工作區。') }, write: async () => { throw new Error('目前沒有可用的個人工作區。') } })
   async function prepared() { await migrateExistingCatalog() }
   return {
     async list(query) { await prepared(); return browsing.list(query) },
