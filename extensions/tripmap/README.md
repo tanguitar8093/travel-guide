@@ -1,15 +1,15 @@
-# TripMap Chrome 擴充套件 v0.2
+# TripMap Chrome 擴充套件 v0.3.2
 
 Google OAuth、帳號管理與 Google Maps 快捷入口。
 地點依「名稱＋地點座標」判斷，不使用 Place ID、不限制沖繩範圍。
-地點按鈕與右鍵選單尚未接上新增 API；點擊不會寫入地點。
+地點按鈕與右鍵選單已接上 Supabase 新增 API；登入已開通的帳號後可寫入雲端。
 
 ## 安裝／更新
 
-1. 解壓縮 `tripmap-extension-v0.2.0.zip`，或使用專案中的 `extensions/tripmap` 資料夾。
+1. 解壓縮 `tripmap-extension-v0.3.2.zip`，或使用專案中的 `extensions/tripmap` 資料夾。
 2. 電腦 Chrome 開啟 `chrome://extensions`，開啟「開發人員模式」。
 3. 點「載入未封裝項目」，選取內含 manifest.json 的 `tripmap` 資料夾。
-4. 從 v0.1 首次更新：若舊版 ID 不同，請移除舊版再載入 v0.2，之後更新可用重新載入。
+4. 從 v0.1 首次更新：若舊版 ID 不同，請移除舊版再載入 v0.3.1，之後更新可用重新載入。
 5. 更新後重新整理已開啟的 Google Maps 分頁。
 
 此版 manifest 包含固定公開識別金鑰，同一份套件在不同路徑／電腦載入仍具有相同 ID：
@@ -43,11 +43,17 @@ https://cpechdjdfbbngnaeecoijepoaekbcgda.chromiumapp.org/oauth
 
 - 支援 `google.com`、`google.com.tw`、`google.co.jp`、`google.co.uk` 的 Google Maps。
 - 單一地點網址需包含 `/maps/place/名稱/` 及 `!3d緯度!4d經度`。
-- TripMap 按鈕放在地點資訊卡、總覽／評論／簡介分頁列上方，水平置中。資訊卡尚未出現時等待其載入。
+- TripMap 按鈕為獨立最上層懸浮入口，固定在左上方（左 24px、上 88px，避開搜尋列），不再插入資訊卡。
+- 入口右上角的 × 可關閉；同一地點即使網址裝飾參數改變也不會彈回，切換到另一個有效地點才重新顯示。關閉入口不影響右鍵加入，也不會取消已送出的新增。
 - 瀏覽器原生右鍵選單顯示「加入 TripMap 地點」。若地圖攔截右鍵，可在資訊面板的非連結空白處使用。
 - 動態切換地點、上一頁／下一頁、分頁切換與資訊卡重建皆會更新入口。
 - 只有地圖中心、搜尋列表、未展開短網址、缺少名稱／座標或多組不同地點座標時不顯示。
-- 目前點擊只輸出解析結果到 Console，不會宣稱已新增成功。
+- 點擊按鈕或右鍵「加入 TripMap 地點」後，直接使用擴充套件 session 呼叫雲端 API。
+- 頁面右下角唯讀浮動視窗顯示「加入地點中…」、「成功」或「失敗」，並附上地點名稱／原因；右鍵與畫面按鈕共用回饋。成功保留 8 秒，失敗保留 15 秒，不阻擋操作。管理介面也可查看最近結果。
+- API 目前沿用網站沖繩圖資範圍；範圍外會拒絕，不會假裝已加入。
+- 名稱相同或距離小於 50 公尺時沿用既有網站去重規則，不建立第二筆。
+- 不需開啟 TripMap 網頁；之後由既有雲端同步讀回資料。API 不依賴 Quick Tunnel。
+- API 契約詳見專案 `docs/api/quick-place-import.md`。
 
 ## 開發／驗證
 
@@ -66,4 +72,4 @@ node extensions/tripmap/check-browser.mjs
 ```
 
 瀏覽器檢查會載入真實擴充套件，但使用模擬 OAuth 回跳與 Auth API 驗證 PKCE、email、session 保存、更新、登出及按鈕位置。
-不會替你登入真實 Google 帳號，也不建立使用者或地點。
+不會替你登入真實 Google 帳號，也不建立真實使用者或地點。

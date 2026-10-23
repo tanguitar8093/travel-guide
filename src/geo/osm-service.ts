@@ -1,3 +1,5 @@
+import { parsePlaceUrl } from "../../shared/place-import/place-url.js";
+import { isInsideOkinawaOsmCoverage } from "./osm-coverage";
 import type {
   Coordinate,
   OsmPlaceReference,
@@ -123,7 +125,12 @@ export async function searchOsmLocations(
       text,
     )
   ) {
-    const data = await request("/api/parse-map-url", signal, { url: text });
+    const parsed = parsePlaceUrl(text);
+    const data = parsed ? {
+      lat: parsed.coordinate.latitude, lng: parsed.coordinate.longitude,
+      name: parsed.name, resolved_url: parsed.sourceUrl, locationKind: "pin",
+      inBounds: isInsideOkinawaOsmCoverage(parsed.coordinate),
+    } : await request("/api/parse-map-url", signal, { url: text });
     if (
       !record(data) ||
       typeof data.lat !== "number" ||
@@ -152,6 +159,9 @@ export async function searchOsmLocations(
       "google.com.tw",
       "www.google.com.tw",
       "maps.google.com.tw",
+      "google.co.uk",
+      "www.google.co.uk",
+      "maps.google.co.uk",
     ]);
     if (
       !["http:", "https:"].includes(resolvedUrl.protocol) ||

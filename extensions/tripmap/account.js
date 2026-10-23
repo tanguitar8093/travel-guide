@@ -13,6 +13,7 @@ function display(account) {
   signIn.hidden = account.signedIn;
   status.textContent = account.signedIn ? '已登入' : '登入後連結你的 TripMap 帳號。';
   redirect.textContent = account.redirectUrl;
+  void showRecent(account.signedIn);
 }
 
 async function request(type) {
@@ -55,3 +56,13 @@ document.getElementById('copy').addEventListener('click', async () => {
 });
 redirect.textContent = chrome.identity.getRedirectURL('oauth');
 void act('tripmap:account');
+
+async function showRecent(signedIn) {
+  const section = document.getElementById('recent');
+  const recent = (await chrome.storage.local.get('tripmap:last-import'))['tripmap:last-import'];
+  section.hidden = !signedIn || !recent;
+  if (recent) {
+    document.getElementById('recent-name').textContent = recent.name;
+    document.getElementById('recent-message').textContent = recent.message;
+  }
+}

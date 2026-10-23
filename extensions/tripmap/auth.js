@@ -1,3 +1,4 @@
+import { createImportPayload } from '../../shared/place-import/payload.js';
 import { createClient } from '@supabase/supabase-js';
 import { supabaseUrl, supabaseKey } from './config.js';
 
@@ -106,6 +107,7 @@ export async function signOut() {
   const result = await supabase.auth.signOut({ scope: 'local' });
   if (result.error) throw new Error('登出失敗，請檢查網路後重試。');
   await chrome.alarms.clear(refreshAlarm);
+  await chrome.storage.local.remove('tripmap:last-import');
   return { email: null, signedIn: false, redirectUrl: getOAuthRedirectUrl() };
 }
 
@@ -116,3 +118,28 @@ chrome.alarms.onAlarm.addListener(alarm => {
 });
 // Also reconcile expiry when Chrome wakes the worker after suspension/restart.
 void getUsableSession().catch(() => {});
+
+export async function importPlace(candidate, operationId) {
+  const session = await getUsableSession();
+  if (!session) throw new Error('請先點 Chrome 工具列的 TripMap，使用 Google 登入。');
+  const payload = createImportPayload(candidate, operationId);
+  const supabase = await client();
+  async function send() {
+    return supabase.rpc('app_import_place', payload).abortSignal(AbortSignal.timeout(20000));
+  }
+  let result = await send();
+  if (result.status === 401) {
+    const refreshed = await supabase.auth.refreshSession();
+    if (refreshed.error) throw new Error('登入已失效，請重新登入 TripMap。');
+    result = await send();
+  }
+  if (result.error) {
+    if (['PGRST202', '42883'].includes(result.error.code)) throw new Error('快捷加入 API 尚未部署，請先更新伺服器。');
+    if (result.error.code === '42501') throw new Error('此帳號尚未開通 TripMap 工作區權限。');
+    throw new Error(result.error.message || '新增失敗，請檢查網路後重試。');
+  }
+  const data = result.data;
+  if (!data || !['created', 'already_imported', 'duplicate'].includes(data.status)
+    || typeof data.placeId !== 'string' || typeof data.name !== 'string') throw new Error('新增 API 回傳格式不正確。');
+  return data;
+}

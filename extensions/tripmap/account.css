@@ -23,3 +23,7 @@ summary { cursor:pointer; color:#66796a; }
 code { display:block; overflow-wrap:anywhere; padding:10px; margin:10px 0; background:#e8efe6; border-radius:8px; font-size:11px; line-height:1.6; }
 footer { color:#839086; font-size:11px; line-height:1.6; margin-top:22px; }
 [hidden],#sign-in[hidden] { display:none!important; }
+
+#recent { margin-top:14px; }
+#recent-name { font-size:13px; font-weight:600; }
+#recent-message { font-size:12px; line-height:1.7; color:#718075; }

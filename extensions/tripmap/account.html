@@ -25,6 +25,9 @@
       </button>
       <p id="error" role="alert" hidden></p>
     </section>
+    <section id="recent" hidden aria-labelledby="recent-heading">
+      <h2 id="recent-heading">最近加入</h2><p id="recent-name"></p><p id="recent-message" role="status"></p>
+    </section>
     <details>
       <summary>OAuth 連線設定</summary>
       <p class="hint">首次設定時，將此固定網址加入 Supabase 的 Redirect URLs。</p>
@@ -32,7 +35,7 @@
       <button id="copy" class="secondary" type="button">複製回跳網址</button>
       <p id="copy-status" class="hint" role="status"></p>
     </details>
-    <footer>目前僅提供地點辨識入口，尚未啟用新增儲存。</footer>
+    <footer>在 Google Maps 選取地點後，點 TripMap 即可加入。</footer>
   </main>
 </body>
 </html>

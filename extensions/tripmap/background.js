@@ -1,4 +1,4 @@
-import { accountStatus, signIn, signOut } from './vendor/auth.js';
+import { accountStatus, signIn, signOut, importPlace } from './vendor/auth.js';
 import { parsePlaceUrl } from './place-url.js';
 
 const menuId = 'tripmap-add-place';
@@ -39,6 +39,33 @@ function navigationChanged(details) {
 chrome.webNavigation.onHistoryStateUpdated.addListener(navigationChanged);
 chrome.webNavigation.onReferenceFragmentUpdated.addListener(navigationChanged);
 
+const pendingImports = new Map();
+async function addPlace(tabId, url) {
+  const place = parsePlaceUrl(url);
+  const current = await chrome.tabs.get(tabId);
+  if (!place || current.url !== url) throw new Error('地點頁面已變更，請重新選取地點。');
+  const key = `${tabId}:${url}`;
+  if (pendingImports.has(key)) return pendingImports.get(key);
+  const work = (async () => {
+    void chrome.tabs.sendMessage(tabId, { type: 'tripmap:import-result', url, state: 'saving' }).catch(() => {});
+    try {
+      const result = await importPlace(place, crypto.randomUUID());
+      const message = result.status === 'duplicate'
+        ? result.reason === 'nearby' ? `附近已有「${result.name}」，未重複新增。` : `已有同名地點「${result.name}」，未重複新增。`
+        : `已加入「${result.name}」`;
+      void chrome.tabs.sendMessage(tabId, { type: 'tripmap:import-result', url, state: 'success', message }).catch(() => {});
+      await chrome.storage.local.set({ 'tripmap:last-import': { name: place.name, status: result.status, message, at: Date.now() } });
+      return { ...result, message };
+    } catch (error) {
+      void chrome.tabs.sendMessage(tabId, { type: 'tripmap:import-result', url, state: 'error', message: error.message }).catch(() => {});
+      await chrome.storage.local.set({ 'tripmap:last-import': { name: place.name, status: 'error', message: error.message, at: Date.now() } });
+      throw error;
+    }
+  })().finally(() => pendingImports.delete(key));
+  pendingImports.set(key, work);
+  return work;
+}
+
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (sender.id !== chrome.runtime.id) return;
   const accountPage = sender.url === chrome.runtime.getURL('account.html');
@@ -49,6 +76,10 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
     return true;
   }
   if (!sender.tab || sender.frameId !== 0) return;
+  if (message?.type === 'tripmap:add-place') {
+    void addPlace(sender.tab.id, message.url).then(result => respond({ result })).catch(error => respond({ error: error.message }));
+    return true;
+  }
   if (message?.type === 'tripmap:inspect') {
     respond({ place: parsePlaceUrl(message.url) });
     void updateMenu();
@@ -57,8 +88,7 @@ chrome.runtime.onMessage.addListener((message, sender, respond) => {
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId !== menuId) return;
-  const place = parsePlaceUrl(info.pageUrl || tab?.url);
-  if (place) console.info('[TripMap] 入口預覽；本版不儲存地點', place);
+  if (tab?.id) void addPlace(tab.id, info.pageUrl || tab.url).catch(error => console.warn('[TripMap]', error.message));
 });
 
 // Reconcile persisted menus whenever Chrome wakes the service worker.

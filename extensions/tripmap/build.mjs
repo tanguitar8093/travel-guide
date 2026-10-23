@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile, writeFile } from 'node:fs/promises';
 const directory = fileURLToPath(new URL('./', import.meta.url));
 const root = fileURLToPath(new URL('../../', import.meta.url));
+await writeFile(`${directory}place-url.js`, await readFile(`${root}shared/place-import/place-url.js`));
 const env = loadEnv('development', root, 'VITE_');
 const url = new URL(env.VITE_SUPABASE_URL);
 const key = env.VITE_SUPABASE_ANON_KEY;

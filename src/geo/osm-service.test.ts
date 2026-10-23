@@ -53,7 +53,7 @@ it('deduplicates nearby results regardless of name and equal names regardless of
     .toEqual(['node/1', 'node/4', 'node/5'])
 })
 
-it('parses exact Google place pins through the maps project parser and retains navigation URLs', async () => {
+it('shares exact Google place pin parsing with the extension and retains navigation URLs', async () => {
   request.mockResolvedValue(new Response(JSON.stringify({
     name: 'Kaichu Rd, Uruma, Okinawa, 日本', lat: 26.3316539, lng: 127.927996, inBounds: true,
     resolved_url: 'https://www.google.com/maps/place/Kaichu+Rd,+Uruma,+Okinawa,+日本/@26.3316587,127.9254157,17z/data=!3m1!4b1!4m6!3m5!1s0x34e509b449e6e1f5:0x6961d4cf7583cfb0!8m2!3d26.3316539!4d127.927996!16s/m/0j_5g8l?authuser=0&entry=ttu',
@@ -67,8 +67,7 @@ it('parses exact Google place pins through the maps project parser and retains n
   })
   expect(suggestedOsmLocationName(candidate)).toBe('Kaichu Rd, Uruma, Okinawa, 日本')
   expect(candidate.mapsUrl).toContain('google.com/maps/place/Kaichu')
-  expect(JSON.parse(request.mock.calls[0][1].body)).toEqual({ url })
-  expect(request.mock.calls[0][0]).toBe('https://maps.example.test/api/parse-map-url')
+  expect(request).not.toHaveBeenCalled()
 })
 
 it.each([

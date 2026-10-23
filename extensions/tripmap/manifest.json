@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TripMap 快捷加入地點",
-  "version": "0.2.0",
-  "description": "辨識 Google Maps 地點名稱與座標，顯示 TripMap 快捷入口。",
+  "version": "0.3.2",
+  "description": "Google 登入後，從 Google Maps 依名稱與座標快捷加入 TripMap 地點。",
   "permissions": [
     "contextMenus",
     "webNavigation",
