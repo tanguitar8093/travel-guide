@@ -1,0 +1,61 @@
+{
+  "manifest_version": 3,
+  "name": "TripMap 快捷加入地點",
+  "version": "0.2.0",
+  "description": "辨識 Google Maps 地點名稱與座標，顯示 TripMap 快捷入口。",
+  "permissions": [
+    "contextMenus",
+    "webNavigation",
+    "identity",
+    "storage",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.google.com/maps*",
+    "https://maps.google.com/*",
+    "https://*.google.com.tw/maps*",
+    "https://maps.google.com.tw/*",
+    "https://*.google.co.jp/maps*",
+    "https://maps.google.co.jp/*",
+    "https://*.google.co.uk/maps*",
+    "https://maps.google.co.uk/*",
+    "https://dblpjzimucrlmmgwntiq.supabase.co/*"
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.google.com/maps*",
+        "https://maps.google.com/*",
+        "https://*.google.com.tw/maps*",
+        "https://maps.google.com.tw/*",
+        "https://*.google.co.jp/maps*",
+        "https://maps.google.co.jp/*",
+        "https://*.google.co.uk/maps*",
+        "https://maps.google.co.uk/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlec5qijsrzZG1bhn7brl23588HjQrFJhBsGz5jrjpYzCmFkI6cwCwJMBeWkGbyZYQpPVsNeCuaiAaGmWxZ5Ob9gC1Iyng1QToTkQUlDelII93oBA+2WC6R+T1Y9BtZwLo/9k7XFArtoRUXSth0A/Shzad9nAVBIG/5z8VrxmM9NFRiLgAHg8V7TCYFnR8sMavxVnEDuq0Xt+H/aF1jXkl5XP+w54wCCtm6YzVlc0l6HsKQKgVXjhrtmwixAbDSPgIRAIS00JAFk1Pwo/3qIVw+UMsJ3ILovmL28P88N1zumGlHQUw0HQ6N+SHhKqe1wwgPNRIFOm2psnenRo0ROT1wIDAQAB",
+  "action": {
+    "default_title": "TripMap 帳號管理",
+    "default_popup": "account.html"
+  },
+  "options_ui": {
+    "page": "account.html",
+    "open_in_tab": true
+  }
+}
