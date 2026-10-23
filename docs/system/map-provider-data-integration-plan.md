@@ -667,3 +667,15 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 | Vite 固定白名單圖資與 MapLibre module | land GeoJSON 與 MapLibre module HTTP 200 |
 
 短網址的外網轉址未做 live 驗證；其格式已在 service 單元測試確認會傳至既有 parser。未跑 build、lint、瀏覽器或 Google API。雲端／Hybrid 新格式寫入 gate 仍保留，OSM 新格式資料仍只開放 standalone IndexedDB，不能據此宣稱跨裝置同步已完成。
+
+### 13.16 IndexedDB 區域依地圖供應商隔離
+
+使用者要求 OSM 區域與 Google 區域分開；現有 OSM 圖資與可儲存位置目前限沖繩。已實作：
+
+- [Region](../../src/database/models.ts) 增加可選 `mapProvider` 歸屬；舊資料未標記時一律視為 Google，既有 Google Region／地點／行程不改寫供應商。
+- IndexedDB v12 只在 standalone `travel-planner` 資料庫首次升級時建立獨立的預設「沖繩」OSM Region。遷移將沖繩範圍內、原先掛在 Google Region 的 OSM locations 移至 OSM Region；只有全部行程地點皆為可用沖繩 OSM location 的行程才一起改掛 OSM Region。混合行程維持原 Google Region，避免遷移改變混合行程的既有語意。
+- Region／Place／Itinerary 的區域列表依目前 provider 過濾，不會在 OSM 模式顯示 Google Regions 或 Google-region trips。新建 OSM place 與選取 OSM location 時預設關聯目前列表第一個 OSM Region。
+- IndexedDB repository 與 backup validation 防止 OSM location 關聯 Google Region、Google Place ID 關聯 OSM Region；OSM Region 中心與 OSM 儲存位置都驗證在目前沖繩資料 bounds 內。
+- OSM Region/location 仍只允許 standalone IndexedDB 寫入；Supabase／Hybrid gate 未放寬。Account-scoped Hybrid 資料庫不會自行注入未排入 outbox 的 OSM Region。
+
+驗證：區域遷移／provider 隔離、備份、database facade、route-map repository、place、itinerary 相關共 7 檔 49 項測試通過；app 與 node TypeScript 檢查通過。未執行 build、lint、瀏覽器或 live Supabase。

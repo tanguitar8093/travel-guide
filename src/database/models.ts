@@ -3,6 +3,7 @@ import type { LocationMetadata, RouteEndpointSelection, StoredLocation } from '.
 export interface Region {
   id: string
   name: string
+  mapProvider?: 'google' | 'osm'
   center?: {
     latitude: number
     longitude: number

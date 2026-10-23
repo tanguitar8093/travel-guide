@@ -11,6 +11,7 @@ import {
   validateTrip,
   validateRouteMap,
   validateRouteMapPlace,
+  validatePlaceRegionProviders,
 } from './validation'
 
 export interface TravelBackup {
@@ -105,6 +106,10 @@ function validateReferences(backup: NormalizedTravelBackup): void {
   const tripById = new Map(backup.data.trips.map((trip) => [trip.id, trip]))
   const mapIds = new Set(backup.data.routeMaps.map((map) => map.id))
   const markersById = new Map(backup.data.routeMapPlaces.map(marker => [marker.id, marker]))
+  for (const place of backup.data.places) {
+    const linkedRegions = backup.data.regions.filter(region => place.regionIds.includes(region.id))
+    validatePlaceRegionProviders(place, linkedRegions)
+  }
   const mapTrips = new Set<string>()
   for (const map of backup.data.routeMaps) {
     for (const side of ['origin', 'destination'] as const) {
@@ -222,7 +227,7 @@ function validateBackup(value: unknown): NormalizedTravelBackup {
       regionRecord,
       'Region',
       ['name', 'zoom'],
-      ['center', 'googlePlaceId', ...(geo ? ['centerMetadata'] : [])],
+      ['center', 'googlePlaceId', ...(geo ? ['centerMetadata', 'mapProvider'] : [])],
       validateRegion,
     )
   })

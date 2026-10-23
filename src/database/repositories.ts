@@ -21,6 +21,7 @@ import {
   validateItineraryItem,
   validatePlace,
   validateRegion,
+  validatePlaceRegionProviders,
   validateTrip,
 } from './validation'
 
@@ -125,6 +126,9 @@ export class PlaceRepository {
       async () => {
         await requireRegions(this.database, input.regionIds)
         await requireLabels(this.database, input.labelIds)
+        const linkedRegions = (await this.database.regions.bulkGet(input.regionIds))
+          .filter((region): region is Region => region !== undefined)
+        validatePlaceRegionProviders(input, linkedRegions)
         await this.database.places.add({ ...input, id })
       },
     )
@@ -144,6 +148,9 @@ export class PlaceRepository {
         validatePlace(next)
         await requireRegions(this.database, next.regionIds)
         await requireLabels(this.database, next.labelIds)
+        const linkedRegions = (await this.database.regions.bulkGet(next.regionIds))
+          .filter((region): region is Region => region !== undefined)
+        validatePlaceRegionProviders(next, linkedRegions)
         await this.database.places.put(next)
 
         if (current.googlePlaceId !== next.googlePlaceId || !sameStoredLocation(current.location, next.location)) {

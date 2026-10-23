@@ -2,7 +2,7 @@ import { ValidationError } from './errors'
 import type { SyncChange, SyncTask } from './sync.types'
 
 export function hasGeoFormatFields(value: object): boolean {
-  return ['location', 'centerMetadata', 'origin', 'destination'].some(key => Object.hasOwn(value, key))
+  return ['location', 'centerMetadata', 'mapProvider', 'origin', 'destination'].some(key => Object.hasOwn(value, key))
 }
 
 export function assertLegacyGeoWrite(value: object): void {

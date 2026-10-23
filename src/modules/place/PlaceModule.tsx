@@ -14,6 +14,7 @@ import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import type { StoredLocation } from "../../geo/contracts";
 import { useMapProvider } from "../../geo/provider-preference";
 import { googleMapsNavigationUrl, suggestedOsmLocationName } from "../../geo/osm-service";
+import { defaultRegionIds, regionsForMapProvider } from "../../geo/region-provider";
 import { OsmSearchHeading } from "../../geo/OsmSearchHeading";
 
 interface PlaceDraft {
@@ -301,6 +302,7 @@ function PlaceModule() {
   const [selectedPlaceId, setSelectedPlaceId] = useState<string>();
   const [draft, setDraft] = useState<PlaceDraft>(emptyDraft);
   const { provider, error: providerError } = useMapProvider();
+  const providerRegions = regionsForMapProvider(regions, provider);
   const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails | null>(
     null,
   );
@@ -493,6 +495,7 @@ function PlaceModule() {
       if (!active) return;
       setDraft(current => ({
         ...current, location: candidate.location, googlePlaceId: undefined,
+        regionIds: defaultRegionIds(regions, provider),
         mapsUrl: candidate.mapsUrl ?? current.mapsUrl,
         name: current.name || suggestedOsmLocationName(candidate),
       }));
@@ -601,7 +604,7 @@ function PlaceModule() {
     setCreating(true);
     setEditing(true);
     setSelectedPlaceId(undefined);
-    setDraft({ ...emptyDraft, regionIds: regions.length === 1 ? [regions[0].id] : [] });
+    setDraft({ ...emptyDraft, regionIds: defaultRegionIds(regions, provider) });
     setGoogleDetails(null);
     setGoogleDetailsForId(undefined);
     setGoogleDetailsErrorForId(undefined);
@@ -1187,10 +1190,10 @@ function PlaceModule() {
 
                   <fieldset className="place-choice-field">
                     <legend>所屬區域</legend>
-                    {regions.length ? (
+                    {providerRegions.length ? (
                       <SearchableMultiSelect
                         label="所屬區域"
-                        options={regions.map((region) => ({
+                        options={providerRegions.map((region) => ({
                           id: region.id,
                           name: region.name,
                         }))}
@@ -1403,7 +1406,7 @@ function PlaceModule() {
                     <h3>所屬區域</h3>
                     {selectedPlace.regionIds.length ? (
                       <div className="place-info-tags">
-                        {regions
+                        {regionsForMapProvider(regions, provider)
                           .filter((region) =>
                             selectedPlace.regionIds.includes(region.id),
                           )

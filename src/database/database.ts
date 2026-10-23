@@ -1,6 +1,7 @@
 import type { PublicItinerary } from '../modules/public-itinerary/models'
 import Dexie, { type Table } from 'dexie'
 import type { ItineraryItem, Label, Place, Region, Trip, RouteMap, RouteMapPlace } from './models'
+import { DEFAULT_OSM_REGION, DEFAULT_OSM_REGION_ID, isInsideOkinawaOsmCoverage } from '../geo/osm-coverage'
 
 export class TravelDatabase extends Dexie {
   regions!: Table<Region, string>
@@ -71,6 +72,29 @@ export class TravelDatabase extends Dexie {
     })
     this.version(11).stores({
       routeMapPlaces: '&id, routeMapId, &[routeMapId+googlePlaceId], &[routeMapId+location.reference.id]',
+    })
+    this.version(12).stores({}).upgrade(async transaction => {
+      if (this.name !== 'travel-planner') return
+      const regions = transaction.table('regions')
+      const existing = await regions.get(DEFAULT_OSM_REGION_ID)
+      if (!existing) await regions.add({ ...DEFAULT_OSM_REGION, id: DEFAULT_OSM_REGION_ID })
+
+      const places = transaction.table('places')
+      const movableOsmPlaceIds = new Set<string>()
+      for (const place of await places.toArray() as Place[]) {
+        if (!place.location || !isInsideOkinawaOsmCoverage(place.location.coordinate)) continue
+        movableOsmPlaceIds.add(place.id)
+        await places.put({ ...place, regionIds: [DEFAULT_OSM_REGION_ID] })
+      }
+
+      const trips = transaction.table('trips')
+      const itineraryItems = transaction.table('itineraryItems')
+      for (const trip of await trips.toArray() as Trip[]) {
+        const items = await itineraryItems.where('tripId').equals(trip.id).toArray() as ItineraryItem[]
+        if (items.length && items.every(item => movableOsmPlaceIds.has(item.placeId))) {
+          await trips.put({ ...trip, regionId: DEFAULT_OSM_REGION_ID })
+        }
+      }
     })
   }
 }

@@ -2,6 +2,7 @@ import { ValidationError } from './errors'
 import { placeIcons } from './models'
 import { validateCoordinatePair, validateLocationMetadata, validateStoredLocation } from './location.validation'
 import { getRouteMapEndpoint, routeEndpointKey } from './route-endpoint'
+import { isInsideOkinawaOsmCoverage } from '../geo/osm-coverage'
 import type {
   ItineraryItem,
   Label,
@@ -72,6 +73,9 @@ export function validateRegion(
   region: Omit<Region, 'id' | 'center' | 'centerMetadata'> & { center?: unknown; centerMetadata?: unknown },
 ): void {
   requireText(region.name, 'Region name')
+  if (region.mapProvider !== undefined && !['google', 'osm'].includes(region.mapProvider)) {
+    throw new ValidationError('Region map provider is invalid.')
+  }
   if (region.googlePlaceId !== undefined) {
     requireText(region.googlePlaceId, 'Google Place ID')
   }
@@ -92,8 +96,37 @@ export function validateRegion(
     }
   }
 
+  if (region.mapProvider === 'osm') {
+    if (region.googlePlaceId !== undefined || !region.center || !region.centerMetadata) {
+      throw new ValidationError('OSM regions require an OSM-owned center and cannot use a Google place ID.')
+    }
+    if (!isInsideOkinawaOsmCoverage(region.center)) {
+      throw new ValidationError('OSM region center is outside the current Okinawa dataset coverage.')
+    }
+  }
+
   if (!Number.isFinite(region.zoom) || region.zoom < 0 || region.zoom > 22) {
     throw new ValidationError('Region zoom must be between 0 and 22.')
+  }
+}
+
+export function validatePlaceRegionProviders(
+  place: Pick<Place, 'googlePlaceId' | 'location' | 'regionIds'>,
+  regions: readonly Region[],
+): void {
+  const linkedRegions = regions.filter(region => place.regionIds.includes(region.id))
+  if (place.location) {
+    if (place.googlePlaceId !== undefined) {
+      throw new ValidationError('A place cannot use Google and OSM locations at the same time.')
+    }
+    if (!place.regionIds.length || linkedRegions.some(region => region.mapProvider !== 'osm')) {
+      throw new ValidationError('OSM locations must belong only to an OSM region.')
+    }
+    if (!isInsideOkinawaOsmCoverage(place.location.coordinate)) {
+      throw new ValidationError('OSM locations are limited to the current Okinawa dataset coverage.')
+    }
+  } else if (place.googlePlaceId && linkedRegions.some(region => region.mapProvider === 'osm')) {
+    throw new ValidationError('Google Places must belong only to a Google region.')
   }
 }
 

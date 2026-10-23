@@ -10,6 +10,7 @@ import "./RegionModule.css";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import { useMapProvider } from "../../geo/provider-preference";
 import { googleMapsNavigationUrl, suggestedOsmLocationName } from "../../geo/osm-service";
+import { regionsForMapProvider } from "../../geo/region-provider";
 import { OsmSearchHeading } from "../../geo/OsmSearchHeading";
 
 interface RegionDraft {
@@ -62,7 +63,8 @@ function RegionModule() {
     useState<string>();
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
 
-  const selectedRegion = regions.find((region) => region.id === selectedId);
+  const providerRegions = regionsForMapProvider(regions, provider);
+  const selectedRegion = providerRegions.find((region) => region.id === selectedId);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
   const reloadBlocked = creating || editing || saving || deleteDialogOpen;
@@ -81,9 +83,10 @@ function RegionModule() {
 
   async function refresh(preferredId = selectedId) {
     const workspace = await regionController.loadWorkspace();
+    const filteredRegions = regionsForMapProvider(workspace.regions, provider);
     const nextRegion =
-      workspace.regions.find((region) => region.id === preferredId) ??
-      workspace.regions[0];
+      filteredRegions.find((region) => region.id === preferredId) ??
+      filteredRegions[0];
     setRegions(workspace.regions);
     setPlaces(workspace.places);
     setTrips(workspace.trips);
@@ -134,9 +137,10 @@ function RegionModule() {
             ]),
           ),
         });
+        const filteredRegions = regionsForMapProvider(workspace.regions, provider);
         const firstRegion =
-          workspace.regions.find((region) => region.id === selectedIdRef.current) ??
-          workspace.regions[0];
+          filteredRegions.find((region) => region.id === selectedIdRef.current) ??
+          filteredRegions[0];
         setSelectedId(firstRegion?.id);
         setDraft(firstRegion ? toDraft(firstRegion) : emptyDraft);
       })
@@ -152,7 +156,7 @@ function RegionModule() {
     return () => {
       active = false;
     };
-  }, [dataRevision, reloadBlocked]);
+  }, [dataRevision, reloadBlocked, provider]);
 
   useEffect(() => {
     if (!editing || provider !== 'google' || !regionController.isGooglePlacesConfigured()) return;
@@ -264,7 +268,9 @@ function RegionModule() {
 
   function startCreate() {
     setSelectedId(undefined);
-    setDraft(emptyDraft);
+    setDraft(provider === 'osm'
+      ? { ...emptyDraft, name: '沖繩', zoom: 8 }
+      : emptyDraft);
     setGoogleDetails(undefined);
     setGoogleDetailsForId(undefined);
     setGoogleDetailsErrorForId(undefined);
@@ -304,6 +310,7 @@ function RegionModule() {
     setNotice("");
     const input: NewRegion = {
       name: draft.name.trim(),
+      ...(provider === 'osm' ? { mapProvider: 'osm' as const } : {}),
       ...(draft.googlePlaceId ? { googlePlaceId: draft.googlePlaceId } : {}),
       ...(draft.center ? { center: draft.center } : {}),
       ...(draft.centerMetadata ? { centerMetadata: draft.centerMetadata } : {}),
@@ -432,12 +439,12 @@ function RegionModule() {
           <aside className="region-list-card">
             <div className="region-card-heading">
               <strong>已建立區域</strong>
-              <span>{regions.length}</span>
+              <span>{providerRegions.length}</span>
             </div>
             {loading ? (
               <p className="region-empty">正在載入…</p>
-            ) : regions.length ? (
-              regions.map((region) => (
+            ) : providerRegions.length ? (
+              providerRegions.map((region) => (
                 <button
                   type="button"
                   key={region.id}
@@ -455,7 +462,7 @@ function RegionModule() {
                 </button>
               ))
             ) : (
-              <p className="region-empty">目前還沒有區域。</p>
+              <p className="region-empty">{provider === 'osm' ? '目前沒有本機 OSM 區域資料；請先建立沖繩區域。' : '目前還沒有 Google 地圖區域。'}</p>
             )}
           </aside>
 
@@ -755,7 +762,7 @@ function RegionModule() {
                           disabled={saving}
                         >
                           <option value="">選擇其他區域…</option>
-                          {regions
+                          {providerRegions
                             .filter((region) => region.id !== selectedRegion.id)
                             .map((region) => (
                               <option value={region.id} key={region.id}>
@@ -779,7 +786,7 @@ function RegionModule() {
                 <p className="region-linked-empty">沒有行程使用此區域。</p>
               )}
               {Boolean(linkedTrips?.length) &&
-                regions.filter((region) => region.id !== selectedRegion.id)
+                providerRegions.filter((region) => region.id !== selectedRegion.id)
                   .length === 0 && (
                   <p className="region-no-alternative">
                     目前沒有其他區域可供改派。請先關閉此視窗並建立另一個區域。

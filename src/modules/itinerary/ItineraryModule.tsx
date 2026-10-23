@@ -16,6 +16,7 @@ import { labelController } from "../label/label.controller";
 import { mountWorkspaceMap } from "../../geo/workspace-map";
 import { useMapProvider } from "../../geo/provider-preference";
 import { googleMapsNavigationUrl } from "../../geo/osm-service";
+import { defaultRegionIds, regionsForMapProvider } from "../../geo/region-provider";
 import type {
   GoogleMapHandle,
   GoogleMapMarkerData,
@@ -287,7 +288,10 @@ function ItineraryModule({
     action();
   }
 
-  const selectedTrip = trips.find((trip) => trip.id === selectedTripId);
+  const providerRegions = regionsForMapProvider(regions, mapProvider);
+  const providerRegionIds = new Set(providerRegions.map((region) => region.id));
+  const providerTrips = trips.filter((trip) => providerRegionIds.has(trip.regionId));
+  const selectedTrip = providerTrips.find((trip) => trip.id === selectedTripId);
   const canEditItems =
     !readonly && (!selectedTripId ||
     itineraryController.getAccess(selectedTripId) !== "viewer");
@@ -297,7 +301,7 @@ function ItineraryModule({
   const selectedTripIdRef = useRef(selectedTripId);
   selectedTripIdRef.current = selectedTripId;
   const selectedRegionId = selectedTrip?.regionId;
-  const selectedRegion = regions.find(
+  const selectedRegion = providerRegions.find(
     (region) => region.id === selectedRegionId,
   );
   const visibleMapData =
@@ -442,9 +446,12 @@ function ItineraryModule({
     setRegions(workspace.regions);
     setPlaces(workspace.places);
     setLabels(flattenLabels(labelTree));
+    const nextRegions = regionsForMapProvider(workspace.regions, mapProvider);
+    const nextRegionIds = new Set(nextRegions.map((region) => region.id));
+    const nextTrips = workspace.trips.filter((trip) => nextRegionIds.has(trip.regionId));
     const nextTrip =
-      workspace.trips.find((trip) => trip.id === preferredTripId) ??
-      workspace.trips[0];
+      nextTrips.find((trip) => trip.id === preferredTripId) ??
+      nextTrips[0];
     setSelectedTripId(nextTrip?.id);
     if (nextTrip) {
       setTripDraft(toTripDraft(nextTrip));
@@ -490,10 +497,13 @@ function ItineraryModule({
         setRegions(workspace.regions);
         setPlaces(workspace.places);
         setLabels(flattenLabels(labelTree));
+        const nextRegions = regionsForMapProvider(workspace.regions, mapProvider);
+        const nextRegionIds = new Set(nextRegions.map((region) => region.id));
+        const nextTrips = workspace.trips.filter((trip) => nextRegionIds.has(trip.regionId));
         const nextTrip =
-          workspace.trips.find(
+          nextTrips.find(
             (trip) => trip.id === selectedTripIdRef.current,
-          ) ?? workspace.trips[0];
+          ) ?? nextTrips[0];
         setSelectedTripId(nextTrip?.id);
         setTripDraft(nextTrip ? toTripDraft(nextTrip) : emptyTripDraft);
         setSelectedDate((current) =>
@@ -530,6 +540,7 @@ function ItineraryModule({
     refreshingSharedTrip,
     hybridDataRevision,
     readonly,
+    mapProvider,
   ]);
 
   useEffect(() => {
@@ -784,12 +795,12 @@ function ItineraryModule({
   }
 
   function startCreateTrip() {
-    const firstRegion = regions[0];
+    const firstRegionId = defaultRegionIds(regions, mapProvider)[0];
     const today = localDateString();
     setSelectedTripId(undefined);
     setTripDraft({
       name: "",
-      regionId: firstRegion?.id ?? "",
+      regionId: firstRegionId ?? "",
       startDate: today,
       endDate: today,
     });
@@ -1182,7 +1193,7 @@ function ItineraryModule({
       <div className="itinerary-content">
         <section className="itinerary-heading">
           <div className="workspace-page-heading-title">
-            {trips.length > 1 && !editingTrip && !creatingTrip ? (
+            {providerTrips.length > 1 && !editingTrip && !creatingTrip ? (
               <details
                 className="itinerary-trip-switcher"
                 ref={tripSwitcherRef}
@@ -1204,7 +1215,7 @@ function ItineraryModule({
                   aria-label="切換行程"
                 >
                   <div className="itinerary-dropdown-heading">你的行程</div>
-                  {trips.map((trip) => (
+                  {providerTrips.map((trip) => (
                     <button
                       key={trip.id}
                       type="button"
@@ -1411,7 +1422,7 @@ function ItineraryModule({
                     <h2>{creatingTrip ? "新增行程" : "編輯行程"}</h2>
                   </div>
                 </div>
-                {regions.length ? (
+                {providerRegions.length ? (
                   <>
                     <label className="itinerary-field itinerary-field-wide">
                       <span>
@@ -1450,7 +1461,7 @@ function ItineraryModule({
                         <option value="" disabled>
                           選擇區域
                         </option>
-                        {regions.map((region) => (
+                        {providerRegions.map((region) => (
                           <option value={region.id} key={region.id}>
                             {region.name}
                           </option>
@@ -2127,7 +2138,7 @@ function ItineraryModule({
                 <p>
                   {loading
                     ? ""
-                    : trips.length
+                    : providerTrips.length
                       ? "選擇一個行程，或建立新的旅行計畫。"
                       : "新增行程後，即可按天安排收藏的地點。"}
                 </p>
