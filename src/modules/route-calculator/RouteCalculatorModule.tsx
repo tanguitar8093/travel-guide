@@ -1,3 +1,4 @@
+import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { EntityNotFoundError } from "../../database";
@@ -37,9 +38,10 @@ export default function RouteCalculatorModule() {
   const availableTransportOptions = transportOptionsForProvider(provider);
   const dataRevision = useHybridDataRevision();
   const [controller] = useState(() => new RouteCalculatorController());
-  const [places, setPlaces] = useState<Place[]>([]);
+  const [placeRecords, setPlaces] = useState<Place[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
+  const places = useMemo(() => placesForMapProvider(placeRecords, provider), [placeRecords, provider]);
   const [placesError, setPlacesError] = useState("");
   const [placesAttempt, setPlacesAttempt] = useState(0);
   const [tripsError, setTripsError] = useState("");

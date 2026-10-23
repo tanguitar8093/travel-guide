@@ -1,3 +1,4 @@
+import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps, FormEvent, ReactNode } from "react";
 import type {
@@ -382,11 +383,11 @@ function ItineraryModule({
   );
   const tripPlaces = useMemo(
     () =>
-      places.filter(
+      placesForMapProvider(places, mapProvider).filter(
         (place) =>
           selectedTrip && place.regionIds.includes(selectedTrip.regionId),
       ),
-    [places, selectedTrip],
+    [places, selectedTrip, mapProvider],
   );
   const dayNumber =
     selectedTrip && selectedDate

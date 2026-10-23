@@ -1,3 +1,4 @@
+import { placesForMapProvider } from "../../geo/place-provider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { Label, Place } from "../../database";
@@ -59,7 +60,7 @@ function LabelModule() {
   const [bulkColorResult, setBulkColorResult] = useState<BulkOperationResult>();
   const bulkColorRunning = useRef(false);
   const [tree, setTree] = useState<LabelTreeNode[]>([]);
-  const [allPlaces, setAllPlaces] = useState<Place[]>([]);
+  const [allPlaceRecords, setAllPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
@@ -69,7 +70,7 @@ function LabelModule() {
   const [includeDescendants, setIncludeDescendants] = useState(true);
   const [activeTab, setActiveTab] = useState<"taxonomy" | "preview">("taxonomy");
   const [previewSearch, setPreviewSearch] = useState("");
-  const [matchingPlaces, setMatchingPlaces] = useState<Place[]>([]);
+  const [matchingPlaceRecords, setMatchingPlaces] = useState<Place[]>([]);
   const [usageCollapsed, setUsageCollapsed] = useState(false);
   const usageHeadingRef = useRef<HTMLDivElement>(null);
   const usageToggleRef = useRef<HTMLButtonElement>(null);
@@ -186,6 +187,8 @@ function LabelModule() {
     };
   }, [selectedId, includeDescendants, tree]);
 
+  const allPlaces = useMemo(() => placesForMapProvider(allPlaceRecords, provider), [allPlaceRecords, provider]);
+  const matchingPlaces = useMemo(() => placesForMapProvider(matchingPlaceRecords, provider), [matchingPlaceRecords, provider]);
   const displayedPlaces = selectedId ? matchingPlaces : [];
   const filteredPreviewPlaces = displayedPlaces.filter((place) => {
     const query = previewSearch.trim().toLocaleLowerCase();

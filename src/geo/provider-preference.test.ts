@@ -23,8 +23,8 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals())
 
 describe('device map preference', () => {
-  it('defaults to Google without writing a migration or business record', () => {
-    expect(getMapProvider()).toBe('google')
+  it('defaults to OSM without writing a migration or business record', () => {
+    expect(getMapProvider()).toBe('osm')
     expect(write).not.toHaveBeenCalled()
   })
 
@@ -61,8 +61,8 @@ describe('device map preference', () => {
     expect(write).not.toHaveBeenCalled()
   })
 
-  it('provides the original Google default during server rendering', () => {
+  it('provides the OSM default during server rendering', () => {
     vi.stubGlobal('window', undefined)
-    expect(getMapProvider()).toBe('google')
+    expect(getMapProvider()).toBe('osm')
   })
 })

@@ -5,10 +5,10 @@ const key = 'travel-planner:map-provider'
 const eventName = 'travel-planner:map-provider-change'
 
 export function getMapProvider(): GeoProvider {
-  if (typeof window === 'undefined') return 'google'
+  if (typeof window === 'undefined') return 'osm'
   const value = window.localStorage.getItem(key)
-  if (value === null || value === 'google') return 'google'
-  if (value === 'osm') return 'osm'
+  if (value === null || value === 'osm') return 'osm'
+  if (value === 'google') return 'google'
   throw new Error('已儲存的地圖供應商設定無效，請在資料設定重新選擇。')
 }
 
@@ -39,6 +39,6 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useMapProvider(): { provider: GeoProvider | undefined; error?: string } {
-  const value = useSyncExternalStore(subscribe, snapshot, () => 'google')
+  const value = useSyncExternalStore(subscribe, snapshot, () => 'osm')
   return value === 'google' || value === 'osm' ? { provider: value } : { provider: undefined, error: value.slice(6) }
 }

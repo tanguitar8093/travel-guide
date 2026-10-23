@@ -1,3 +1,4 @@
+import { placesForMapProvider } from "../../geo/place-provider";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { findDuplicatePlace } from "../../database/location.validation";
 import { placeDuplicateMessage } from "../../geo/place-duplicate";
@@ -397,15 +398,17 @@ function PlaceModule() {
         includeDescendants,
       }),
     ]);
-    setPlaces(workspace.places);
+    const visiblePlaces = placesForMapProvider(workspace.places, provider);
+    const visibleResults = placesForMapProvider(nextFilteredPlaces, provider);
+    setPlaces(visiblePlaces);
     setLabels(workspace.labels);
     setRegions(workspace.regions);
-    setFilteredPlaces(nextFilteredPlaces);
+    setFilteredPlaces(visibleResults);
 
     const nextSelection =
-      workspace.places.find((place) => place.id === preferredId) ??
-      nextFilteredPlaces[0] ??
-      workspace.places[0];
+      visiblePlaces.find((place) => place.id === preferredId) ??
+      visibleResults[0] ??
+      visiblePlaces[0];
     setSelectedPlaceId(nextSelection?.id);
     if (nextSelection) setDraft(toDraft(nextSelection));
     else setDraft(emptyDraft);
@@ -420,10 +423,12 @@ function PlaceModule() {
     ])
       .then(([workspace, results]) => {
         if (!active) return;
-        setPlaces(workspace.places);
+        const visiblePlaces = placesForMapProvider(workspace.places, provider);
+        const visibleResults = placesForMapProvider(results, provider);
+        setPlaces(visiblePlaces);
         setLabels(workspace.labels);
         setRegions(workspace.regions);
-        setFilteredPlaces(results);
+        setFilteredPlaces(visibleResults);
         if (createFromLinkRef.current) {
           createFromLinkRef.current = false;
           setCreating(true);
@@ -439,9 +444,9 @@ function PlaceModule() {
           );
         } else {
           const next =
-            workspace.places.find(
+            visiblePlaces.find(
               (place) => place.id === selectedPlaceIdRef.current,
-            ) ?? results[0];
+            ) ?? visibleResults[0];
           setSelectedPlaceId(next?.id);
           setDraft(next ? toDraft(next) : emptyDraft);
         }
@@ -459,7 +464,7 @@ function PlaceModule() {
     return () => {
       active = false;
     };
-  }, [dataRevision, reloadBlocked]);
+  }, [dataRevision, reloadBlocked, provider]);
 
   useEffect(() => {
     if (
@@ -617,15 +622,17 @@ function PlaceModule() {
       })
       .then((results) => {
         if (!active) return;
-        setFilteredPlaces(results);
+        const visibleResults = placesForMapProvider(results, provider);
+        setFilteredPlaces(visibleResults);
         if (
           !creating &&
           !editing &&
           selectedPlaceId &&
-          !results.some((place) => place.id === selectedPlaceId)
+          !visibleResults.some((place) => place.id === selectedPlaceId)
         ) {
-          setSelectedPlaceId(results[0]?.id);
-          if (results[0]) setDraft(toDraft(results[0]));
+          const first = visibleResults[0];
+          setSelectedPlaceId(first?.id);
+          if (first) setDraft(toDraft(first));
         }
       })
       .catch((cause: unknown) => {
@@ -637,6 +644,7 @@ function PlaceModule() {
       active = false;
     };
   }, [
+    provider,
     filterText,
     selectedFilterLabelIds,
     includeDescendants,
