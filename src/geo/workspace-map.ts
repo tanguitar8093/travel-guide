@@ -1,10 +1,10 @@
 import type { GeoProvider } from './contracts'
 import { createMapLibreRenderer } from './adapters/osm/maplibre-renderer'
-import { createOsmStyle, loadOsmMapLibre } from './adapters/osm/osm-resources'
+import { createOsmStyle, loadOsmMapLibre, osmDefaultBounds, osmDefaultCenter } from './adapters/osm/osm-resources'
 import type { GoogleMapHandle, GoogleMapMarkerData, GoogleMapPosition, GoogleMapViewport } from '../modules/place/google-places.service'
 import './map.css'
 import '../modules/place/google-map.css'
-import { throwIfAborted } from './errors'
+import { throwIfAborted, withAbort } from './errors'
 
 export function osmAssetBaseUrl(): string {
   const base = import.meta.env.VITE_OSM_ASSET_BASE_URL?.trim()
@@ -29,14 +29,18 @@ export async function mountWorkspaceMap(
     return mountGoogleMap(host, options)
   }
   const base = osmAssetBaseUrl()
+  const [sdk, style] = await withAbort(Promise.all([
+    loadOsmMapLibre(base),
+    import.meta.env.VITE_OSM_STYLE_URL?.trim() || createOsmStyle(base),
+  ]), options.signal)
   const renderer = createMapLibreRenderer({
-    loadSdk: () => loadOsmMapLibre(base),
-    style: import.meta.env.VITE_OSM_STYLE_URL?.trim() || createOsmStyle(base),
+    loadSdk: () => Promise.resolve(sdk),
+    style,
   })
   let markers: GoogleMapMarkerData[] = []
   const handle = await renderer.mount(host, {
-    center: { latitude: options.center.lat, longitude: options.center.lng }, zoom: options.zoom,
-    bounds: options.viewport, maxZoom: options.maxZoom ?? 17, signal: options.signal,
+    center: osmDefaultCenter, zoom: 9.5,
+    bounds: osmDefaultBounds, maxZoom: options.maxZoom ?? 17, signal: options.signal,
     events: {
       onSelect: id => markers.find(marker => marker.id === id)?.onClick?.(),
       onError,
@@ -54,6 +58,7 @@ export async function mountWorkspaceMap(
       })))
       if (fit?.fitBounds && next.length) handle.fitMarkers()
     },
+    resetView: () => handle.fitBounds(osmDefaultBounds),
     destroy: () => handle.destroy(),
   }
 }

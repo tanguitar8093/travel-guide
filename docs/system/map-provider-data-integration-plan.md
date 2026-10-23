@@ -574,7 +574,7 @@ Vitest 在 Node 20 使用已確認可用的 `NODE_OPTIONS=--experimental-websock
 
 - [osm-dev-assets](../../scripts/osm-dev-assets.ts) 僅在 Vite 開發伺服器提供固定白名單資產：land/water/roads GeoJSON、MapLibre CSS／ES module／worker／shared module；預設讀取同機 `/home/tanguitar/workspaces/maps`，可由啟動程序環境變數 `OSM_PROJECT_DIR` 指定。資產失敗記錄並回應 503，不代理任意路徑或公共圖磚服務。
 - [osm-resources](../../src/geo/adapters/osm/osm-resources.ts) 共用既有設計稿的沖繩 GeoJSON style；原雙 renderer PoC 改為包裝此共用載入器，不複製另一套正式地圖邏輯。尚未做效能優化。
-- 正式部署須設定 `VITE_OSM_ASSET_BASE_URL`（HTTP/S 基底路徑，包含 `osm-vendor/` 與 `osm-assets/` 子目錄）；可額外以 `VITE_OSM_STYLE_URL` 指定 style。跨來源服務須自行提供相容的 CORS／worker／資產設定。未設定基底時明確拒絕 OSM，不能假裝 Vercel 會讀到開發機的 maps 目錄。
+- 正式部署須設定 `VITE_OSM_ASSET_BASE_URL`（HTTP/S 基底路徑，包含 `osm-vendor/`、`tiles.json` 與 `tiles/`；底圖沿用 maps 的 MVT 向量圖磚，不再下載整份 GeoJSON）；可額外以 `VITE_OSM_STYLE_URL` 指定 style。開發環境透過 `/local-map/tiles.json` 與 `/local-map/tiles/` 沿用 maps 的版本與快取標頭。跨來源服務須自行提供相容的 CORS／worker／資產設定。未設定基底時明確拒絕 OSM，不能假裝 Vercel 會讀到開發機的 maps 目錄。
 
 #### 驗證狀態
 

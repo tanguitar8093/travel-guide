@@ -1671,17 +1671,6 @@ function ItineraryModule({
                                   </span>
                                   <span aria-hidden="true">⌄</span>
                                 </button>
-                                <a
-                                  className="itinerary-add-place-link"
-                                  href={`${routes.places}?create=1`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  aria-label="在新分頁新增地點"
-                                  title="在新分頁新增地點"
-                                >
-                                  <span aria-hidden="true">＋</span>
-                                  地點
-                                </a>
                               </div>
                             </div>
                           </div>
@@ -2202,7 +2191,21 @@ function ItineraryModule({
                         });
                       }}
                     >
-                      恢復預設
+                      查看全程
+                    </button>
+                    <button
+                      type="button"
+                      title="回到預設地圖範圍"
+                      disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId}
+                      onClick={() => {
+                        if (mapToolsRef.current) {
+                          mapToolsRef.current.open = false;
+                          mapToolsRef.current.querySelector('summary')?.focus();
+                        }
+                        mapHandleRef.current?.resetView();
+                      }}
+                    >
+                      {mapProvider === 'osm' ? '沖繩全景' : '恢復預設'}
                     </button>
                     <RouterLink
                       className="itinerary-map-tool-link"

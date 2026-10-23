@@ -1,11 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { mountWorkspaceMap } from "../../geo/workspace-map";
 import type { GeoProvider } from "../../geo/contracts";
-import { markerKey } from "./route-calculator.service";
 import type { GoogleMapHandle } from "../place/google-places.service";
 import type { RouteMapPlace, TripMapData } from "./route-calculator.service";
-import { isTripMarker, routeMarkerColors } from "./route-markers";
+import { isTripMarker, markerKey, routeMarkerColors } from "./route-markers";
 
 interface Props {
   markers: RouteMapPlace[];
@@ -40,83 +39,92 @@ export function RoutePreviewMap({
   const [fit, setFit] = useState(0);
   const lastFit = useRef(-1);
   const previousIds = useRef("");
+  const interaction = useRef({ disabled, onSelect });
+  interaction.current = { disabled, onSelect };
+  const mapMarkers = useMemo(
+    () => markers.map((marker) => {
+      const id = markerKey(marker);
+      const tripMarker = isTripMarker(id, tripData);
+      return {
+        id,
+        position: marker.position,
+        title: `${marker.name}（${tripMarker ? "原行程地點" : "後加地點"}）${id === originId ? "（起點）" : ""}${id === destinationId ? "（終點）" : ""}${id === selectedId ? "（已選取）" : ""}`,
+        color: tripMarker ? routeMarkerColors.trip : routeMarkerColors.added,
+        enlarged: id === selectedId,
+        sequence: id === originId ? 1 : id === destinationId ? 2 : undefined,
+        onClick: () => {
+          if (!interaction.current.disabled) interaction.current.onSelect(marker);
+        },
+      };
+    }),
+    [markers, tripData, originId, destinationId, selectedId],
+  );
 
   useEffect(() => {
-    if (!container.current || !configured) return;
+    if (!container.current || !configured) {
+      setReady(false);
+      return;
+    }
     let active = true;
+    let owned: GoogleMapHandle | undefined;
+    let failed = false;
+    const abort = new AbortController();
     setReady(false);
     setError("");
     const host = document.createElement("div");
-    host.className = "route-map-host";
+    host.className = "route-map-host itinerary-google-map";
     container.current.replaceChildren(host);
+    const fail = (cause: unknown) => {
+      if (!active) return;
+      failed = true;
+      setReady(false);
+      setError(cause instanceof Error ? cause.message : "地圖載入失敗。");
+      owned?.destroy();
+      if (map.current === owned) map.current = null;
+    };
     void mountWorkspaceMap(provider, host, {
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 10,
       maxZoom: 17,
-    }, (cause) => { if (active) setError(cause.message); })
+      signal: abort.signal,
+    }, fail)
       .then((handle) => {
-        if (!active) {
+        if (!active || failed) {
           handle.destroy();
           return;
         }
+        owned = handle;
         map.current = handle;
         previousIds.current = "";
         lastFit.current = -1;
         setReady(true);
       })
-      .catch((cause: unknown) => {
-        if (active)
-          setError(cause instanceof Error ? cause.message : "地圖載入失敗。");
-      });
+      .catch(fail);
     return () => {
       active = false;
-      map.current?.destroy();
-      map.current = null;
+      abort.abort();
+      owned?.destroy();
+      if (map.current === owned) map.current = null;
       host.remove();
     };
   }, [configured, attempt, provider]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
-    const ids = markers
-      .map(markerKey)
+    const ids = mapMarkers
+      .map(marker => marker.id)
       .sort()
       .join("|");
     const shouldFit = ids !== previousIds.current || fit !== lastFit.current;
-    map.current.setMarkers(
-      markers.map((marker) => ({
-        id: markerKey(marker),
-        position: marker.position,
-        title: `${marker.name}（${isTripMarker(markerKey(marker), tripData) ? "原行程地點" : "後加地點"}）${markerKey(marker) === originId ? "（起點）" : ""}${markerKey(marker) === destinationId ? "（終點）" : ""}${markerKey(marker) === selectedId ? "（已選取）" : ""}`,
-        color: isTripMarker(markerKey(marker), tripData)
-          ? routeMarkerColors.trip
-          : routeMarkerColors.added,
-        enlarged: markerKey(marker) === selectedId,
-        sequence:
-          markerKey(marker) === originId
-            ? 1
-            : markerKey(marker) === destinationId
-              ? 2
-              : undefined,
-        onClick: () => {
-          if (!disabled) onSelect(marker);
-        },
-      })),
-      { fitBounds: shouldFit },
-    );
-    previousIds.current = ids;
-    lastFit.current = fit;
-  }, [
-    markers,
-    originId,
-    destinationId,
-    selectedId,
-    onSelect,
-    disabled,
-    ready,
-    fit,
-    tripData,
-  ]);
+    try {
+      map.current.setMarkers(mapMarkers, { fitBounds: shouldFit });
+      previousIds.current = ids;
+      lastFit.current = fit;
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "地點標記更新失敗。");
+      setReady(false);
+    }
+  }, [mapMarkers, ready, fit]);
 
   return (
     <section className="route-calculator-map" aria-label="路程試算地圖">
@@ -131,7 +139,21 @@ export function RoutePreviewMap({
               disabled={!ready || !markers.length}
               onClick={() => setFit((value) => value + 1)}
             >
-              恢復預設
+              查看全程
+            </button>
+            <button
+              type="button"
+              className="route-secondary route-map-action-button"
+              disabled={!ready}
+              onClick={() => {
+                try { map.current?.resetView(); }
+                catch (cause) {
+                  setError(cause instanceof Error ? cause.message : "恢復地圖視野失敗。");
+                  setReady(false);
+                }
+              }}
+            >
+              {provider === 'osm' ? '沖繩全景' : '恢復預設'}
             </button>
           </div>
         </div>

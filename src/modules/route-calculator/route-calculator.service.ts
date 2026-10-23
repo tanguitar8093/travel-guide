@@ -8,6 +8,7 @@ import {
   routeMapPlaces,
 } from '../../database'
 import type {
+  Place,
   RouteMap as RouteMapRecord,
   RouteMapChanges,
 } from '../../database'
@@ -19,6 +20,8 @@ import { getMapProvider } from '../../geo/provider-preference'
 import { routeOsmLocations } from '../../geo/osm-service'
 import type { OsmLocationCandidate } from '../../geo/osm-service'
 import { validateStoredLocation } from '../../database/location.validation'
+import { markerKey } from './route-markers'
+export { markerKey, storedEndpoint } from './route-markers'
 import {
   getGooglePlaceDetails,
   getGoogleRouteEstimate,
@@ -75,26 +78,6 @@ export interface RouteCalculationResult extends GoogleRouteEstimate {
   destination: ResolvedRouteEndpoint
   transport: GoogleTravelMode
   provider?: GeoProvider
-}
-
-export function markerKey(marker: ResolvedRouteEndpoint): string {
-  return marker.id ?? marker.googlePlaceId ?? ''
-}
-
-export function storedEndpoint(endpoint: RouteEndpoint | null, marker?: RouteMapPlace): RouteEndpointSelection | undefined {
-  if (!endpoint) return undefined
-  if (endpoint.source === 'saved') return { kind: 'place', placeId: endpoint.placeId }
-  if (endpoint.source === 'selection') return endpoint.selection
-  if (endpoint.source === 'osm') return {
-    kind: 'location', id: endpoint.place.location.source === 'osm'
-      ? `osm:${endpoint.place.location.reference.id}`
-      : `coordinate:${endpoint.place.location.coordinate.latitude},${endpoint.place.location.coordinate.longitude}`,
-    value: { kind: 'stored', name: endpoint.place.name, location: endpoint.place.location },
-  }
-  return {
-    kind: 'location', id: endpoint.place.id,
-    value: { kind: 'google', name: marker?.name ?? endpoint.place.displayName, reference: { provider: 'google', id: endpoint.place.id } },
-  }
 }
 
 export class RouteCalculatorService {
@@ -168,37 +151,39 @@ export class RouteCalculatorService {
   }
 
   async loadRouteMap(id: string): Promise<RouteMapData> {
+    const provider = getMapProvider()
     const [map, savedMarkers] = await Promise.all([
       this.getRouteMap(id),
       this.routeMapPlaceRepository.findByRouteMapId(id),
     ])
-    const savedPlaces = savedMarkers.length ? await this.placeRepository.list() : []
+    const savedPlaces = savedMarkers.some(marker => !marker.location && marker.googlePlaceId)
+      ? await this.placeRepository.list() : []
     const markers: RouteMapPlace[] = []
     const unavailable: string[] = []
     let cursor = 0
     const work = async () => {
       while (cursor < savedMarkers.length) {
         const savedMarker = savedMarkers[cursor++]
-        if (savedMarker.location) {
-          markers.push(this.storedMarker(savedMarker.id, savedMarker.name ?? '地點', savedMarker.location, { kind: 'route-map-place', routeMapPlaceId: savedMarker.id }))
-          continue
-        }
-        if (!savedMarker.googlePlaceId) { unavailable.push(`${savedMarker.name ?? savedMarker.id}：缺少地圖位置。`); continue }
-        const place = savedPlaces.find((candidate) => candidate.googlePlaceId === savedMarker.googlePlaceId)
         try {
+          if (savedMarker.location) {
+            markers.push(this.storedMarker(savedMarker.id, savedMarker.name ?? '地點', savedMarker.location, { kind: 'route-map-place', routeMapPlaceId: savedMarker.id }))
+            continue
+          }
+          if (!savedMarker.googlePlaceId) throw new ValidationError('缺少地圖位置。')
+          const place = savedPlaces.find((candidate) => candidate.googlePlaceId === savedMarker.googlePlaceId)
           const resolved = place
-            ? await this.resolveEndpoint({ source: 'saved', placeId: place.id })
+            ? await this.resolveSavedPlace(place, provider)
             : await this.resolveEndpoint({
               source: 'google',
               place: { id: savedMarker.googlePlaceId },
-            })
+            }, provider)
           markers.push({
             ...resolved,
             selection: { kind: 'route-map-place', routeMapPlaceId: savedMarker.id },
             ...(savedMarker.name ? { name: savedMarker.name } : {}),
           })
         } catch (cause) {
-          unavailable.push(`${savedMarker.name ?? savedMarker.googlePlaceId}：${cause instanceof Error ? cause.message : '無法取得地圖位置'}`)
+          unavailable.push(`${savedMarker.name ?? savedMarker.googlePlaceId ?? savedMarker.id}：${cause instanceof Error ? cause.message : '無法取得地圖位置'}`)
         }
       }
     }
@@ -239,6 +224,7 @@ export class RouteCalculatorService {
   }
 
   async loadTripMarkers(tripId: string): Promise<TripMapData> {
+    const provider = getMapProvider()
     const shared = sharedTripEditingEnabled ? (await sharedTrips.list()).find((row) => row.id === tripId)?.document : undefined
     const items = shared?.items ?? await this.itemRepository.findByTripId(tripId)
     const dates = [...new Set(items.map((item) => item.date))].sort()
@@ -257,9 +243,9 @@ export class RouteCalculatorService {
             ? sharedLocation
               ? this.storedMarker(place.id, place.name, sharedLocation, { kind: 'shared-place', tripId, placeId: place.id })
               : place.googlePlaceId
-              ? await this.resolveEndpoint({ source: 'google', place: { id: place.googlePlaceId } })
+              ? await this.resolveEndpoint({ source: 'google', place: { id: place.googlePlaceId } }, provider)
               : undefined
-            : await this.resolveEndpoint({ source: 'saved', placeId: place.id })
+            : await this.resolveSavedPlace(place, provider)
           if (!resolved) { unavailable.push(`${place.name}：只有自訂地圖網址，無法取得試算圖釘位置。`); continue }
           markers.push({ ...resolved, selection: shared ? { kind: 'shared-place', tripId, placeId: id } : { kind: 'place', placeId: id }, ...(shared ? { name: place.name } : {}), dates: items.filter((item) => item.placeId === id).map((item) => item.date) })
         } catch (cause) {
@@ -288,25 +274,16 @@ export class RouteCalculatorService {
   async resolveEndpoint(endpoint: RouteEndpoint, provider = getMapProvider()): Promise<RouteMapPlace> {
     if (endpoint.source === 'osm') return this.storedMarker(endpoint.place.id, endpoint.place.name, endpoint.place.location)
     if (endpoint.source === 'selection') return this.resolveSelection(endpoint.selection, provider)
-    let details: GooglePlaceDetails
-    let name: string | undefined
     if (endpoint.source === 'saved') {
       const place = await this.placeRepository.getById(endpoint.placeId)
       if (!place) throw new EntityNotFoundError('Place', endpoint.placeId)
-      if (place.location && (provider === 'osm' || !place.googlePlaceId)) return this.storedMarker(place.id, place.name, place.location, { kind: 'place', placeId: place.id })
-      if (!place.googlePlaceId) {
-        throw new ValidationError(`「${place.name}」沒有 Google 地點資訊，請改用 Google 搜尋選擇。`)
-      }
-      if (provider === 'osm') throw new ValidationError('此地點僅有 Google 資訊，請使用 OSM 搜尋或自行輸入座標。')
-      details = await this.details(place.googlePlaceId)
-      name = place.name
-    } else {
-      if (provider === 'osm') throw new ValidationError('此地點僅有 Google 資訊，請使用 OSM 搜尋或自行輸入座標。')
-      if (!endpoint.place.id.trim()) throw new ValidationError('請從 Google 搜尋結果選擇地點。')
-      details = endpoint.place.location
-        ? endpoint.place
-        : await this.details(endpoint.place.id)
+      return this.resolveSavedPlace(place, provider)
     }
+    if (provider === 'osm') throw new ValidationError('此地點僅有 Google 資訊，請使用 OSM 搜尋或自行輸入座標。')
+    if (!endpoint.place.id.trim()) throw new ValidationError('請從 Google 搜尋結果選擇地點。')
+    const details = endpoint.place.location
+      ? endpoint.place
+      : await this.details(endpoint.place.id)
     const position = details.location
     if (!position || !Number.isFinite(position.lat) || !Number.isFinite(position.lng) ||
         Math.abs(position.lat) > 90 || Math.abs(position.lng) > 180) {
@@ -315,10 +292,21 @@ export class RouteCalculatorService {
     }
     return {
       googlePlaceId: details.id,
-      name: name ?? details.displayName ?? details.formattedAddress ?? 'Google 地點',
+      name: details.displayName ?? details.formattedAddress ?? 'Google 地點',
       position,
       address: details.formattedAddress,
     }
+  }
+
+  private async resolveSavedPlace(place: Pick<Place, 'id' | 'name' | 'googlePlaceId' | 'location'>, provider: GeoProvider): Promise<RouteMapPlace> {
+    if (place.location && (provider === 'osm' || !place.googlePlaceId)) {
+      return this.storedMarker(place.id, place.name, place.location, { kind: 'place', placeId: place.id })
+    }
+    if (!place.googlePlaceId) {
+      throw new ValidationError(`「${place.name}」沒有 Google 地點資訊，請改用 Google 搜尋選擇。`)
+    }
+    const resolved = await this.resolveEndpoint({ source: 'google', place: { id: place.googlePlaceId } }, provider)
+    return { ...resolved, name: place.name }
   }
 
   async calculate(input: RouteCalculationInput): Promise<RouteCalculationResult> {
@@ -347,6 +335,7 @@ export class RouteCalculatorService {
   }
 
   private storedMarker(_id: string, name: string, location: StoredLocation, selection?: RouteEndpointSelection): RouteMapPlace {
+    validateStoredLocation(location)
     const { latitude, longitude } = location.coordinate
     if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || Math.abs(latitude) > 90 || Math.abs(longitude) > 180) throw new ValidationError('地點缺少有效的地圖位置，請重新選擇。')
     return { id: this.locationKey(location), name, location, position: { lat: latitude, lng: longitude }, selection }

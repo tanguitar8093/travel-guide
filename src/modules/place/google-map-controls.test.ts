@@ -8,6 +8,7 @@ class Autocomplete extends EventTarget {
 
 const markers: { map: object | null; content: HTMLElement }[] = []
 const fitBounds = vi.fn()
+const setOptions = vi.fn()
 const extend = vi.fn()
 let autocomplete: Autocomplete
 
@@ -16,6 +17,7 @@ beforeEach(() => {
   vi.stubEnv('VITE_GOOGLE_MAPS_API_KEY', 'test-key')
   markers.length = 0
   fitBounds.mockReset()
+  setOptions.mockReset()
   extend.mockReset()
   vi.stubGlobal('document', {
     createElement: () => ({ style: {}, replaceChildren: vi.fn(), remove: vi.fn() }),
@@ -25,6 +27,7 @@ beforeEach(() => {
   }
   class Map {
     fitBounds = fitBounds
+    setOptions = setOptions
   }
   class Marker {
     map: object | null
@@ -51,6 +54,21 @@ beforeEach(() => {
 })
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
+
+it('restores the initial viewport independently of fitting markers', async () => {
+  const { mountGoogleMap } = await import('./google-places.service')
+  const center = { lat: 25, lng: 121 }
+  const handle = await mountGoogleMap(document.createElement('div'), { center, zoom: 12 })
+  handle.resetView()
+  expect(setOptions).toHaveBeenCalledExactlyOnceWith({ center, zoom: 12 })
+  handle.destroy()
+  const viewport = { north: 26, south: 24, east: 122, west: 120 }
+  const bounded = await mountGoogleMap(document.createElement('div'), { center, zoom: 12, viewport })
+  fitBounds.mockClear()
+  bounded.resetView()
+  expect(fitBounds).toHaveBeenCalledExactlyOnceWith(viewport)
+  bounded.destroy()
+})
 
 it('applies a supplied marker color while leaving legacy marker styles unchanged', async () => {
   const { mountGoogleMap } = await import('./google-places.service')

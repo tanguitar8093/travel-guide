@@ -139,6 +139,52 @@ it('persists neutral marker provenance and user names, never an OSM ID in google
   expect(mocks.details).not.toHaveBeenCalled()
 })
 
+it('restores coordinate-only markers without scanning saved places or requesting Google', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.routeMapPlaceFind.mockResolvedValue([
+    { id: 'osm-marker', name: '入口', location: osmLocation },
+    { id: 'user-marker', name: '停車場', location: userLocation },
+  ])
+  const loaded = await new RouteCalculatorService().loadRouteMap('map-id')
+  expect(loaded.markers.map(marker => marker.name)).toEqual(['入口', '停車場'])
+  expect(loaded.unavailable).toEqual([])
+  expect(mocks.list).not.toHaveBeenCalled()
+  expect(mocks.getById).not.toHaveBeenCalled()
+  expect(mocks.details).not.toHaveBeenCalled()
+})
+
+it('keeps valid restored markers when another marker has invalid stored coordinates', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.routeMapPlaceFind.mockResolvedValue([
+    { id: 'invalid', name: '損壞地點', location: { ...userLocation, coordinate: { latitude: 200, longitude: 127.8 } } },
+    { id: 'valid', name: '停車場', location: userLocation },
+  ])
+  const loaded = await new RouteCalculatorService().loadRouteMap('map-id')
+  expect(loaded.markers.map(marker => marker.name)).toEqual(['停車場'])
+  expect(loaded.unavailable).toHaveLength(1)
+  expect(loaded.unavailable[0]).toContain('損壞地點')
+  expect(mocks.details).not.toHaveBeenCalled()
+})
+
+it('reads each unique scheduled OSM place once regardless of repeated itinerary items', async () => {
+  mocks.provider.mockReturnValue('osm')
+  mocks.items.mockResolvedValue([
+    { placeId: 'first', date: '2026-10-23' },
+    { placeId: 'first', date: '2026-10-24' },
+    { placeId: 'second', date: '2026-10-24' },
+  ])
+  mocks.getById.mockImplementation(async (id: string) => ({
+    ...saved, id, name: id, googlePlaceId: undefined,
+    location: id === 'first' ? osmLocation : userLocation,
+  }))
+  const loaded = await new RouteCalculatorService().loadTripMarkers('trip')
+  expect(mocks.getById.mock.calls).toEqual([['first'], ['second']])
+  expect(loaded.markers).toHaveLength(2)
+  expect(loaded.markers.find(marker => marker.name === 'first')?.dates).toEqual(['2026-10-23', '2026-10-24'])
+  expect(loaded.unavailable).toEqual([])
+  expect(mocks.details).not.toHaveBeenCalled()
+})
+
 it('resolves all four persisted neutral endpoint kinds through the facade', async () => {
   mocks.provider.mockReturnValue('osm')
   mocks.getById.mockResolvedValue({ ...saved, location: osmLocation })

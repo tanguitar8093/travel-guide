@@ -33,6 +33,7 @@ export interface GoogleMapMarkerData {
 
 export interface GoogleMapHandle {
   setMarkers(markers: GoogleMapMarkerData[], options?: { fitBounds?: boolean }): void
+  resetView(): void
   destroy(): void
 }
 
@@ -90,6 +91,7 @@ interface GoogleRoutesLibrary {
 
 interface GoogleMapInstance {
   fitBounds(bounds: GoogleMapViewport | GoogleMapBounds, padding?: number): void
+  setOptions(options: { center: GoogleMapPosition; zoom: number }): void
 }
 
 interface GoogleMapBounds {
@@ -372,6 +374,10 @@ export async function mountGoogleMap(
   >()
 
   return {
+    resetView() {
+      if (options.viewport) map.fitBounds(options.viewport)
+      else map.setOptions({ center: options.center, zoom: options.zoom })
+    },
     setMarkers(markers, options) {
       for (const { marker, clickHandler } of mountedMarkers.values()) {
         if (clickHandler) marker.removeEventListener('gmp-click', clickHandler)

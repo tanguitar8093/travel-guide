@@ -97,7 +97,7 @@ div.workspace-layout > main.route-calculator-main { height: 100dvh; min-height: 
 .route-result-dialog::backdrop { background: rgba(35,45,38,.38); }
 .route-result-dialog-content { padding-top: 12px; }
 .route-result-dialog-content > .route-dialog-close { display: block; margin: 0 14px 10px auto; }
-.route-map-canvas, .route-map-host { width: 100%; height: 100%; }
+.route-map-canvas, .route-map-host { position: absolute; inset: 0; width: 100%; height: 100%; }
 .route-map-host .google-map-marker-enlarged { --google-map-marker-scale: 1; width: 25px; height: 25px; }
 .route-map-message { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 15px; padding: 25px; color: #7b8b81; background: #f0f6f1; text-align: center; font-size: 13px; line-height: 1.8; }
 .route-map-title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }

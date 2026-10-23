@@ -285,12 +285,13 @@ export default function RouteCalculatorModule() {
             routeMapId,
           );
           if (endpointGeneration.current[target] !== current) return;
-          setPersonal((existing) => [
-            ...existing.filter(
+          setPersonal((existing) => {
+            const remaining = existing.filter(
               (item) => markerKey(item) !== markerKey(marker),
-            ),
-            marker,
-          ]);
+            );
+            return isTripMarker(markerKey(marker), tripData)
+              ? remaining : [...remaining, marker];
+          });
           setHidden((ids) => ids.filter((id) => id !== markerKey(marker)));
           setSelectedId(markerKey(marker));
         })
@@ -428,7 +429,9 @@ export default function RouteCalculatorModule() {
       >,
       mapData: Awaited<ReturnType<RouteCalculatorController["loadRouteMap"]>>,
       loadedTripData?: TripMapData,
+      isCurrent: () => boolean = () => true,
     ) => {
+      if (!isCurrent()) return;
       invalidate();
       endpointGeneration.current.origin += 1;
       endpointGeneration.current.destination += 1;
@@ -460,6 +463,7 @@ export default function RouteCalculatorModule() {
           }
         }),
       );
+      if (!isCurrent()) return;
       const tripMarkerIds = new Set(
         loadedTripData?.markers.map(markerKey) ?? [],
       );
@@ -556,7 +560,8 @@ export default function RouteCalculatorModule() {
           ? await controller.loadTripMarkers(mapData.map.tripId)
           : undefined;
         if (!active || tripGeneration.current !== current) return;
-        await applyRouteMap(mapData.map, mapData, loadedTripData);
+        await applyRouteMap(mapData.map, mapData, loadedTripData,
+          () => active && tripGeneration.current === current);
       } catch (cause) {
         if (active && tripGeneration.current === current) {
           if (cause instanceof EntityNotFoundError) {
@@ -633,7 +638,8 @@ export default function RouteCalculatorModule() {
         )
       )
         return;
-      await applyRouteMap(map, mapData, data);
+      await applyRouteMap(map, mapData, data,
+        () => tripGeneration.current === current);
     } catch (cause) {
       if (tripGeneration.current === current)
         setTripError(
@@ -884,7 +890,7 @@ export default function RouteCalculatorModule() {
               >
                 {placesError && (
                   <div className="route-inline-error" role="alert">
-                    {placesError} 仍可使用 Google 搜尋。
+                    {placesError} 仍可使用 {provider === 'osm' ? 'OSM' : 'Google'} 搜尋。
                     <button
                       type="button"
                       disabled={busy}

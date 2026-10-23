@@ -1,5 +1,25 @@
-import type { RouteMapPlace, TripMapData } from './route-calculator.service'
-import { markerKey, storedEndpoint } from './route-calculator.service'
+import type { ResolvedRouteEndpoint, RouteEndpoint, RouteMapPlace, TripMapData } from './route-calculator.service'
+import type { RouteEndpointSelection } from '../../geo/contracts'
+
+export function markerKey(marker: ResolvedRouteEndpoint): string {
+  return marker.id ?? marker.googlePlaceId ?? ''
+}
+
+export function storedEndpoint(endpoint: RouteEndpoint | null, marker?: RouteMapPlace): RouteEndpointSelection | undefined {
+  if (!endpoint) return undefined
+  if (endpoint.source === 'saved') return { kind: 'place', placeId: endpoint.placeId }
+  if (endpoint.source === 'selection') return endpoint.selection
+  if (endpoint.source === 'osm') return {
+    kind: 'location', id: endpoint.place.location.source === 'osm'
+      ? `osm:${endpoint.place.location.reference.id}`
+      : `coordinate:${endpoint.place.location.coordinate.latitude},${endpoint.place.location.coordinate.longitude}`,
+    value: { kind: 'stored', name: endpoint.place.name, location: endpoint.place.location },
+  }
+  return {
+    kind: 'location', id: endpoint.place.id,
+    value: { kind: 'google', name: marker?.name ?? endpoint.place.displayName, reference: { provider: 'google', id: endpoint.place.id } },
+  }
+}
 
 export function isTripMarker(id: string, trip: TripMapData | undefined): boolean {
   return trip?.markers.some((marker) => markerKey(marker) === id) ?? false

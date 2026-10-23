@@ -1,7 +1,6 @@
 import { expect, it } from 'vitest'
-import { isTripMarker, markerEndpoint, visibleRouteMarkers } from './route-markers'
+import { isTripMarker, markerEndpoint, markerKey, storedEndpoint, visibleRouteMarkers } from './route-markers'
 import type { RouteMapPlace, TripMapData } from './route-calculator.service'
-import { markerKey, storedEndpoint } from './route-calculator.service'
 
 const a: RouteMapPlace = { googlePlaceId: 'a', name: 'A', position: { lat: 25, lng: 121 }, address: '地址' }
 const b: RouteMapPlace = { ...a, googlePlaceId: 'b', name: 'B' }

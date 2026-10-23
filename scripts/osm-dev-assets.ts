@@ -78,9 +78,19 @@ export function osmDevAssets(): Plugin {
             await new Promise(resolve => setTimeout(resolve, 500))
           }
           throw new Error(startupError || 'maps service did not become ready within 60 seconds')
-        })()
+        })().catch(cause => {
+          ready = undefined
+          throw cause
+        })
         return ready
       }
+
+      // Prepare the local service while Vite starts, rather than waiting for the first map request.
+      server.httpServer?.once('listening', () => {
+        void waitForService().catch(cause => {
+          server.config.logger.error(`OSM service startup failed: ${cause instanceof Error ? cause.message : String(cause)}`)
+        })
+      })
 
       server.middlewares.use(async (request, response, next) => {
         const pathname = (request.url || '').split('?')[0]

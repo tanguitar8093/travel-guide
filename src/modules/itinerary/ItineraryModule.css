@@ -176,7 +176,6 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-place-picker { position: relative; }
 .itinerary-place-picker-row { display: flex; align-items: stretch; gap: 7px; }
 .itinerary-place-picker-row > .searchable-select { min-width: 0; flex: 1 1 auto; }
-.itinerary-add-place-link { min-height: 35px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 9px; border: 1px solid #dce8de; border-radius: 5px; color: #52745a; background: #f5f8f5; font-size: 10px; text-decoration: none; white-space: nowrap; }
 .itinerary-add-place-link:hover { border-color: #cbdace; background: #edf4ee; }
 .itinerary-form-actions { display: flex; justify-content: end; gap: 8px; padding-top: 15px; border-top: 1px solid #eff1ef; }
 .itinerary-item-form { flex: 0 0 auto; display: grid; gap: 13px; padding: 16px; margin: 4px 12px 16px; border: 1px solid #e5ece6; border-radius: 7px; background: #fbfcfb; }

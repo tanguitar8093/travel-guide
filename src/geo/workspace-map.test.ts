@@ -2,11 +2,14 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import type { GoogleMapMarkerData } from '../modules/place/google-places.service'
 
 const mocks = vi.hoisted(() => ({
-  createRenderer: vi.fn(), mount: vi.fn(), setMarkers: vi.fn(), fitMarkers: vi.fn(), destroy: vi.fn(),
+  createRenderer: vi.fn(), mount: vi.fn(), setMarkers: vi.fn(), fitMarkers: vi.fn(), fitBounds: vi.fn(), destroy: vi.fn(),
   loadSdk: vi.fn(), style: vi.fn(), googleMount: vi.fn(),
 }))
 vi.mock('./adapters/osm/maplibre-renderer', () => ({ createMapLibreRenderer: mocks.createRenderer }))
-vi.mock('./adapters/osm/osm-resources', () => ({ loadOsmMapLibre: mocks.loadSdk, createOsmStyle: mocks.style }))
+vi.mock('./adapters/osm/osm-resources', () => ({ loadOsmMapLibre: mocks.loadSdk, createOsmStyle: mocks.style,
+  osmDefaultCenter: { latitude: 26.43, longitude: 127.9 },
+  osmDefaultBounds: { north: 26.9, south: 25.98, east: 128.36, west: 127.58 },
+}))
 vi.mock('../modules/place/google-places.service', () => ({ mountGoogleMap: mocks.googleMount }))
 
 import { mountWorkspaceMap } from './workspace-map'
@@ -18,7 +21,7 @@ beforeEach(() => {
   vi.stubEnv('VITE_OSM_ASSET_BASE_URL', 'https://maps.example.test/assets/')
   vi.stubEnv('VITE_OSM_STYLE_URL', '')
   mocks.createRenderer.mockReturnValue({ mount: mocks.mount })
-  mocks.mount.mockResolvedValue({ setMarkers: mocks.setMarkers, fitMarkers: mocks.fitMarkers, destroy: mocks.destroy })
+  mocks.mount.mockResolvedValue({ setMarkers: mocks.setMarkers, fitMarkers: mocks.fitMarkers, fitBounds: mocks.fitBounds, destroy: mocks.destroy })
 })
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs() })
 
@@ -42,8 +45,8 @@ it('adapts real itinerary identities, selection callbacks and fitting to the neu
   expect(mocks.style).toHaveBeenCalledExactlyOnceWith('https://maps.example.test/assets')
   const mountOptions = mocks.mount.mock.calls[0][1]
   expect(mountOptions).toMatchObject({
-    center: { latitude: 26, longitude: 127 }, zoom: 10, maxZoom: 17,
-    bounds: { north: 27, south: 25, east: 129, west: 126 },
+    center: { latitude: 26.43, longitude: 127.9 }, zoom: 9.5, maxZoom: 17,
+    bounds: { north: 26.9, south: 25.98, east: 128.36, west: 127.58 },
   })
   const first = vi.fn()
   const next = vi.fn()
@@ -64,6 +67,8 @@ it('adapts real itinerary identities, selection callbacks and fitting to the neu
   expect(next).toHaveBeenCalledOnce()
   expect(first).toHaveBeenCalledOnce()
   expect(mocks.fitMarkers).toHaveBeenCalledOnce()
+  handle.resetView()
+  expect(mocks.fitBounds).toHaveBeenCalledExactlyOnceWith({ north: 26.9, south: 25.98, east: 128.36, west: 127.58 })
   mountOptions.events.onError(new Error('resource failed'))
   expect(onError).toHaveBeenCalled()
   handle.destroy()

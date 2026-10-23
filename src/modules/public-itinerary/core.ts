@@ -15,6 +15,7 @@ function publicPlace(place: PublicPlace, id: string, regionId: string): PublicPl
     ...(place.icon !== undefined && { icon: place.icon }),
     ...(place.mapsUrl !== undefined && { mapsUrl: place.mapsUrl }),
     ...(place.googlePlaceId !== undefined && { googlePlaceId: place.googlePlaceId }),
+    ...(place.location !== undefined && { location: place.location }),
   }
 }
 

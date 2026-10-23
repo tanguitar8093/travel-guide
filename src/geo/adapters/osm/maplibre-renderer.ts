@@ -10,7 +10,7 @@ interface MapLibreMap {
   off(type: 'error', listener: (event: { error: Error }) => void): void
   loaded(): boolean
   jumpTo(options: { center: [number, number]; zoom?: number }): void
-  fitBounds(bounds: [[number, number], [number, number]], options: { padding: number; maxZoom: number; duration: number }): void
+  fitBounds(bounds: [[number, number], [number, number]], options: { padding: number | { top: number; bottom: number; left: number; right: number }; maxZoom: number; duration: number; bearing: number; pitch: number }): void
   addControl(control: unknown, position: 'top-right'): void
   resize(): void
   remove(): void
@@ -25,7 +25,7 @@ interface MapLibreMarker {
 export interface MapLibreSdk {
   Map: new (options: {
     container: HTMLElement; center: [number, number]; zoom: number; maxZoom: number
-    style: object | string
+    style: object | string; minZoom: number; pitchWithRotate: boolean; dragRotate: boolean
   }) => MapLibreMap
   Marker: new (options: { element: HTMLElement }) => MapLibreMarker
   NavigationControl: new (options: { showCompass: boolean }) => unknown
@@ -78,8 +78,19 @@ export function createMapLibreRenderer(config: {
         map = new sdk.Map({
           container, center: [options.center.longitude, options.center.latitude],
           zoom: Math.min(options.zoom, options.maxZoom ?? 22), maxZoom: options.maxZoom ?? 22, style: config.style,
+          minZoom: 5, pitchWithRotate: false, dragRotate: false,
         })
         const currentMap = map
+        const fit = (bounds: Bounds, duration = 650, allMarkers = false) => {
+          currentMap.resize()
+          currentMap.fitBounds(mapLibreBounds(bounds), {
+            padding: allMarkers ? 80 : { top: 16, bottom: 16, left: 12, right: 12 },
+            maxZoom: allMarkers ? Math.min(14, options.maxZoom ?? 22) : options.maxZoom ?? 22,
+            duration, bearing: 0, pitch: 0,
+          })
+        }
+        // Set the initial camera before downloading tiles, so only the intended viewport is loaded.
+        if (options.bounds) fit(options.bounds, 0)
         currentMap.on('error', runtimeError)
         currentMap.addControl(new sdk.NavigationControl({ showCompass: false }), 'top-right')
         if (sdk.FullscreenControl) currentMap.addControl(new sdk.FullscreenControl(), 'top-right')
@@ -104,10 +115,6 @@ export function createMapLibreRenderer(config: {
           else if (currentMap.loaded()) load()
         })
         throwIfAborted(options.signal)
-        const fit = (bounds: Bounds) => currentMap.fitBounds(mapLibreBounds(bounds), {
-          padding: 50, maxZoom: options.maxZoom ?? 22, duration: 0,
-        })
-        if (options.bounds) fit(options.bounds)
         ready = true
         return {
           setMarkers(next) {
@@ -144,7 +151,7 @@ export function createMapLibreRenderer(config: {
           fitMarkers() {
             if (destroyed) return
             const bounds = markerBounds(markers)
-            if (bounds) fit(bounds)
+            if (bounds) fit(bounds, 650, true)
           },
           destroy,
         }
