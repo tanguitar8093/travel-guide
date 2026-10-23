@@ -24,6 +24,7 @@ export function AuthGate({ children }: AuthGateProps) {
     clearError,
   } = useAuth();
   const [mode, setMode] = useState<"signIn" | "signUp">("signIn");
+  const [loginMethod, setLoginMethod] = useState<"choose" | "password">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -259,89 +260,122 @@ export function AuthGate({ children }: AuthGateProps) {
           </>
         )}
 
-        <form className="auth-form" onSubmit={handleSubmit}>
-          <label className="auth-field">
-            <span>電子郵件</span>
-            <input
-              autoComplete="email"
-              inputMode="email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.com"
-              required
-            />
-          </label>
-
-          <label className="auth-field">
-            <span>{mode === "signIn" ? "密碼" : "設定密碼"}</span>
-            <input
-              autoComplete={
-                mode === "signIn" ? "current-password" : "new-password"
-              }
-              name="password"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder={mode === "signIn" ? "輸入密碼" : "設定密碼"}
-              required
-            />
-          </label>
-
-          {mode === "signUp" && (
-            <label className="auth-field">
-              <span>確認密碼</span>
-              <input
-                autoComplete="new-password"
-                name="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="再輸入一次密碼"
-                required
-              />
-            </label>
-          )}
-
-          {formNoticeMessage && (
-            <p className="auth-notice" role="status">
-              {formNoticeMessage}
-            </p>
-          )}
-
-          {visibleError && (
-            <p className="auth-error" role="alert">
-              {visibleError}
-            </p>
-          )}
-
-          <button className="auth-submit" type="submit" disabled={isSubmitting}>
-            {isSubmitting
-              ? mode === "signIn"
-                ? "登入中..."
-                : "註冊中..."
-              : mode === "signIn"
-                ? "登入"
-                : "註冊"}
-          </button>
-
-          <button
-            className="auth-switch"
-            type="button"
-            onClick={() => {
+        {mode === "signIn" && loginMethod === "choose" ? (
+          <div className="auth-form" aria-label="選擇登入方式">
+            <p className="auth-method-heading">選擇登入方式</p>
+            <button className="auth-secondary auth-google-login" type="button" disabled>
+              Google 登入<span className="auth-method-note">即將開放</span>
+            </button>
+            <button className="auth-submit" type="button" onClick={() => setLoginMethod("password")}>
+              帳號登入
+            </button>
+            {visibleError && <p className="auth-error" role="alert">{visibleError}</p>}
+            <button className="auth-switch" type="button" onClick={() => {
               setFormErrorMessage(null);
               setFormNoticeMessage(null);
               clearError();
-              setMode(mode === "signIn" ? "signUp" : "signIn");
-              setConfirmPassword("");
-            }}
-          >
-            {mode === "signIn"
-              ? "沒有帳號？建立一個新帳號"
-              : "我已經有帳號，回到登入"}
-          </button>
-        </form>
+              setMode("signUp");
+            }}>
+              沒有帳號？建立一個新帳號
+            </button>
+          </div>
+        ) : (
+          <form className="auth-form" onSubmit={handleSubmit}>
+            <label className="auth-field">
+              <span>電子郵件</span>
+              <input
+                autoComplete="email"
+                inputMode="email"
+                name="email"
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                required
+              />
+            </label>
+
+            <label className="auth-field">
+              <span>{mode === "signIn" ? "密碼" : "設定密碼"}</span>
+              <input
+                autoComplete={
+                  mode === "signIn" ? "current-password" : "new-password"
+                }
+                name="password"
+                type="password"
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder={mode === "signIn" ? "輸入密碼" : "設定密碼"}
+                required
+              />
+            </label>
+
+            {mode === "signUp" && (
+              <label className="auth-field">
+                <span>確認密碼</span>
+                <input
+                  autoComplete="new-password"
+                  name="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="再輸入一次密碼"
+                  required
+                />
+              </label>
+            )}
+
+            {formNoticeMessage && (
+              <p className="auth-notice" role="status">
+                {formNoticeMessage}
+              </p>
+            )}
+
+            {visibleError && (
+              <p className="auth-error" role="alert">
+                {visibleError}
+              </p>
+            )}
+
+            <button className="auth-submit" type="submit" disabled={isSubmitting}>
+              {isSubmitting
+                ? mode === "signIn"
+                  ? "登入中..."
+                  : "註冊中..."
+                : mode === "signIn"
+                  ? "登入"
+                  : "註冊"}
+            </button>
+
+            <button
+              className="auth-switch"
+              type="button"
+              onClick={() => {
+                setFormErrorMessage(null);
+                setFormNoticeMessage(null);
+                clearError();
+                setMode(mode === "signIn" ? "signUp" : "signIn");
+                setConfirmPassword("");
+                setLoginMethod("password");
+              }}
+            >
+              {mode === "signIn"
+                ? "沒有帳號？建立一個新帳號"
+                : "我已經有帳號，回到登入"}
+            </button>
+            {mode === "signIn" && (
+              <button className="auth-switch" type="button" disabled={isSubmitting} onClick={() => {
+                setLoginMethod("choose");
+                setPassword("");
+                setFormErrorMessage(null);
+                setFormNoticeMessage(null);
+                clearError();
+              }}>
+                返回選擇登入方式
+              </button>
+            )}
+          </form>
+        )}
       </section>
     </div>
   );

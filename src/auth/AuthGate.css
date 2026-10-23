@@ -233,3 +233,37 @@
     font-size: 26px;
   }
 }
+
+.auth-method-heading {
+  margin: 0;
+  color: #55635a;
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.auth-google-login {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.auth-google-login:disabled {
+  cursor: not-allowed;
+  color: #6d7b70;
+  background: #f6f8f5;
+}
+
+.auth-method-note {
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.auth-secondary:focus-visible,
+.auth-submit:focus-visible,
+.auth-switch:focus-visible {
+  outline: 2px solid #558662;
+  outline-offset: 3px;
+}

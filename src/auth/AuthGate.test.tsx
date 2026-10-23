@@ -58,8 +58,13 @@ describe('AuthGate role access control', () => {
     expect(html).toContain('class="tour-guide"')
     expect(html).not.toContain('若你已經有帳號，請直接登入。')
     expect(html).not.toContain('class="auth-loading-caption"')
-    expect(html).toContain('name="email"')
-    expect(html).toContain('name="password"')
+    expect(html).toContain('選擇登入方式')
+    expect(html).toContain('Google 登入')
+    expect(html).toContain('即將開放')
+    expect(html).toContain('帳號登入')
+    expect(html).toContain('沒有帳號？建立一個新帳號')
+    expect(html).not.toContain('name="email"')
+    expect(html).not.toContain('name="password"')
   })
 
   it('renders workspace for authenticated member/admin', () => {
