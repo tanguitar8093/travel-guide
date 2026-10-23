@@ -9,9 +9,11 @@ import { RouteCalculatorModule } from './modules/route-calculator'
 import { routes } from './routes'
 import { usePathname } from './usePathname'
 import { useDatabaseMode } from './database/useDatabaseMode'
+import { useMapProvider } from './geo/provider-preference'
 
 function RoutedApp() {
   const pathname = usePathname().replace(/\/+$/, '') || '/'
+  const { provider } = useMapProvider()
 
   if (pathname === routes.publicItinerary) return <PublicItineraryModule />
 
@@ -28,7 +30,7 @@ function RoutedApp() {
   }
 
   if (pathname === routes.regions) {
-    return <RegionModule />
+    return <RegionModule key={provider} />
   }
 
   if (pathname === routes.itinerary) {

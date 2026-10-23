@@ -1003,7 +1003,7 @@ function PlaceModule() {
                             {place.name}
                           </strong>
                           <span>
-                            {provider === 'osm' ? (place.location ? 'OSM／自主位置' : '尚無 OSM 位置') : place.googlePlaceId
+                            {provider === 'osm' ? (place.location ? '地圖座標' : '尚無地圖座標') : place.googlePlaceId
                               ? "Google Maps 地點"
                               : "自訂地圖連結"}
                           </span>
@@ -1113,8 +1113,8 @@ function PlaceModule() {
                       </div>
                     )}
                     {provider === 'osm' && draft.location && <div className="google-selection">
-                      <span>✓ 已選位置：{draft.location.coordinate.latitude}, {draft.location.coordinate.longitude}</span>
-                      <small>{draft.location.source === 'osm' ? `OSM ${draft.location.reference.id}` : '自行確認的位置'}{draft.location.kind === 'approximate-center' ? '（代表中心，請確認入口）' : ''}</small>
+                      <span>✓ 地圖座標：{draft.location.coordinate.latitude}, {draft.location.coordinate.longitude}</span>
+                      {draft.location.kind === 'approximate-center' && <small>代表中心，請確認入口。</small>}
                       {notice && <small role="status">{notice}</small>}
                     </div>}
                     {provider === 'google' && draft.googlePlaceId && (
@@ -1179,7 +1179,7 @@ function PlaceModule() {
                         disabled={formDisabled}
                       />
                       <small>
-                        {provider === 'osm' ? '選填：Google 地圖連結或其他導航網址；不會取代已選 OSM 位置。' : '若未選 Google 搜尋結果，請貼上 Google Maps 分享連結或其他地圖網址。'}
+                        {provider === 'osm' ? '選填：Google 地圖連結或其他導航網址；不會取代已選地圖座標。' : '若未選 Google 搜尋結果，請貼上 Google Maps 分享連結或其他地圖網址。'}
                       </small>
                     </label>
                   ) : (
@@ -1188,7 +1188,7 @@ function PlaceModule() {
                     </p>
                   )}
 
-                  <fieldset className="place-choice-field">
+                  {provider !== 'osm' && <fieldset className="place-choice-field">
                     <legend>所屬區域</legend>
                     {providerRegions.length ? (
                       <SearchableMultiSelect
@@ -1205,7 +1205,7 @@ function PlaceModule() {
                     ) : (
                       <small>目前沒有區域，可先不指定。</small>
                     )}
-                  </fieldset>
+                  </fieldset>}
 
                   <fieldset className="place-choice-field">
                     <legend>標籤</legend>
@@ -1328,7 +1328,7 @@ function PlaceModule() {
                 </div>
 
                 {provider === 'osm' && <section className="place-map-card">
-                  {selectedPlace.location ? <><span>OSM／自主位置</span><p>{selectedPlace.location.coordinate.latitude}, {selectedPlace.location.coordinate.longitude}</p><a className="maps-link" href={selectedPlace.mapsUrl || googleMapsNavigationUrl(selectedPlace.location.coordinate)} target="_blank" rel="noreferrer">在 Google Maps 開啟 ↗</a></> : <p>此地點尚無 OSM 可用位置。編輯並選取 OSM 搜尋結果或自行確認的座標；原 Google 連結不會被刪除。</p>}
+                  {selectedPlace.location ? <><span>地圖座標</span><p>{selectedPlace.location.coordinate.latitude}, {selectedPlace.location.coordinate.longitude}</p><a className="maps-link" href={selectedPlace.mapsUrl || googleMapsNavigationUrl(selectedPlace.location.coordinate)} target="_blank" rel="noreferrer">在 Google Maps 開啟 ↗</a></> : <p>此地點尚無地圖座標。編輯並選取 OSM 搜尋結果或自行確認的座標；原 Google 連結不會被刪除。</p>}
                 </section>}
                 {provider === 'google' && selectedPlace.googlePlaceId && (
                   <section className="google-place-summary">
@@ -1402,7 +1402,7 @@ function PlaceModule() {
                       <p className="muted-value">尚未套用標籤</p>
                     )}
                   </section>
-                  <section className="place-info-section">
+                  {provider !== 'osm' && <section className="place-info-section">
                     <h3>所屬區域</h3>
                     {selectedPlace.regionIds.length ? (
                       <div className="place-info-tags">
@@ -1419,7 +1419,7 @@ function PlaceModule() {
                     ) : (
                       <p className="muted-value">尚未指定區域</p>
                     )}
-                  </section>
+                  </section>}
                   <section className="place-info-section notes-info-section">
                     <h3>備註</h3>
                     <p

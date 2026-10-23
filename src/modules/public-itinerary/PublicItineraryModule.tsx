@@ -16,6 +16,7 @@ import './PublicItineraryModule.css'
 import { useAuth } from '../../auth/useAuth'
 import { usePublicCatalogStatus, refreshPublicCatalog, acceptPublicCloudVersion } from './catalog-runtime'
 import type { SharedPublicItinerary } from './shared-catalog'
+import { useMapProvider } from '../../geo/provider-preference'
 
 function days(row: PublicItinerary) {
   return Math.round((Date.parse(row.snapshot.trip.endDate)-Date.parse(row.snapshot.trip.startDate))/86400000)+1
@@ -31,6 +32,7 @@ function Preview({ row, onClose }: { row: PublicItinerary; onClose(): void }) {
 }
 export function PublicItineraryModule() {
   const { user } = useAuth()
+  const { provider } = useMapProvider()
   const publicItineraryController = useMemo(() => createPublicItineraryController(user?.id ?? ''), [user?.id])
   const sync = usePublicCatalogStatus()
   const mode = useDatabaseMode()
@@ -56,7 +58,7 @@ export function PublicItineraryModule() {
   const preview = rows.find(row => row.id === previewId)
   const withdrawing = rows.find(row => row.id === withdrawId)
   const term = search.trim().toLocaleLowerCase()
-  const filtered = rows.filter(({ snapshot }) => (!rows.some(row => row.snapshot.region.name === region) || snapshot.region.name === region)
+  const filtered = rows.filter(({ snapshot }) => (provider === 'osm' || !rows.some(row => row.snapshot.region.name === region) || snapshot.region.name === region)
     && (!term || snapshot.trip.name.toLocaleLowerCase().includes(term) || snapshot.region.name.toLocaleLowerCase().includes(term)))
   async function apply(id: string) {
     if (running.current) return
@@ -85,9 +87,9 @@ export function PublicItineraryModule() {
     {<section className="public-list-card" aria-label="公開行程列表"><div className="public-list-toolbar"><div><h2>探索行程 <span>{rows.length}</span></h2>
       <p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div className="public-list-filters">
       <label><span className="public-sr-only">搜尋公開行程</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="搜尋行程名稱或區域" /></label>
-      <label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
+      {provider !== 'osm' && <label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
         {[...new Set(rows.map(row => row.snapshot.region.name))].map(name => <option key={name}>{name}</option>)}
-      </select></label></div></div><div className="public-table-scroll"><table className="public-trip-table"><thead><tr>
+      </select></label>}</div></div><div className="public-table-scroll"><table className="public-trip-table"><thead><tr>
       {['行程名稱','區域','新增日期','預覽','使用行程','管理'].map(name => <th scope="col" key={name}>{name}</th>)}
     </tr></thead><tbody>{filtered.map(row => <tr key={row.id}><td><div className="public-trip-name"><span className="public-trip-symbol">▤</span><div>
       <strong>{row.snapshot.trip.name}</strong><small>{days(row)} 天 · {row.snapshot.places.length} 個地點</small></div></div></td>

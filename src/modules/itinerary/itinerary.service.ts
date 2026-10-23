@@ -119,7 +119,7 @@ export class ItineraryService {
     let estimate: GoogleRouteEstimate
     if (provider === 'osm') {
       if (!originPlace.location || !destinationPlace.location) {
-        throw new ValidationError('上一站和這一站都需要已確認來源的 OSM／自主位置；不會查詢 Google。')
+        throw new ValidationError('上一站和這一站都需要地圖座標；不會查詢 Google。')
       }
       validateStoredLocation(originPlace.location)
       validateStoredLocation(destinationPlace.location)

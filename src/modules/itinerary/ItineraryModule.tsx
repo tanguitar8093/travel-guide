@@ -1443,7 +1443,7 @@ function ItineraryModule({
                         disabled={saving}
                       />
                     </label>
-                    <label className="itinerary-field itinerary-field-wide">
+                    {mapProvider !== 'osm' && <label className="itinerary-field itinerary-field-wide">
                       <span>
                         所屬區域 <b>*</b>
                       </span>
@@ -1467,7 +1467,7 @@ function ItineraryModule({
                           </option>
                         ))}
                       </select>
-                    </label>
+                    </label>}
                     <div className="itinerary-field-grid">
                       <label className="itinerary-field">
                         <span>
@@ -1531,15 +1531,19 @@ function ItineraryModule({
                   <div className="itinerary-no-regions">
                     <strong>建立行程前，需要先有一個區域。</strong>
                     <p>
-                      區域可代表城市或旅行目的地；建立後即可選擇它來建立行程。
+                      {mapProvider === 'osm'
+                        ? "OSM 使用預設區域；若區域尚未載入，請重新整理頁面。"
+                        : "區域可代表城市或旅行目的地；建立後即可選擇它來建立行程。"}
                     </p>
                     <div className="itinerary-no-regions-actions">
-                      <RouterLink
-                        className="itinerary-primary itinerary-link-button"
-                        to={routes.regions}
-                      >
-                        前往區域
-                      </RouterLink>
+                      {mapProvider !== 'osm' && (
+                        <RouterLink
+                          className="itinerary-primary itinerary-link-button"
+                          to={routes.regions}
+                        >
+                          前往區域
+                        </RouterLink>
+                      )}
                       <button
                         type="button"
                         className="itinerary-secondary"
@@ -1831,7 +1835,7 @@ function ItineraryModule({
                           target="_blank"
                           rel="noreferrer"
                         >
-                          前往地點模組新增地點並設定所屬區域。
+                          {mapProvider === 'osm' ? '前往地點模組新增地點。' : '前往地點模組新增地點並設定所屬區域。'}
                         </a>
                       </div>
                     )}
@@ -2123,8 +2127,7 @@ function ItineraryModule({
                       )}
                       {!readonly && !tripPlaces.length && !itemFormVisible && (
                         <p className="itinerary-region-hint">
-                          請先到地點模組，將地點加入「{selectedRegion?.name}
-                          」區域。
+                          {mapProvider === 'osm' ? '請先到地點模組新增地點。' : <>請先到地點模組，將地點加入「{selectedRegion?.name}」區域。</>}
                         </p>
                       )}
                     </div>
@@ -2255,7 +2258,7 @@ function ItineraryModule({
                   <strong>無法顯示區域地圖</strong>
                   <p>{visibleMapError}</p>
                   <button type="button" className="itinerary-secondary" onClick={() => setMapRetry(value => value + 1)}>重試地圖</button>
-                  <RouterLink to={routes.regions}>前往區域</RouterLink>
+                  <RouterLink to={routes.regions}>查看區域</RouterLink>
                 </div>
               ) : mountedMapRegionId !== selectedRegion.id ? (
                 <div className="itinerary-map-overlay">

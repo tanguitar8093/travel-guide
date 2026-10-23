@@ -49,7 +49,7 @@ export function RouteEndpointField({
         id: optionId,
         name: place.name,
         disabled: provider === 'osm' ? !place.location : !place.googlePlaceId,
-        description: provider === 'osm' ? (place.location ? undefined : '未設定 OSM 或自行輸入位置，無法用於試算') : (place.googlePlaceId ? undefined : '未設定 Google 地點，無法用於試算'),
+        description: provider === 'osm' ? (place.location ? undefined : '未設定地圖座標，無法用於試算') : (place.googlePlaceId ? undefined : '未設定 Google 地點，無法用於試算'),
       }
     }),
     ...uniqueAddedMarkers.map((marker) => {

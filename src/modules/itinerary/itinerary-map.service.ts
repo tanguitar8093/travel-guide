@@ -136,8 +136,8 @@ export class ItineraryMapService {
       unlocatedPlaces.push({
         id: place.id, name: place.name, mapsUrl: place.mapsUrl,
         reason: place.googlePlaceId
-          ? '目前只有 Google 地點識別碼，尚未補上可供 OSM 使用的位置。'
-          : '尚未儲存可供 OSM 使用的位置；地圖網址不會自動轉成座標。',
+          ? '目前只有 Google 地點識別碼，尚未補上地圖座標。'
+          : '尚未儲存地圖座標；地圖網址不會自動轉成座標。',
       });
     }
     return {

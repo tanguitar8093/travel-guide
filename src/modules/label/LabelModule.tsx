@@ -11,6 +11,7 @@ import { BulkDeleteToolbar } from '../../common/BulkDeleteToolbar';
 import type { BulkOperationResult } from '../../common/bulk-operation';
 import { BulkColorToolbar } from './BulkColorToolbar';
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
+import { useMapProvider } from "../../geo/provider-preference";
 
 const labelColors = [
   "#e9905a",
@@ -50,6 +51,7 @@ function filterTree(nodes: LabelTreeNode[], query: string): LabelTreeNode[] {
 }
 
 function LabelModule() {
+  const { provider } = useMapProvider();
   const dataRevision = useHybridDataRevision();
   const bulk = useBulkDelete();
   const [bulkMode, setBulkMode] = useState<"delete" | "color">("delete");
@@ -803,7 +805,7 @@ function LabelModule() {
                       </div>
                       <div className="place-copy">
                         <strong>{place.name}</strong>
-                        <span>{place.regionIds.length} 個地區</span>
+                        {provider !== 'osm' && <span>{place.regionIds.length} 個地區</span>}
                       </div>
                       <div className="place-tags">
                         {applied.map((label) => (
@@ -975,9 +977,8 @@ function LabelModule() {
                         <div className="place-copy">
                           <strong>{place.name}</strong>
                           <span>
-                            {place.regionIds.length} 個區域
-                            {" · "}
-                            {place.googlePlaceId ? "Google Maps 地點" : "自訂地圖連結"}
+                            {provider !== 'osm' && <>{place.regionIds.length} 個區域 · </>}
+                            {provider === 'osm' ? (place.location ? '地圖座標' : '尚無地圖座標') : place.googlePlaceId ? "Google Maps 地點" : "自訂地圖連結"}
                           </span>
                         </div>
                         <div className="place-tags">

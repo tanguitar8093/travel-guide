@@ -333,7 +333,7 @@ export class RouteCalculatorService {
       throw new ValidationError('起點與終點相同，請選擇不同的地點。')
     }
     if (provider === 'osm') {
-      if (!origin.location || !destination.location) throw new ValidationError('OSM 路線需要自行設定或 OSM 位置；Google 地點不會傳送至 OSM。')
+      if (!origin.location || !destination.location) throw new ValidationError('OSM 路線需要地圖座標；Google 地點不會傳送至 OSM。')
       const estimate = await this.estimateOsmRoute(origin.location.coordinate, destination.location.coordinate, input.transport)
       return { ...estimate, origin, destination, transport: input.transport, provider }
     }
