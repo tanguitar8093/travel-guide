@@ -1,3 +1,4 @@
+import { matchingOsmRegionPreparation } from './osm-region-sync'
 import Dexie, { type Transaction } from 'dexie'
 import { ValidationError } from './errors'
 import { validateSyncTask } from './geo-format'
@@ -176,6 +177,18 @@ export class LocalSyncStore {
     return metadata
   }
 
+  async retryMatchingOsmRegionPreparations(): Promise<void> {
+    const assertCurrent = this.captureAccount()
+    await this.database.transaction('rw', this.database.outbox, this.database.syncConflicts, async () => {
+      for (const task of await this.database.outbox.toArray()) {
+        if (task.status !== 'conflict' || !task.conflictRecords?.some(row => matchingOsmRegionPreparation(task, row))) continue
+        await this.database.outbox.update(task.sequence!, { status: 'pending', error: undefined, conflictRecords: undefined })
+        await this.database.syncConflicts.clear()
+      }
+      assertCurrent()
+    })
+  }
+
   async prepareUpload(options: { retryOnly?: boolean } = {}): Promise<SyncTask | undefined> {
     const assertCurrent = this.captureAccount()
     return this.database.transaction('rw', this.database.outbox, async () => {
@@ -278,7 +291,7 @@ export class LocalSyncStore {
         if (!acknowledged) {
           const first = remaining.find((task) => task.changes.some((change) => change.entity === row.entity && change.id === row.id))
           const change = first?.changes.find((change) => change.entity === row.entity && change.id === row.id)
-          if (first && change?.baseVersion !== row.version) conflictTasks.add(first.sequence!)
+          if (first && change?.baseVersion !== row.version && !matchingOsmRegionPreparation(first, row)) conflictTasks.add(first.sequence!)
         }
       }
       if (options.initialize) {

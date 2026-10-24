@@ -10,9 +10,8 @@ import {
   type DataManagementCloudAdapter,
 } from './data-management.cloud-adapter'
 import type { CloudBackupPreview } from '../../database/supabase.repositories'
-import { requireHybridStore } from '../../database/hybrid.runtime'
+import { requireHybridStore, syncHybridWorkspace } from '../../database/hybrid.runtime'
 import { previewHybridSync } from '../../database/sync-preview'
-import { syncHybridManually } from '../../database/sync-engine'
 import { getSavedConflictReview, prepareConflictReview, resolveConflictReview } from '../../database/sync-conflicts'
 
 export class DataManagementService {
@@ -29,7 +28,7 @@ export class DataManagementService {
 
   syncHybridManually() {
     if (getDatabaseMode() !== 'hybrid') throw new Error('請先切換到混合測試模式。')
-    return syncHybridManually(requireHybridStore())
+    return syncHybridWorkspace()
   }
 
   previewHybridSync() {

@@ -27,13 +27,13 @@ class VectorTiles:
         if {layer['id'] for layer in self.layers} != {'land', 'water', 'coastline', 'roads'}:
             raise ValueError('Map tiles are missing required display layers.')
 
-    def tilejson(self):
+    def tilejson(self, dataset='okinawa'):
         return {
-            'tilejson': '3.0.0', 'name': 'Okinawa',
+            'tilejson': '3.0.0', 'name': dataset,
             'scheme': 'xyz', 'minzoom': self.minzoom, 'maxzoom': self.maxzoom,
             'bounds': self.bounds, 'vector_layers': self.layers,
             'attribution': '<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors · ODbL</a>',
-            'tiles': [f'/tiles/{self.version}/{{z}}/{{x}}/{{y}}.pbf'],
+            'tiles': [f'{"" if dataset == "okinawa" else "/datasets/" + dataset}/tiles/{self.version}/{{z}}/{{x}}/{{y}}.pbf'],
         }
 
     def read(self, zoom, x, y):

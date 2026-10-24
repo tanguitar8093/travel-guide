@@ -19,7 +19,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 healthy() {
   curl --fail --silent --max-time 2 "http://$OSM_UPSTREAM/api/health" |
-    python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(not (d.get("ok") is True and d.get("dataset")=="Okinawa OSM"))' 2>/dev/null
+    python3 -c 'import sys,json; d=json.load(sys.stdin); sys.exit(not (d.get("ok") is True and d.get("dataset")=="Okinawa OSM" and d.get("datasetId")=="okinawa"))' 2>/dev/null
 }
 "$CADDY_BIN" validate --config deploy/Caddyfile --adapter caddyfile
 if healthy; then

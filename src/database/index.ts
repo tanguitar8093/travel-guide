@@ -1,3 +1,4 @@
+import { osmDatasetIds, osmRegion, localOsmRegionId } from '../geo/osm-datasets'
 export {
   EntityInUseError,
   EntityNotFoundError,
@@ -77,7 +78,7 @@ import { itineraryItems as indexedItineraryItems, places as indexedPlaces, regio
 import { getDatabaseMode, type DatabaseMode } from './runtime'
 import { hybridBackend } from './hybrid.backend'
 import { requireHybridStore, runHybridTask } from './hybrid.runtime'
-import { DEFAULT_OSM_REGION, DEFAULT_OSM_REGION_ID, accountOsmRegionId } from '../geo/osm-coverage'
+import { accountOsmRegionId } from '../geo/osm-coverage'
 import { getMapProvider } from '../geo/provider-preference'
 import { database } from './database'
 import {
@@ -196,24 +197,28 @@ function activeBackend(): DatabaseBackend {
 export async function prepareMapWorkspace(): Promise<void> {
   if (getMapProvider() !== 'osm') return
   const mode = getDatabaseMode()
-  if (mode === 'hybrid') {
-    const store = requireHybridStore()
-    const id = await accountOsmRegionId(store.getWorkspaceOwnerId())
-    if (await store.read(repositories => repositories.regions.getById(id))) return
-    await runHybridTask(active => {
-      if (active !== store) throw new Error('帳號已切換，未建立預設區域。')
-      return active.mutateDatabase('regions.prepareOsm', async storage => {
-        if (!await storage.regions.get(id)) await storage.regions.add({ ...DEFAULT_OSM_REGION, id })
+  for (const dataset of osmDatasetIds) {
+    const definition = osmRegion(dataset)
+    if (mode === 'hybrid') {
+      const store = requireHybridStore()
+      const id = await accountOsmRegionId(store.getWorkspaceOwnerId(), dataset)
+      if (await store.read(repositories => repositories.regions.getById(id))) continue
+      await runHybridTask(active => {
+        if (active !== store) throw new Error('帳號已切換，未建立預設區域。')
+        return active.mutateDatabase('regions.prepareOsm', async storage => {
+          if (!await storage.regions.get(id)) await storage.regions.add({ ...definition, id })
+        })
       })
-    })
-  } else if (mode === 'supabase') {
-    await supabaseRegions.prepareOsmRegion()
-  } else {
-    await database.transaction('rw', database.regions, async () => {
-      if (!await database.regions.get(DEFAULT_OSM_REGION_ID)) {
-        await database.regions.add({ ...DEFAULT_OSM_REGION, id: DEFAULT_OSM_REGION_ID })
-      }
-    })
+    } else if (mode === 'supabase') {
+      await supabaseRegions.prepareOsmRegion(dataset)
+    } else {
+      const id = localOsmRegionId(dataset)
+      await database.transaction('rw', database.regions, async () => {
+        if (!await database.regions.get(id)) {
+          await database.regions.add({ ...definition, id })
+        }
+      })
+    }
   }
 }
 

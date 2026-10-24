@@ -27,7 +27,7 @@ interface Scenario {
 
 const test = base.extend<{ scenario: Scenario }>({
   scenario: [
-    async ({ page }, use, info) => {
+    async ({ page }, runFixture, info) => {
       const run = `E2E-share-${Date.now()}-${randomUUID().slice(0, 8)}`;
       const scenario: Scenario = {
         tripName: run,
@@ -39,7 +39,7 @@ const test = base.extend<{ scenario: Scenario }>({
         hybridRestored: false,
       };
       try {
-        await use(scenario);
+        await runFixture(scenario);
       } finally {
         try {
           if (

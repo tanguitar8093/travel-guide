@@ -1,3 +1,4 @@
+import { regionOsmDataset } from '../../geo/osm-datasets'
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { findDuplicatePlace } from "../../database/location.validation";
@@ -537,6 +538,7 @@ function PlaceModule() {
     };
   }, [editing, provider]);
 
+  const draftOsmDataset = regionOsmDataset(regions.find(region => region.id === draft.regionIds[0]) ?? {});
   useEffect(() => {
     if (!editing || provider !== "osm" || !autocompleteContainerRef.current)
       return;
@@ -552,7 +554,7 @@ function PlaceModule() {
             ...current,
             location: candidate.location,
             googlePlaceId: undefined,
-            regionIds: defaultRegionIds(regions, provider),
+            regionIds: current.regionIds.length ? current.regionIds : defaultRegionIds(regions, provider),
             mapsUrl: candidate.mapsUrl ?? current.mapsUrl,
             name: current.name || suggestedOsmLocationName(candidate),
           }));
@@ -564,6 +566,7 @@ function PlaceModule() {
           if (active) setError(cause.message);
         },
         {
+          dataset: draftOsmDataset,
           onInput: () => {
             if (active) {
               setError("");
@@ -594,7 +597,7 @@ function PlaceModule() {
       active = false;
       dispose?.();
     };
-  }, [editing, provider]);
+  }, [editing, provider, draftOsmDataset]);
 
   useEffect(() => {
     if (!selectedGooglePlaceId || provider !== "google") return;

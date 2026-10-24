@@ -37,10 +37,12 @@ class TileTests(unittest.TestCase):
                 ]}))
             ])
             database.execute('INSERT INTO tiles VALUES (5, 27, 18, ?)', (cls.compressed,))
+        cls.original_datasets = server.DATASETS
         cls.original_tiles = server.TILES
         cls.original_root = server.ROOT
         server.ROOT = cls.root
         server.TILES = VectorTiles(path)
+        server.DATASETS = {"okinawa": {"tiles":server.TILES,"search":None,"router":None,"roads":cls.root/"missing","compact":cls.root/"missing"}}
         (cls.root / 'public').mkdir()
         (cls.root / 'public/index.html').write_text('<html>cached</html>')
         cls.http = server.ThreadingHTTPServer(('127.0.0.1', 0), server.Handler)
@@ -55,6 +57,7 @@ class TileTests(unittest.TestCase):
         cls.thread.join()
         cls.http.server_close()
         server.TILES.close()
+        server.DATASETS = cls.original_datasets
         server.TILES = cls.original_tiles
         server.ROOT = cls.original_root
         cls.temporary.cleanup()
@@ -128,12 +131,14 @@ class TileTests(unittest.TestCase):
         tiles = server.TILES
         try:
             server.TILES = None
+            server.DATASETS["okinawa"]["tiles"] = None
             with self.assertRaises(HTTPError) as caught:
                 self.request('/tiles.json')
             self.assertEqual(caught.exception.code, 503)
             self.assertIn('build:tiles', json.load(caught.exception)['error'])
         finally:
             server.TILES = tiles
+            server.DATASETS["okinawa"]["tiles"] = tiles
 
     def test_open_snapshot_survives_atomic_rebuild(self):
         path = self.root / 'test.mbtiles'

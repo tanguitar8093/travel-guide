@@ -2,7 +2,7 @@ import { ValidationError } from './errors'
 import { placeIcons } from './models'
 import { validateCoordinatePair, validateLocationMetadata, validateStoredLocation } from './location.validation'
 import { getRouteMapEndpoint, routeEndpointKey } from './route-endpoint'
-import { isInsideOkinawaOsmCoverage } from '../geo/osm-coverage'
+import { isInsideOsmCoverage, isOsmDatasetId, regionOsmDataset, osmDatasets } from '../geo/osm-datasets'
 import type {
   ItineraryItem,
   Label,
@@ -76,6 +76,9 @@ export function validateRegion(
   if (region.mapProvider !== undefined && !['google', 'osm'].includes(region.mapProvider)) {
     throw new ValidationError('區域的地圖供應商無效。')
   }
+  if (region.osmDataset !== undefined && (region.mapProvider !== 'osm' || !isOsmDatasetId(region.osmDataset))) {
+    throw new ValidationError('區域的 OSM 圖資設定無效。')
+  }
   if (region.googlePlaceId !== undefined) {
     requireText(region.googlePlaceId, 'Google 地點識別碼')
   }
@@ -100,8 +103,8 @@ export function validateRegion(
     if (region.googlePlaceId !== undefined || !region.center || !region.centerMetadata) {
       throw new ValidationError('OSM 區域需要已確認來源的中心座標，且不可使用 Google 地點識別碼。')
     }
-    if (!isInsideOkinawaOsmCoverage(region.center)) {
-      throw new ValidationError('OSM 區域中心超出目前沖繩圖資範圍。')
+    if (!isInsideOsmCoverage(region.center, regionOsmDataset(region))) {
+      throw new ValidationError(`OSM 區域中心超出目前${osmDatasets[regionOsmDataset(region)].name}圖資範圍。`)
     }
   }
 
@@ -119,11 +122,14 @@ export function validatePlaceRegionProviders(
     if (place.googlePlaceId !== undefined) {
       throw new ValidationError('同一地點不可同時使用 Google 與 OSM 位置。')
     }
-    if (!place.regionIds.length || linkedRegions.some(region => region.mapProvider !== 'osm')) {
+    if (!place.regionIds.length || linkedRegions.length !== new Set(place.regionIds).size || linkedRegions.some(region => region.mapProvider !== 'osm')) {
       throw new ValidationError('OSM 地點只能歸屬於 OSM 區域。')
     }
-    if (!isInsideOkinawaOsmCoverage(place.location.coordinate)) {
-      throw new ValidationError('OSM 地點僅限於目前沖繩圖資範圍內。')
+    for (const region of linkedRegions) {
+      const dataset = regionOsmDataset(region)
+      if (!isInsideOsmCoverage(place.location.coordinate, dataset)) {
+        throw new ValidationError(`OSM 地點僅限於所屬區域的${osmDatasets[dataset].name}圖資範圍內。`)
+      }
     }
   } else if (place.googlePlaceId && linkedRegions.some(region => region.mapProvider === 'osm')) {
     throw new ValidationError('Google 地點只能歸屬於 Google 區域。')

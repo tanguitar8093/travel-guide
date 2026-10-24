@@ -29,3 +29,27 @@ MapLibre's license is preserved in vendor/maplibre-gl/LICENSE.txt; version.json 
 OSM data: © OpenStreetMap contributors, ODbL, https://www.openstreetmap.org/copyright . Original extraction sources include Overpass and Geofabrik Kyushu. Preserve attribution and the applicable data license when redistributing.
 
 Historical project notes may still describe the earlier sibling maps arrangement. Active configuration now defaults to this directory. Database backup tools under scripts/convergence-* retain their separate ~/.local paths; they are maintenance tooling unrelated to this OSM integration. Supabase and Google services remain external network dependencies.
+
+
+## Taiwan / multiple OSM datasets
+
+Preferences select Google or OSM; the Regions page selects Okinawa or Taiwan. See
+[implementation and acceptance notes](../docs/system/osm-taiwan-implementation.md).
+
+Build Taiwan with `npm run osm:setup -- --dataset taiwan` (Python venv support and
+system tippecanoe are required). This downloads Geofabrik's Taiwan PBF, checks MD5,
+extracts named places/display layers, builds a compact SQLite road network and
+MBTiles, and writes an artifact manifest. Reuse an existing PBF with
+`--pbf osm/data/taiwan.osm.pbf`. Restart the map service after a complete build.
+
+`/datasets/taiwan/tiles.json`, `/datasets/taiwan/api/search` and
+`/datasets/taiwan/api/route` select Taiwan. Existing unprefixed endpoints select
+Okinawa. Map tiles load independently of the large catalog and road graph.
+The runtime requires only Python's standard library; pinned osmium/shapely
+packages are build dependencies in `osm/.venv`.
+
+Run all Python fixtures with `npm run osm:test`. The browser regression script is
+`node scripts/check-osm-datasets.mjs`; it uses `.env.e2e.local`, a separate browser
+context and local-only mutations. `OSM_CHECK_HYBRID=1` checks real account sync;
+it may create the account's normal fixed OSM regions, but does not create test
+places or trips in the cloud.

@@ -1,3 +1,5 @@
+import { getOsmDataset } from '../../geo/osm-dataset-preference'
+import { datasetForCoordinate, type OsmDatasetId } from '../../geo/osm-datasets'
 import {
   EntityNotFoundError,
   ValidationError,
@@ -46,6 +48,7 @@ export interface RouteMapPlace extends ResolvedRouteEndpoint {
 }
 
 export interface TripMapData {
+  osmDataset?: OsmDatasetId
   dates: string[]
   markers: (RouteMapPlace & { dates: string[] })[]
   unavailable: string[]
@@ -133,8 +136,11 @@ export class RouteCalculatorService {
       const existing = await this.routeMapRepository.findByTripId(tripId)
       if (existing) return existing
     } else {
-      const existing = (await this.routeMapRepository.list()).find((map) => !map.tripId)
-      if (existing) return existing
+      for (const existing of (await this.routeMapRepository.list()).filter(map => !map.tripId)) {
+        if (getMapProvider() !== 'osm') return existing
+        const markers = await this.routeMapPlaceRepository.findByRouteMapId(existing.id)
+        if (!markers.length || markers.every(marker => marker.location && datasetForCoordinate(marker.location.coordinate) === getOsmDataset())) return existing
+      }
     }
     const trip = tripId ? (await this.tripRepository.list()).find((record) => record.id === tripId) : undefined
     if (tripId && !trip) throw new EntityNotFoundError('Trip', tripId)
@@ -254,7 +260,8 @@ export class RouteCalculatorService {
       }
     }
     await Promise.all(Array.from({ length: Math.min(3, placeIds.length) }, work))
-    return { dates, markers, unavailable }
+    const osmDataset = provider === 'osm' ? markers.flatMap(marker => marker.location ? [datasetForCoordinate(marker.location.coordinate)] : []).find(Boolean) : undefined
+    return { dates, markers, unavailable, ...(osmDataset ? { osmDataset } : {}) }
   }
 
   listPlaces() {

@@ -29,9 +29,10 @@ class RequestSocket:
 
 class ServerTests(unittest.TestCase):
     def setUp(self):
-        self.router = patch.object(
-            server, 'ROUTER', SimpleNamespace(timestamp='test', ways=[1, 2])
-        )
+        self.router = patch.object(server, 'load_dataset', return_value={
+            'router': SimpleNamespace(timestamp='test', ways=[1,2]), 'search':None,'tiles':None,
+            'roads':Path('/missing'), 'compact':Path('/missing'),
+        })
         self.router.start()
         self.addCleanup(self.router.stop)
         self.search = patch.object(server, 'SEARCH', None)
@@ -53,7 +54,7 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(int(headers.split(b'Content-Length: ')[1].split(b'\r\n')[0]), len(body))
         health = json.loads(body)
         self.assertTrue(health['ok'])
-        self.assertEqual(health['roadCount'], 2)
+        self.assertEqual(health['datasetId'], 'okinawa')
 
     def test_head_response(self):
         _, connection = self.handle(b'HEAD /api/health HTTP/1.0\r\n\r\n')

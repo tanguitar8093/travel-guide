@@ -287,14 +287,21 @@ export class TripRepository {
       this.database.trips,
       this.database.regions,
       this.database.itineraryItems,
+      this.database.places,
       async () => {
         const current = required(await this.database.trips.get(id), 'Trip', id)
         const next = { ...current, ...changes }
         validateTrip(next)
-        required(await this.database.regions.get(next.regionId), 'Region', next.regionId)
+        const nextRegion = required(await this.database.regions.get(next.regionId), 'Region', next.regionId)
         const items = await this.database.itineraryItems.where('tripId').equals(id).toArray()
         if (items.some((item) => item.date < next.startDate || item.date > next.endDate)) {
           throw new ValidationError('行程日期必須涵蓋所有既有的行程項目。')
+        }
+        if (nextRegion.mapProvider === 'osm' && next.regionId !== current.regionId) {
+          for (const item of items) {
+            const place = await this.database.places.get(item.placeId)
+            if (place?.location && !place.regionIds.includes(next.regionId)) throw new ValidationError('行程內仍有其他區域的地點，無法切換區域。')
+          }
         }
         await this.database.trips.put(next)
       },
@@ -345,6 +352,7 @@ export class ItineraryItemRepository {
       this.database.itineraryItems,
       this.database.trips,
       this.database.places,
+      this.database.regions,
       async () => {
         await this.assertReferences(input)
         await this.database.itineraryItems.add({ ...input, id })
@@ -359,6 +367,7 @@ export class ItineraryItemRepository {
       this.database.itineraryItems,
       this.database.trips,
       this.database.places,
+      this.database.regions,
       async () => {
         const current = required(await this.database.itineraryItems.get(id), 'Itinerary item', id)
         const routeChanged =
@@ -490,7 +499,11 @@ export class ItineraryItemRepository {
       this.database.places.get(item.placeId),
     ])
     const tripRecord = required(trip, 'Trip', item.tripId)
-    required(place, 'Place', item.placeId)
+    const placeRecord = required(place, 'Place', item.placeId)
+    const region = await this.database.regions.get(tripRecord.regionId)
+    if (region?.mapProvider === 'osm' && !placeRecord.regionIds.includes(tripRecord.regionId)) {
+      throw new ValidationError('此地點不屬於行程區域，請選擇相同區域的地點。')
+    }
 
     if (item.date < tripRecord.startDate || item.date > tripRecord.endDate) {
       throw new ValidationError('行程項目日期必須在行程起訖日期內。')

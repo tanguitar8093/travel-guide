@@ -1,3 +1,4 @@
+import type { OsmDatasetId } from '../../geo/osm-datasets'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Place } from '../../database'
 import { SearchableSelect } from '../../common/SearchableSelect'
@@ -9,6 +10,7 @@ import { useMapProvider } from '../../geo/provider-preference'
 import { NewPlaceSearch } from './NewPlaceSearch'
 
 interface RouteEndpointFieldProps {
+  dataset?: OsmDatasetId
   label: string
   places: Place[]
   addedMarkers: RouteMapPlace[]
@@ -23,7 +25,7 @@ type SavedChoice =
   | { kind: 'marker'; marker: RouteMapPlace }
 
 export function RouteEndpointField({
-  label, places, addedMarkers, value, onChange, disabled, controller,
+  dataset, label, places, addedMarkers, value, onChange, disabled, controller,
 }: RouteEndpointFieldProps) {
   const id = useId()
   const { provider } = useMapProvider()
@@ -231,7 +233,7 @@ export function RouteEndpointField({
                 )}
               </div>
             ) : provider === 'osm' ? (
-              <NewPlaceSearch disabled={disabled} onConfirm={place => { onChange({ source: 'osm', place }); closeDialog() }} />
+              <NewPlaceSearch dataset={dataset} disabled={disabled} onConfirm={place => { onChange({ source: 'osm', place }); closeDialog() }} />
             ) : (
               <>
                 <div className="route-google-search" ref={container} inert={disabled} aria-busy={loading} />

@@ -6,7 +6,7 @@ it('hides Google Place IDs in OSM while preserving shared labels and source reco
   const records = [
     { id: 'google', googlePlaceId: 'google-id', labelIds: ['shared'] },
     { id: 'both', googlePlaceId: 'google-id-2', location: { source: 'osm' }, labelIds: ['shared'] },
-    { id: 'osm', location: { source: 'osm' }, labelIds: ['shared'] },
+    { id: 'osm', location: { source: 'osm', coordinate: { latitude: 26.4, longitude: 127.9 } }, labelIds: ['shared'] },
     { id: 'custom', labelIds: ['shared'] },
   ] as Place[]
   expect(placesForMapProvider(records, 'osm').map(place => place.id)).toEqual(['osm', 'custom'])

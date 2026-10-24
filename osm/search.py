@@ -53,10 +53,11 @@ ALIASES = [
 ]
 
 class PlaceSearch:
-    def __init__(self, data):
+    def __init__(self, data, dataset='okinawa'):
+        self.dataset = dataset
         self.timestamp = data.get('dataTimestamp','unknown')
         self.entries=[]
-        alias_rules=[(queries,[normalize(target) for target in targets]) for queries,targets in ALIASES]
+        alias_rules=[(queries,[normalize(target) for target in targets]) for queries,targets in (ALIASES if dataset == 'okinawa' else [])]
         for original in data['places']:
             place=dict(original)
             names=[place['name'],place.get('english',''),*place.get('names',{}).values()]
@@ -78,7 +79,7 @@ class PlaceSearch:
             raise ValueError('搜尋文字最多 100 個字。')
         term=normalize(query)
         suggestion=None
-        if term==normalize('波上城'):
+        if self.dataset == 'okinawa' and term==normalize('波上城'):
             term=normalize('波上宮')
             suggestion='你是否指「波上宮」？以下顯示波上宮相關地點。'
         if not term:

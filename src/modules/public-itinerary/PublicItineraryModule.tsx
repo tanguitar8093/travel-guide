@@ -1,3 +1,4 @@
+import { getRegionMapProvider } from '../../geo/region-provider'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { WorkspaceLayout } from '../../common/WorkspaceLayout'
 import { RouterLink } from '../../router'
@@ -58,7 +59,7 @@ export function PublicItineraryModule() {
   const preview = rows.find(row => row.id === previewId)
   const withdrawing = rows.find(row => row.id === withdrawId)
   const term = search.trim().toLocaleLowerCase()
-  const filtered = rows.filter(({ snapshot }) => (provider === 'osm' || !rows.some(row => row.snapshot.region.name === region) || snapshot.region.name === region)
+  const filtered = rows.filter(({ snapshot }) => getRegionMapProvider(snapshot.region) === provider && ( !rows.some(row => row.snapshot.region.name === region) || snapshot.region.name === region)
     && (!term || snapshot.trip.name.toLocaleLowerCase().includes(term) || snapshot.region.name.toLocaleLowerCase().includes(term)))
   async function apply(id: string) {
     if (running.current) return
@@ -87,7 +88,7 @@ export function PublicItineraryModule() {
     {<section className="public-list-card" aria-label="公開行程列表"><div className="public-list-toolbar"><div><h2>探索行程 <span>{rows.length}</span></h2>
       <p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div className="public-list-filters">
       <label><span className="public-sr-only">搜尋公開行程</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="搜尋行程名稱或區域" /></label>
-      {provider !== 'osm' && <label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
+      {<label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
         {[...new Set(rows.map(row => row.snapshot.region.name))].map(name => <option key={name}>{name}</option>)}
       </select></label>}</div></div><div className="public-table-scroll"><table className="public-trip-table"><thead><tr>
       {['行程名稱','區域','新增日期','預覽','使用行程','管理'].map(name => <th scope="col" key={name}>{name}</th>)}

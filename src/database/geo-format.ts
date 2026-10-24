@@ -1,10 +1,11 @@
+import { isOsmDatasetId } from '../geo/osm-datasets'
 import { ValidationError } from './errors'
 import type { SyncChange, SyncTask } from './sync.types'
 import { validateRouteEndpoint } from './route-endpoint'
 import { validateLocationMetadata, validateStoredLocation } from './location.validation'
 
 export function hasGeoFormatFields(value: object): boolean {
-  return ['location', 'centerMetadata', 'mapProvider', 'origin', 'destination'].some(key => Object.hasOwn(value, key))
+  return ['location', 'centerMetadata', 'mapProvider', 'osmDataset', 'origin', 'destination'].some(key => Object.hasOwn(value, key))
 }
 
 function validateGeoFields(value: object): void {
@@ -13,6 +14,7 @@ function validateGeoFields(value: object): void {
   if ('mapProvider' in value && value.mapProvider !== undefined && value.mapProvider !== 'google' && value.mapProvider !== 'osm') {
     throw new ValidationError('區域的地圖供應商無效。')
   }
+  if ('osmDataset' in value && value.osmDataset !== undefined && !isOsmDatasetId(value.osmDataset)) throw new ValidationError('區域的 OSM 圖資設定無效。')
   if ('origin' in value && value.origin !== undefined) validateRouteEndpoint(value.origin)
   if ('destination' in value && value.destination !== undefined) validateRouteEndpoint(value.destination)
 }

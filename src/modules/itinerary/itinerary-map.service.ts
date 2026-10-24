@@ -2,7 +2,7 @@ import { places, regions } from "../../database";
 import type { Place, Region } from "../../database";
 import type { GeoProvider } from "../../geo/contracts";
 import { getMapProvider } from "../../geo/provider-preference";
-import { osmDefaultBounds, osmDefaultCenter } from "../../geo/adapters/osm/osm-resources";
+import { osmDatasets, regionOsmDataset, type OsmDatasetId } from "../../geo/osm-datasets";
 import { validateLocationMetadata, validateStoredLocation } from "../../database/location.validation";
 import {
   getGooglePlaceDetails,
@@ -20,6 +20,7 @@ export interface UnlocatedMapPlace {
 
 export interface ItineraryMapData {
   provider?: GeoProvider;
+  osmDataset?: OsmDatasetId;
   regionId: string;
   center: GoogleMapPosition;
   zoom: number;
@@ -104,7 +105,9 @@ export class ItineraryMapService {
   }
 
   private loadOsmRecords(region: Region, regionPlaces: Place[]): ItineraryMapData {
-    let center = { lat: osmDefaultCenter.latitude, lng: osmDefaultCenter.longitude };
+    const dataset = regionOsmDataset(region);
+    const definition = osmDatasets[dataset];
+    let center = { lat: definition.center.latitude, lng: definition.center.longitude };
     let regionWarning: string | undefined;
     const hasCenter = region.center !== undefined && region.centerMetadata !== undefined;
     if (region.center !== undefined && region.centerMetadata !== undefined) {
@@ -112,7 +115,7 @@ export class ItineraryMapService {
       validateStoredLocation({ ...region.centerMetadata, coordinate: region.center });
       center = { lat: region.center.latitude, lng: region.center.longitude };
     } else {
-      regionWarning = `區域「${region.name}」尚無已確認來源的位置；先顯示沖繩圖資範圍，不會查詢 Google 或自動補座標。`;
+      regionWarning = `區域「${region.name}」尚無已確認來源的位置；先顯示${definition.name}圖資範圍，不會查詢 Google 或自動補座標。`;
     }
     const markers: GoogleMapMarkerData[] = [];
     const unlocatedPlaces: UnlocatedMapPlace[] = [];
@@ -141,8 +144,8 @@ export class ItineraryMapService {
       });
     }
     return {
-      provider: 'osm', regionId: region.id, center, zoom: hasCenter ? region.zoom : 9,
-      ...(!hasCenter ? { viewport: osmDefaultBounds } : {}),
+      provider: 'osm', osmDataset: dataset, regionId: region.id, center, zoom: hasCenter ? region.zoom : 9,
+      ...(!hasCenter ? { viewport: definition.bounds } : {}),
       markers, unlocatedPlaces, ...(regionWarning ? { regionWarning } : {}),
     };
   }

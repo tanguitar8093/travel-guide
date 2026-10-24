@@ -3,6 +3,7 @@ import heapq
 import math
 from functools import lru_cache
 from threading import RLock
+from datasets import definition, inside
 
 MODES = ('car', 'walk', 'bike')
 BOUNDS = [127.58, 25.98, 128.36, 26.9]
@@ -53,9 +54,11 @@ def speed(tags, mode):
 
 
 class Router:
-    def __init__(self, data):
-        self.nodes = {e['id']: (e['lon'],e['lat']) for e in data['elements'] if e['type']=='node'}
-        self.ways = [e for e in data['elements'] if e['type']=='way' and 'highway' in e.get('tags', {})]
+    def __init__(self, data, dataset='okinawa'):
+        self.dataset = dataset
+        definition(dataset)
+        self.nodes = {row[0]: (row[1],row[2]) for row in data['nodes']} if 'nodes' in data else {e['id']: (e['lon'],e['lat']) for e in data['elements'] if e['type']=='node'}
+        self.ways = data['ways'] if 'ways' in data else [e for e in data['elements'] if e['type']=='way' and 'highway' in e.get('tags', {})]
         self.lock = RLock()
         self.snap_cache = {}
         self.components = {}
@@ -86,36 +89,26 @@ class Router:
                     graph[a].append((b, seconds, meters))
                 if one not in {'yes','1','true'}:
                     graph[b].append((a, seconds, meters))
-        undirected = {node:set() for node in graph}
-        for node,edges in graph.items():
-            for neighbor,_,_ in edges:
-                undirected[node].add(neighbor)
-                undirected[neighbor].add(node)
-        remaining = set(graph)
-        large = set()
-        while remaining:
-            seed=remaining.pop()
-            component={seed}
-            stack=[seed]
-            while stack:
-                for neighbor in undirected[stack.pop()]:
-                    if neighbor in remaining:
-                        remaining.remove(neighbor)
-                        component.add(neighbor)
-                        stack.append(neighbor)
-            if len(component)>=1000:
-                large.update(component)
-        self.components[id(graph)] = large
+        # Spatial cells bound snapping work and retain small island road networks.
+        cells = {}
+        for node, edges in graph.items():
+            if edges:
+                lon, lat = self.nodes[node]
+                cells.setdefault((math.floor(lon*100), math.floor(lat*100)), []).append(node)
+        self.components[id(graph)] = cells
         return graph
 
-    def snap(self, coordinate, graph):
-        key = (tuple(coordinate),id(graph))
+    def snap(self, coordinate, graph, expanded=False):
+        key = (tuple(coordinate),id(graph),expanded)
         if key in self.snap_cache:
             return self.snap_cache[key]
-        candidates = heapq.nsmallest(16, ((distance(coordinate, self.nodes[node]), node) for node, edges in graph.items() if edges and (not self.components.get(id(graph)) or node in self.components[id(graph)])))
+        cells = self.components[id(graph)]
+        x, y = math.floor(coordinate[0]*100), math.floor(coordinate[1]*100)
+        nearby = (node for dx in range(-2,3) for dy in range(-2,3) for node in cells.get((x+dx,y+dy), []))
+        candidates = heapq.nsmallest(256 if expanded else 16, ((distance(coordinate, self.nodes[node]), node) for node in nearby))
         if not candidates or candidates[0][0] > 800:
             raise ValueError('地點距離可通行道路超過 800 公尺，請改選附近道路。')
-        if candidates[0][0]<1:
+        if candidates[0][0]<1 and not expanded:
             return [candidates[0]]
         result = [(meters,node) for meters,node in candidates if meters <= min(800,candidates[0][0]+400)]
         if len(self.snap_cache)>300:
@@ -127,9 +120,9 @@ class Router:
         return self.cached_leg(tuple(start),tuple(end),mode)
 
     @lru_cache(maxsize=128)
-    def cached_leg(self, start, end, mode):
+    def cached_leg(self, start, end, mode, expanded=False):
         graph = self.graph(mode)
-        starts, ends = self.snap(start, graph), self.snap(end, graph)
+        starts, ends = self.snap(start, graph, expanded), self.snap(end, graph, expanded)
         # Consider several nearby vertices to avoid disconnected parking paths.
         connector_speed = 4.5 / 3.6
         end_costs = {node:meters/connector_speed for meters,node in ends}
@@ -162,6 +155,8 @@ class Router:
                     source_for[neighbor] = source_for[node]
                     heapq.heappush(heap, (total+heuristic(neighbor), total, neighbor))
         if target is None:
+            if mode == 'walk' and not expanded:
+                return self.cached_leg(start,end,mode,True)
             raise ValueError('這兩個地點之間找不到此交通方式的連通道路，請改選道路附近的地點。')
         source = source_for[target]
         start_snap = distance(start,self.nodes[source])
@@ -174,7 +169,10 @@ class Router:
             meters += edge_meters
             path.append(parent)
         path.reverse()
-        return {'duration':round(road_seconds),'distance':round(meters),'geometry':{'type':'LineString','coordinates':[self.nodes[node] for node in path]},'snapped':[self.nodes[source],self.nodes[target]],'snapDistances':[round(start_snap),round(end_snap)]}
+        return {'duration':round(road_seconds),'distance':round(meters),'geometry':{'type':'LineString','coordinates':self.path_geometry(path,mode)},'snapped':[self.nodes[source],self.nodes[target]],'snapDistances':[round(start_snap),round(end_snap)]}
+
+    def path_geometry(self, path, _mode):
+        return [self.nodes[node] for node in path]
 
     def route(self, points, mode):
         if mode not in MODES:
@@ -184,7 +182,7 @@ class Router:
         for point in points:
             if not isinstance(point, list) or len(point)!=2 or any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) for v in point):
                 raise ValueError('座標格式錯誤。')
-            if not BOUNDS[0]<=point[0]<=BOUNDS[2] or not BOUNDS[1]<=point[1]<=BOUNDS[3]:
-                raise ValueError('目前僅支援沖繩本島範圍。')
+            if not inside(point, self.dataset):
+                raise ValueError(f'此位置超出{definition(self.dataset)["name"]}圖資範圍。')
         legs = [self.leg(a,b,mode) for a,b in zip(points,points[1:])]
         return {'mode':mode,'legs':legs,'distance':sum(leg['distance'] for leg in legs),'duration':sum(leg['duration'] for leg in legs),'estimated':True,'dataTimestamp':self.timestamp}

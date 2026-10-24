@@ -11,6 +11,8 @@ from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit, parse_qs
 from routing import Router, BOUNDS
+from compact_routing import CompactRouter
+from datasets import definition, DEFINITIONS
 from search import PlaceSearch
 from maps_urls import parse_map_link
 from tiles import VectorTiles
@@ -19,6 +21,44 @@ ROOT = Path(__file__).resolve().parent
 ROUTER = None
 SEARCH = None
 TILES = None
+DATASETS = {}
+DATASETS_LOCK = threading.Lock()
+
+def load_dataset(identifier):
+    definition(identifier)
+    with DATASETS_LOCK:
+        if identifier not in DATASETS:
+            prefix = ROOT / "data" / identifier
+            tiles = Path(str(prefix) + ".mbtiles")
+            places = Path(str(prefix) + "-places.json")
+            roads = Path(str(prefix) + "-osm.json")
+            DATASETS[identifier] = {
+                "tiles": VectorTiles(tiles) if tiles.is_file() else None,
+                "search": None, "places":places,
+                "router": None, "roads": roads, "compact": Path(str(prefix) + "-routing.sqlite"), "lock": threading.Lock(),
+            }
+        return DATASETS[identifier]
+
+def dataset_search(identifier, state):
+    with state['lock']:
+        if state['search'] is None:
+            places=state.get('places')
+            if places is None or not places.is_file():
+                raise ValueError(f"{definition(identifier)['name']}地點資料尚未安裝，請執行 npm run osm:setup -- --dataset {identifier}。")
+            state['search']=PlaceSearch(json.loads(places.read_text()), identifier)
+        return state['search']
+
+def dataset_router(identifier, state):
+    with state["lock"]:
+        if state["router"] is None:
+            if state["compact"].is_file():
+                state["router"] = CompactRouter(state["compact"], identifier)
+                return state["router"]
+            if identifier != "okinawa" or not state["roads"].is_file():
+                raise ValueError(f"{definition(identifier)['name']}路網尚未安裝，請執行 npm run osm:setup -- --dataset {identifier}。")
+            state["router"] = Router(json.loads(state["roads"].read_text()), identifier)
+        return state["router"]
+
 GZIP_CACHE = {}
 GZIP_CACHE_LOCK = threading.Lock()
 
@@ -109,16 +149,31 @@ class Handler(BaseHTTPRequestHandler):
         self.send(body, mime, cache_control=cache_control, etag=etag,
                   vary='Accept-Encoding' if text_asset else None)
 
+    def select_dataset(self):
+        path = unquote(urlsplit(self.path).path)
+        match = re.match(r"^/datasets/([^/]+)(/.*)?$", path)
+        identifier = match[1] if match else "okinawa"
+        if match:
+            self.path = (match[2] or "/") + (("?" + urlsplit(self.path).query) if urlsplit(self.path).query else "")
+        self.dataset = identifier
+        self.state = load_dataset(identifier)
+
     def do_HEAD(self):
         self.do_GET()
 
     def do_GET(self):
+        try:
+            self.select_dataset()
+        except (ValueError, OSError) as error:
+            return self.json({"error": str(error)}, 404)
+        TILES = self.state["tiles"]
+        SEARCH = self.state["search"]
         path = unquote(urlsplit(self.path).path)
         if path == '/tiles.json' or path.startswith('/tiles/'):
             if TILES is None:
                 return self.json({'error': 'Missing vector tiles. Run npm run osm:build:tiles and restart the server.'}, 503)
             if path == '/tiles.json':
-                return self.json(TILES.tilejson(), cache_control='no-cache')
+                return self.json(TILES.tilejson(self.dataset), cache_control='no-cache')
             match = re.fullmatch(r'/tiles/([a-f0-9]{64})/([0-9]{1,2})/([0-9]{1,5})/([0-9]{1,5})\.pbf', path)
             if match is None or match[1] != TILES.version:
                 return self.json({'error': 'Unknown tile version or path.'}, 404)
@@ -143,21 +198,20 @@ class Handler(BaseHTTPRequestHandler):
                              vary='Accept-Encoding',
                              content_encoding='gzip' if use_gzip else None)
         if path=='/api/search':
-            if SEARCH is None:
-                return self.json({'error':'尚未安裝地點資料，請執行 npm run osm:setup。'},503)
             try:
+                SEARCH=dataset_search(self.dataset,self.state)
                 return self.json(SEARCH.search(parse_qs(urlsplit(self.path).query).get('q',[''])[0]))
             except ValueError as error:
                 return self.json({'error':str(error)},400)
         if path=='/api/health':
-            return self.json({'ok':True,'dataset':'Okinawa OSM','dataTimestamp':ROUTER.timestamp,'bounds':BOUNDS,'roadCount':len(ROUTER.ways),'placeCount':len(SEARCH.entries) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
+            return self.json({'ok':True,'dataset':'Okinawa OSM' if self.dataset == 'okinawa' else 'Taiwan OSM', 'datasetId':self.dataset, 'serviceVersion':2,'supportedDatasets':list(DEFINITIONS), 'bounds':definition(self.dataset)['bounds'], 'ready':bool(TILES and (SEARCH or (self.state.get('places') and self.state['places'].is_file())) and (self.state['compact'].is_file() or (self.dataset=='okinawa' and self.state['roads'].is_file()))), 'placeCount':len(SEARCH.entries) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
         files = {'/': ('public/index.html', 'text/html; charset=utf-8')}
         for name in ('maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs', 'maplibre-gl.css'):
             for prefix in ('/vendor/', '/osm-vendor/'):
                 files[prefix + name] = ('vendor/maplibre-gl/' + name, 'text/css' if name.endswith('.css') else 'text/javascript')
         for name in ('roads', 'water', 'land'):
             for prefix in ('/data/', '/osm-assets/'):
-                files[prefix + name + '.geojson'] = ('data/okinawa-' + name + '.geojson', 'application/geo+json')
+                files[prefix + name + '.geojson'] = ('data/' + self.dataset + '-' + name + '.geojson', 'application/geo+json')
         if path not in files:
             return self.json({'error':'Not found'},404)
         filename,mime=files[path]
@@ -169,6 +223,10 @@ class Handler(BaseHTTPRequestHandler):
             self.json({'error':'缺少檔案，請執行 npm run osm:setup。'},503)
 
     def do_POST(self):
+        try:
+            self.select_dataset()
+        except (ValueError, OSError) as error:
+            return self.json({"error": str(error)}, 404)
         path=urlsplit(self.path).path
         if path not in {'/api/route','/api/parse-map-url'}:
             return self.json({'error':'Not found'},404)
@@ -180,7 +238,8 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(payload,dict):
                 raise ValueError('Invalid request')
             if path=='/api/parse-map-url':
-                return self.json(parse_map_link(payload.get('url')))
+                return self.json(parse_map_link(payload.get('url'), dataset=self.dataset))
+            ROUTER = dataset_router(self.dataset, self.state)
             with ROUTER.lock:
                 result = ROUTER.route(payload.get('points'),payload.get('mode'))
             self.json(result)
@@ -198,21 +257,15 @@ if __name__=='__main__':
         if error.errno==errno.EADDRINUSE:
             raise SystemExit(f'埠 {port} 已被使用。若沖繩 demo 已在運行，直接開啟 http://localhost:{port}。\n要另開服務可執行：PORT=3001 npm run osm:start') from None
         raise
-    source=ROOT/'data/okinawa-osm.json'
-    if not source.is_file():
-        raise SystemExit('Run npm run osm:setup to download Okinawa OSM data.')
-    ROUTER=Router(json.loads(source.read_text()))
-    places=ROOT/'data/okinawa-places.json'
-    if places.is_file():
-        SEARCH=PlaceSearch(json.loads(places.read_text()))
-    for mode in ('car','walk','bike'):
-        ROUTER.graph(mode)
-    print(f'Okinawa map: http://localhost:{port} | {len(ROUTER.ways)} roads',flush=True)
+    print(f'OSM map service: http://localhost:{port} (datasets load on demand)',flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:
         print('\n沖繩地圖服務已停止。',flush=True)
     finally:
         server.server_close()
-        if TILES is not None:
-            TILES.close()
+        for state in DATASETS.values():
+            if state["tiles"] is not None:
+                state["tiles"].close()
+            if isinstance(state["router"], CompactRouter):
+                state["router"].connection.close()

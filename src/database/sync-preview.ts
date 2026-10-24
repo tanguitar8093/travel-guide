@@ -1,3 +1,4 @@
+import { comparableSyncRecord as comparable, matchingOsmRegionPreparation } from './osm-region-sync'
 import { validateSyncData } from './backup.repository'
 import { ValidationError } from './errors'
 import type { LocalSyncStore } from './local-sync.store'
@@ -18,20 +19,6 @@ export interface SyncPreview {
   rows: SyncPreviewRow[]
   pendingOperations: number
   checkedAt: string
-}
-
-function comparable(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(comparable).join(',')}]`
-  if (value && typeof value === 'object') {
-    const record = value as Record<string, unknown>
-    return `{${Object.keys(record).filter((key) => record[key] !== undefined).sort().map((key) => {
-      const field = record[key]
-      const normalized = (key === 'regionIds' || key === 'labelIds') && Array.isArray(field)
-        ? [...field].sort() : field
-      return `${JSON.stringify(key)}:${comparable(normalized)}`
-    }).join(',')}}`
-  }
-  return JSON.stringify(value) ?? 'undefined'
 }
 
 export async function previewHybridSync(
@@ -70,7 +57,8 @@ export async function previewHybridSync(
     const other = remote.get(key)
     const entity = own?.entity ?? other!.entity
     const record = own?.record ?? other!.record!
-    const change = local.tasks.flatMap((task) => task.changes).find((change) => change.entity === entity && change.id === record.id)
+    const task = local.tasks.find(task => task.changes.some(change => change.entity === entity && change.id === record.id))
+    const change = task?.changes.find(change => change.entity === entity && change.id === record.id)
     const baseline = local.baselines.find((baseline) => baseline.entity === entity && baseline.id === record.id)
     const version = baseline?.version ?? change?.baseVersion
     rows.push({
@@ -78,7 +66,7 @@ export async function previewHybridSync(
       difference: !own ? 'cloud-only' : !other ? 'local-only'
         : comparable(own.record) === comparable(other.record) ? 'same' : 'different',
       pending: Boolean(change),
-      conflict: Boolean(change && (version === undefined || version !== (other?.version ?? null))),
+      conflict: Boolean(change && (version === undefined || version !== (other?.version ?? null)) && !(task && other && matchingOsmRegionPreparation(task, other))),
     })
   }
   for (const task of local.tasks) {

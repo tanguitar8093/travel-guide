@@ -1,3 +1,4 @@
+from datasets import inside as inside_dataset
 """Validate Google Maps URLs and expose sp2's parsing to the local demo."""
 import html
 import math
@@ -78,7 +79,7 @@ def resolve_short_url(value):
     raise ValueError('短網址轉址次數過多，請改貼完整網址。')
 
 
-def parse_map_link(value,resolver=None):
+def parse_map_link(value,resolver=None,dataset='okinawa'):
     url=validate_url(value)
     parsed=parse_google_maps_url(url,resolver=resolver)
     lat,lng=parsed['lat'],parsed['lng']
@@ -86,6 +87,6 @@ def parse_map_link(value,resolver=None):
         raise ValueError('無法取得地址：網址中找不到經緯度，請改貼地點分享網址或帶座標的完整網址。')
     if not math.isfinite(lat) or not math.isfinite(lng) or not -90<=lat<=90 or not -180<=lng<=180:
         raise ValueError('網址中的經緯度無效。')
-    inside=BOUNDS[0]<=lng<=BOUNDS[2] and BOUNDS[1]<=lat<=BOUNDS[3]
+    inside=inside_dataset([lng,lat],dataset)
     name=html.unescape(parsed['name']).strip() if parsed['name'] else None
-    return {'name':name,'lat':lat,'lng':lng,'coordinates':[lng,lat],'inBounds':inside,'bounds':BOUNDS,'resolved_url':parsed['resolved_url'],'locationKind':parsed.get('locationKind') or 'url-coordinate','warning':None if inside else '此地點不在目前沖繩本島圖資範圍內，無法加入行程。'}
+    return {'name':name,'lat':lat,'lng':lng,'coordinates':[lng,lat],'inBounds':inside,'bounds':BOUNDS,'resolved_url':parsed['resolved_url'],'locationKind':parsed.get('locationKind') or 'url-coordinate','warning':None if inside else '此地點不在目前選擇的圖資範圍內，無法加入行程。'}

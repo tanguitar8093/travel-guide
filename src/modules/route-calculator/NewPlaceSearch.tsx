@@ -1,9 +1,11 @@
+import type { OsmDatasetId } from '../../geo/osm-datasets'
 import { useEffect, useRef, useState } from 'react'
 import { mountOsmAutocomplete } from '../../geo/osm-service'
 import type { OsmLocationCandidate } from '../../geo/osm-service'
 import { OsmSearchHeading } from '../../geo/OsmSearchHeading'
 
-export function NewPlaceSearch({ disabled, onConfirm }: {
+export function NewPlaceSearch({ dataset, disabled, onConfirm }: {
+  dataset?: OsmDatasetId
   disabled: boolean
   onConfirm(place: OsmLocationCandidate): void
 }) {
@@ -27,6 +29,7 @@ export function NewPlaceSearch({ disabled, onConfirm }: {
       setError('')
       nameInput.current?.focus()
     }, cause => { if (active) setError(cause.message) }, {
+      dataset,
       label: '新地點搜尋',
       onInput: () => { if (active) { setSelected(undefined); setError('') } },
     }).then(dispose => {
@@ -38,7 +41,7 @@ export function NewPlaceSearch({ disabled, onConfirm }: {
       if (active) { setLoading(false); setError(cause instanceof Error ? cause.message : '搜尋載入失敗。') }
     })
     return () => { active = false; cleanup?.() }
-  }, [attempt])
+  }, [attempt, dataset])
   return <div>
     <div className="route-new-search-title"><OsmSearchHeading title="新地點搜尋" /></div>
     <div ref={host} inert={disabled} aria-busy={loading} />

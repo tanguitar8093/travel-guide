@@ -1,4 +1,5 @@
-import { isInsideOkinawaOsmCoverage } from "./osm-coverage";
+import { datasetForCoordinate, isInsideOsmCoverage, requireOsmCoverage, type OsmDatasetId } from "./osm-datasets";
+import { getOsmDataset } from "./osm-dataset-preference";
 import type {
   Coordinate,
   OsmPlaceReference,
@@ -59,10 +60,11 @@ async function request(
   path: string,
   signal?: AbortSignal,
   payload?: object,
+  dataset: OsmDatasetId = getOsmDataset(),
 ): Promise<unknown> {
   throwIfAborted(signal);
   const timeout = AbortSignal.timeout(30000);
-  const response = await fetch(serviceBase() + path, {
+  const response = await fetch(serviceBase() + (dataset === 'okinawa' ? '' : `/datasets/${dataset}`) + path, {
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     ...(payload
       ? {
@@ -104,7 +106,7 @@ function googleMapsUrl(text: string): URL {
   return url;
 }
 
-async function resolveMapUrl(url: URL, signal?: AbortSignal): Promise<unknown> {
+async function resolveMapUrl(url: URL, signal?: AbortSignal, dataset: OsmDatasetId = getOsmDataset()): Promise<unknown> {
   const timeout = AbortSignal.timeout(30000);
   const response = await fetch(
     "https://mapu.retiolus.net/unshortener?" + new URLSearchParams({ link: url.href }),
@@ -122,7 +124,7 @@ async function resolveMapUrl(url: URL, signal?: AbortSignal): Promise<unknown> {
   validateCoordinatePair(data.lat, data.long);
   return {
     lat: data.lat, lng: data.long, name: data.name, resolved_url: data.full_link,
-    inBounds: isInsideOkinawaOsmCoverage({ latitude: data.lat, longitude: data.long }),
+    inBounds: isInsideOsmCoverage({ latitude: data.lat, longitude: data.long }, dataset),
     locationKind: "url-coordinate", approximate: data.approximate,
   };
 }
@@ -135,6 +137,7 @@ export function googleMapsNavigationUrl(coordinate: Coordinate): string {
 export async function searchOsmLocations(
   query: string,
   signal?: AbortSignal,
+  dataset: OsmDatasetId = getOsmDataset(),
 ): Promise<OsmLocationCandidate[]> {
   throwIfAborted(signal);
   const text = query.trim();
@@ -146,6 +149,7 @@ export async function searchOsmLocations(
     const latitude = Number(coordinate[1]),
       longitude = Number(coordinate[2]);
     validateCoordinatePair(latitude, longitude);
+    requireOsmCoverage({ latitude, longitude }, dataset);
     return [
       {
         id: `coordinate:${latitude},${longitude}`,
@@ -163,7 +167,7 @@ export async function searchOsmLocations(
       text,
     )
   ) {
-    const data = await resolveMapUrl(googleMapsUrl(text), signal);
+    const data = await resolveMapUrl(googleMapsUrl(text), signal, dataset);
     if (
       !record(data) ||
       typeof data.lat !== "number" ||
@@ -204,6 +208,7 @@ export async function searchOsmLocations(
     ) {
       throw new Error("Google Maps 網址解析結果格式不正確。");
     }
+    requireOsmCoverage({ latitude: data.lat, longitude: data.lng }, dataset);
     if (!data.inBounds) {
       throw new Error(
         typeof data.warning === "string"
@@ -234,6 +239,8 @@ export async function searchOsmLocations(
   const data = await request(
     "/api/search?q=" + encodeURIComponent(text),
     signal,
+    undefined,
+    dataset,
   );
   if (!record(data) || !Array.isArray(data.results))
     throw new Error("OSM 搜尋資料格式不正確。");
@@ -266,6 +273,7 @@ export async function searchOsmLocations(
         : {}),
     };
     validateStoredLocation(location);
+    requireOsmCoverage(location.coordinate, dataset);
     return {
       id: reference.id,
       name: item.name,
@@ -288,6 +296,7 @@ export async function routeOsmLocations(
   transport: string,
   signal?: AbortSignal,
   includeGeometry = false,
+  dataset?: OsmDatasetId,
 ): Promise<{ durationMinutes: number; distanceMeters: number; geometry?: Coordinate[][] }> {
   validateCoordinatePair(origin.latitude, origin.longitude);
   validateCoordinatePair(destination.latitude, destination.longitude);
@@ -306,13 +315,17 @@ export async function routeOsmLocations(
     origin.longitude === destination.longitude
   )
     throw new Error("起點與終點相同，請選擇不同的位置。");
+  const routeDataset = dataset ?? datasetForCoordinate(origin);
+  if (!routeDataset) throw new Error("起點超出已支援的 OSM 圖資範圍。");
+  requireOsmCoverage(origin, routeDataset);
+  requireOsmCoverage(destination, routeDataset);
   const data = await request("/api/route", signal, {
     points: [
       [origin.longitude, origin.latitude],
       [destination.longitude, destination.latitude],
     ],
     mode,
-  });
+  }, routeDataset);
   if (
     !record(data) ||
     typeof data.duration !== "number" ||
@@ -347,8 +360,9 @@ export async function mountOsmAutocomplete(
   container: HTMLElement,
   onSelect: (candidate: OsmLocationCandidate, query: string) => void,
   _onError: (error: Error) => void,
-  options: { label?: string; onInput?: () => void } = {},
+  options: { label?: string; onInput?: () => void; dataset?: OsmDatasetId } = {},
 ): Promise<() => void> {
+  const dataset = options.dataset ?? getOsmDataset();
   const input = document.createElement("input");
   const results = document.createElement("ul");
   const status = document.createElement("p");
@@ -399,7 +413,7 @@ export async function mountOsmAutocomplete(
     status.textContent = "正在搜尋…";
     status.hidden = false;
     try {
-      const candidates = await searchOsmLocations(query, abort.signal);
+      const candidates = await searchOsmLocations(query, abort.signal, dataset);
       if (!active || current !== revision) return;
       status.textContent = candidates.length ? "" : "找不到符合的地點。";
       status.hidden = candidates.length > 0;
@@ -428,7 +442,7 @@ export async function mountOsmAutocomplete(
       if (active && current === revision) {
         results.replaceChildren();
         close();
-        status.textContent = "搜尋失敗。";
+        status.textContent = cause instanceof Error ? cause.message : "搜尋失敗。";
         status.hidden = false;
         console.error("OSM 地點搜尋失敗", cause);
       }

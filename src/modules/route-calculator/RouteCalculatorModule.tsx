@@ -1,7 +1,10 @@
+import { regionsForMapProvider } from '../../geo/region-provider'
+import { getOsmDataset } from '../../geo/osm-dataset-preference'
+import { isInsideOsmCoverage, datasetForCoordinate } from '../../geo/osm-datasets'
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { EntityNotFoundError } from "../../database";
+import { regions, EntityNotFoundError } from "../../database";
 import type { Place, RouteMapChanges, Trip } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { AdminInfo } from "../../common/AdminInfo";
@@ -30,18 +33,17 @@ import { useMapProvider } from "../../geo/provider-preference";
 import { markerKey, storedEndpoint } from "./route-calculator.service";
 
 type Target = "origin" | "destination";
-const activeRouteMapStorageKey =
-  "travel-planner:route-calculator:active-map-id";
 
 export default function RouteCalculatorModule() {
   const { provider, error: providerError } = useMapProvider();
+  const activeRouteMapStorageKey = `travel-planner:route-calculator:active-map-id:${provider}:${getOsmDataset()}`;
   const availableTransportOptions = transportOptionsForProvider(provider);
   const dataRevision = useHybridDataRevision();
   const [controller] = useState(() => new RouteCalculatorController());
   const [placeRecords, setPlaces] = useState<Place[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
-  const places = useMemo(() => placesForMapProvider(placeRecords, provider), [placeRecords, provider]);
+
   const [placesError, setPlacesError] = useState("");
   const [placesAttempt, setPlacesAttempt] = useState(0);
   const [tripsError, setTripsError] = useState("");
@@ -57,6 +59,8 @@ export default function RouteCalculatorModule() {
   const [mapSaveError, setMapSaveError] = useState("");
   const [mapSelectionError, setMapSelectionError] = useState("");
   const [personal, setPersonal] = useState<RouteMapPlace[]>([]);
+  const dataset = tripData?.osmDataset ?? (personal[0]?.location ? datasetForCoordinate(personal[0].location.coordinate) : undefined) ?? getOsmDataset();
+  const places = useMemo(() => provider === 'osm' ? placeRecords.filter(place => !place.googlePlaceId && place.location && isInsideOsmCoverage(place.location.coordinate, dataset)) : placesForMapProvider(placeRecords, provider), [placeRecords, provider, dataset]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [origin, setOrigin] = useState<RouteEndpoint | null>(null);
@@ -159,8 +163,10 @@ export default function RouteCalculatorModule() {
     setTripsError("");
     void controller
       .listTrips()
-      .then((records) => {
-        if (active) setTrips(records);
+      .then(async (records) => {
+        const regionRecords = await regions.list();
+        const visibleIds = new Set(regionsForMapProvider(regionRecords, provider).map(region => region.id));
+        if (active) setTrips(records.filter(trip => visibleIds.has(trip.regionId)));
       })
       .catch((cause: unknown) => {
         if (active)
@@ -174,7 +180,7 @@ export default function RouteCalculatorModule() {
     return () => {
       active = false;
     };
-  }, [controller, tripsAttempt, dataRevision]);
+  }, [controller, tripsAttempt, dataRevision, provider]);
 
   useEffect(
     () => () => {
@@ -225,7 +231,7 @@ export default function RouteCalculatorModule() {
           : "試算地圖已儲存，但無法記住目前地圖。",
       );
     }
-  }, []);
+  }, [activeRouteMapStorageKey]);
 
   const ensureCurrentMap = useCallback(async () => {
     if (mapIdRef.current) return mapIdRef.current;
@@ -558,7 +564,7 @@ export default function RouteCalculatorModule() {
     setTripLoading(true);
     void (async () => {
       try {
-        const mapId = savedMapId || (await controller.getInitialRouteMap())?.id;
+        const mapId = savedMapId || (provider === 'osm' ? undefined : (await controller.getInitialRouteMap())?.id);
         if (!mapId) return;
         const mapData = await controller.loadRouteMap(mapId);
         const loadedTripData = mapData.map.tripId
@@ -598,7 +604,7 @@ export default function RouteCalculatorModule() {
     return () => {
       active = false;
     };
-  }, [applyRouteMap, controller, provider, invalidate]);
+  }, [applyRouteMap, controller, provider, invalidate, activeRouteMapStorageKey]);
 
   useEffect(() => {
     const close = (event: KeyboardEvent | PointerEvent) => {
@@ -910,6 +916,7 @@ export default function RouteCalculatorModule() {
                   </div>
                 )}
                 <RouteEndpointField
+                  dataset={dataset}
                   controller={controller}
                   label="起點"
                   places={places}
@@ -931,6 +938,7 @@ export default function RouteCalculatorModule() {
                   </p>
                 )}
                 <RouteEndpointField
+                  dataset={dataset}
                   controller={controller}
                   label="終點"
                   places={places}
@@ -1066,6 +1074,7 @@ export default function RouteCalculatorModule() {
           <RoutePreviewMap
             markers={markers}
             tripData={tripData}
+            dataset={dataset}
             originId={originId}
             destinationId={destinationId}
             selectedId={selectedId}

@@ -3,3 +3,8 @@ __pycache__/
 *.download
 kyushu.osm.pbf
 .venv/
+
+# Rebuild regional artifacts with npm run osm:setup -- --dataset taiwan
+*.osm.pbf
+data/taiwan*
+data/atlas-tiles-*/

@@ -56,7 +56,22 @@ it('isolates accounts, denies basic/anonymous access, and validates range and na
   await expect(create(basic)).rejects.toThrow('已開通')
   await expect(create('', crypto.randomUUID())).rejects.toThrow('已開通')
   await expect(create(first, crypto.randomUUID(), '', 26.4, 128)).rejects.toThrow('有效')
-  await expect(create(first, crypto.randomUUID(), '台北', 25.03, 121.56)).rejects.toThrow('沖繩')
+  await expect(create(first, crypto.randomUUID(), '海上', 24, 120)).rejects.toThrow('圖資範圍')
   const permission = (await sql.query<{ allowed: boolean }>("select has_function_privilege('anon','public.app_import_place(text,double precision,double precision,uuid,text)','EXECUTE') as allowed")).rows[0]
   expect(permission.allowed).toBe(false)
+})
+
+
+it('imports Taiwan into its own stable region and rejects cross-region/cloud bypasses', async () => {
+  const taiwan=await create(first,crypto.randomUUID(),'台北測試地點',25.03,121.56)
+  expect(taiwan.status).toBe('created')
+  expect(taiwan.regionId).toBe(await accountOsmRegionId(first,'taiwan'))
+  expect((await sql.query<{osm_dataset:string}>('select osm_dataset from public.regions where id=$1',[taiwan.regionId])).rows[0].osm_dataset).toBe('taiwan')
+  const okinawa=await accountOsmRegionId(first)
+  await expect(asUser(first,async()=>{
+    await sql.query('update public.place_regions set region_id=$1 where place_id=$2',[okinawa,taiwan.placeId])
+  })).rejects.toThrow('圖資範圍')
+  await expect(create(first,crypto.randomUUID(),'廈門',24.48,118.08)).rejects.toThrow('圖資範圍')
+  const snapshot=await asUser(first,async()=>(await sql.query<{data:{records:{record?:{osmDataset?:string};entity:string}[]}}>('select public.app_sync_snapshot() as data')).rows[0].data)
+  expect(JSON.stringify(snapshot)).toContain('"osmDataset":"taiwan"')
 })

@@ -29,7 +29,7 @@
     "osm:start": "python3 osm/server.py",
     "osm:setup": "python3 osm/scripts/download-data.py",
     "osm:build:tiles": "python3 osm/scripts/build-tiles.py",
-    "osm:test": "python3 -B -m unittest discover -s osm/scripts -p 'test-*.py'",
+    "osm:test": "osm/.venv/bin/python -B osm/scripts/run-tests.py",
     "build:static": "VITE_OSM_SERVICE_URL=/local-map VITE_OSM_ASSET_BASE_URL=/local-map npm run build",
     "serve:static": "bash deploy/start-static.sh"
   },

@@ -24,3 +24,22 @@ for points,mode in [([[0,0],[1,1]],'car'),([[127.68,26.21]],'car'),([[127.68,26.
     except ValueError:pass
     else:raise AssertionError('invalid request accepted')
 print('PASS: access restrictions, oneway differences, multi-stop totals, invalid requests')
+
+
+# Indoor/parking walkways may have an exact nearby node but no connection to street roads.
+# Only retry after the closest candidates fail; preserve normal car/direction behavior.
+fallback=Router({'elements':[
+ {'type':'node','id':1,'lon':127.68,'lat':26.21},
+ {'type':'node','id':2,'lon':127.70,'lat':26.21},
+ {'type':'node','id':3,'lon':127.68,'lat':26.211},
+ {'type':'node','id':4,'lon':127.70,'lat':26.211},
+ {'type':'node','id':5,'lon':127.68001,'lat':26.21},
+ {'type':'node','id':6,'lon':127.70001,'lat':26.21},
+ {'type':'way','nodes':[1,5],'tags':{'highway':'footway'}},
+ {'type':'way','nodes':[2,6],'tags':{'highway':'footway'}},
+ {'type':'way','nodes':[3,4],'tags':{'highway':'residential'}},
+]})
+walk=fallback.route([[127.68,26.21],[127.70,26.21]],'walk')
+assert walk['distance']>1000 and len(walk['legs'][0]['geometry']['coordinates'])>=2
+assert max(walk['legs'][0]['snapDistances'])<800
+print('PASS: disconnected exact walking nodes retry nearby connected roads')

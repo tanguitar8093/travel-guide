@@ -1,3 +1,5 @@
+import { getOsmDataset, setOsmDataset } from '../../geo/osm-dataset-preference'
+import { regionOsmDataset, osmDatasets } from '../../geo/osm-datasets'
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { NewRegion, Place, Region, Trip } from "../../database";
@@ -62,7 +64,7 @@ function RegionModule() {
     useState<string>();
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
 
-  const providerRegions = regionsForMapProvider(regions, provider);
+  const providerRegions = regionsForMapProvider(regions, provider, null);
   const selectedRegion = providerRegions.find((region) => region.id === selectedId);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
@@ -82,10 +84,10 @@ function RegionModule() {
 
   async function refresh(preferredId = selectedId) {
     const workspace = await regionController.loadWorkspace();
-    const filteredRegions = regionsForMapProvider(workspace.regions, provider);
+    const filteredRegions = regionsForMapProvider(workspace.regions, provider, null);
     const nextRegion =
       filteredRegions.find((region) => region.id === preferredId) ??
-      filteredRegions[0];
+      filteredRegions.find(region => provider === 'osm' && regionOsmDataset(region) === getOsmDataset()) ?? filteredRegions[0];
     setRegions(workspace.regions);
     setPlaces(workspace.places);
     setTrips(workspace.trips);
@@ -136,10 +138,10 @@ function RegionModule() {
             ]),
           ),
         });
-        const filteredRegions = regionsForMapProvider(workspace.regions, provider);
+        const filteredRegions = regionsForMapProvider(workspace.regions, provider, null);
         const firstRegion =
           filteredRegions.find((region) => region.id === selectedIdRef.current) ??
-          filteredRegions[0];
+          filteredRegions.find(region => provider === 'osm' && regionOsmDataset(region) === getOsmDataset()) ?? filteredRegions[0];
         setSelectedId(firstRegion?.id);
         setDraft(firstRegion ? toDraft(firstRegion) : emptyDraft);
       })
@@ -250,6 +252,7 @@ function RegionModule() {
   }
 
   function selectRegion(region: Region) {
+    if (provider === 'osm') setOsmDataset(regionOsmDataset(region));
     setSelectedId(region.id);
     setDraft(toDraft(region));
     setCreating(false);
@@ -385,7 +388,7 @@ function RegionModule() {
         <section className="region-heading">
           <div className="workspace-page-heading-title">
             <h1>區域</h1>
-            <p>{readonly ? 'OSM 使用固定區域，行程與地點會自動歸入此區域。區域資料僅供檢視。' : '建立行程使用的區域，也可將收藏地點歸入相同區域。'}</p>
+            <p>{readonly ? '選擇沖繩或台灣作為目前區域；新增地點與行程會使用此區域，地點座標必須在該區圖資範圍內。' : '建立行程使用的區域，也可將收藏地點歸入相同區域。'}</p>
           </div>
           {!readonly && <button
             type="button"
@@ -525,7 +528,7 @@ function RegionModule() {
               <div className="region-detail">
                 <div className="region-detail-heading">
                   <div>
-                    <span>{readonly ? '區域詳細資料 · 唯讀' : '區域詳細資料'}</span>
+                    <span>{readonly ? `目前區域 · ${osmDatasets[regionOsmDataset(selectedRegion)].name}` : '區域詳細資料'}</span>
                     <h2>{selectedRegion.name}</h2>
                   </div>
                   {!readonly && <div className="region-detail-actions">

@@ -61,7 +61,7 @@ export function osmDevAssets(): Plugin {
                 try {
                   const health: unknown = JSON.parse(body)
                   resolve(response.statusCode === 200 && typeof health === 'object' && health !== null &&
-                    'ok' in health && health.ok === true && 'dataset' in health && health.dataset === 'Okinawa OSM')
+                    'ok' in health && health.ok === true && 'dataset' in health && health.dataset === 'Okinawa OSM' && 'datasetId' in health && health.datasetId === 'okinawa')
                 } catch {
                   resolve(false)
                 }

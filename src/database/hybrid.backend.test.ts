@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { SyncDatabase } from './sync.database'
 import { hybridBackend } from './hybrid.backend'
 import {
-  activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore,
+  activateHybridAccount, deactivateHybridAccount, getHybridStatus, requireHybridStore, syncHybridWorkspace,
 } from './hybrid.runtime'
 import { setSyncMode } from './runtime'
 import * as syncEngine from './sync-engine'
@@ -354,4 +354,19 @@ describe('hybrid development backend', () => {
     expect(syncSpy).toHaveBeenCalledTimes(1)
     syncSpy.mockRestore()
   })
+  it('publishes manual sync failures and clears the stale error after a successful retry', async () => {
+    const account={projectId:crypto.randomUUID(),userId:'manual-status'}
+    accounts.push(account)
+    await activateHybridAccount(account,'admin')
+    setSyncMode('manual')
+    const sync=vi.spyOn(syncEngine,'syncHybridManually').mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce()
+    await expect(syncHybridWorkspace()).rejects.toThrow('offline')
+    expect(getHybridStatus().error).toBe('offline')
+    expect(getHybridStatus().syncing).toBe(false)
+    await syncHybridWorkspace()
+    expect(getHybridStatus().error).toBeUndefined()
+    expect(getHybridStatus().syncing).toBe(false)
+    expect(sync).toHaveBeenCalledTimes(2)
+  })
+
 })

@@ -232,3 +232,66 @@ describe('new geo contract on the existing local-first sync', () => {
     expect(await accountOsmRegionId(other)).not.toBe(id)
   })
 })
+
+it('preserves Taiwan dataset through sync, public apply, shared editing and backup replacement', async () => {
+  const regionId=crypto.randomUUID(),placeId=crypto.randomUUID(),tripId=crypto.randomUUID()
+  const taiwanLocation={source:'user',kind:'user-picked',coordinate:{latitude:25.03,longitude:121.56}}
+  await asUser(member,async()=>{
+    await sql.query(`insert into public.regions(id,name,map_provider,osm_dataset,center,center_metadata,zoom)
+      values($1,'台灣','osm','taiwan',$2,$3,7)`,[regionId,{latitude:23.7,longitude:120.95},{source:'user',kind:'approximate-center'}])
+    await rpc('app_save_place',[placeId,{name:'台北',location:taiwanLocation,regionIds:[regionId],labelIds:[]},true])
+    await sql.query(`insert into public.trips(id,region_id,name,start_date,end_date) values($1,$2,'Taiwan trip','2026-10-24','2026-10-24')`,[tripId,regionId])
+    await sql.query(`insert into public.itinerary_items(id,trip_id,place_id,date,sort_order) values($1,$2,$3,'2026-10-24',0)`,[crypto.randomUUID(),tripId,placeId])
+  })
+  const snapshot=await asUser(member,()=>rpc<PublicSnapshot>('app_public_itinerary',['source',{sourceTripId:tripId}]))
+  expect(snapshot.region.osmDataset).toBe('taiwan')
+  const publicId=crypto.randomUUID()
+  await asUser(member,()=>rpc('app_public_itinerary',['publish',{id:publicId,sourceTripId:tripId,operationId:crypto.randomUUID(),baseVersion:null,snapshot}]))
+  const copy=await asUser(other,()=>rpc<{regionId:string}>('app_public_itinerary',['apply',{id:publicId,operationId:crypto.randomUUID()}]))
+  expect((await sql.query<{osm_dataset:string}>('select osm_dataset from public.regions where id=$1',[copy.regionId])).rows[0].osm_dataset).toBe('taiwan')
+  await asUser(member,()=>rpc('app_shared_trip',['enable',tripId,{}]))
+  const sharedRows=await asUser(member,()=>rpc<SharedTripSnapshot[]>('app_shared_trip',['snapshot',null,{}]))
+  const shared=parseSharedTripSnapshot(sharedRows.find(row=>row.id===tripId))
+  expect(shared.document?.region.osmDataset).toBe('taiwan')
+  await expect(asUser(member,()=>rpc('app_shared_trip',['save',tripId,{operationId:crypto.randomUUID(),baseVersion:shared.version,
+    places:shared.document!.places.map(place=>({...place,location})),items:shared.document!.items}]))).rejects.toThrow('圖資範圍')
+  const cloud=await adapter(other).snapshot()
+  const data={regions:[],places:[],labels:[],trips:[],itineraryItems:[],routeMaps:[],routeMapPlaces:[]} as Record<string,object[]>
+  for (const row of cloud.records) if(row.record)data[row.entity].push(row.record)
+  const backup=new BackupRepository().validateImport({format:'travel-planner-backup',version:3,exportedAt:new Date().toISOString(),data})
+  const preview=await asUser(other,()=>rpc<{token:string}>('app_backup_preview_replace',[backup]))
+  await asUser(other,()=>rpc('app_backup_apply_replace',[backup,preview.token]))
+  const restored=await adapter(other).snapshot()
+  expect(restored.records.some(row=>row.entity==='regions' && row.record && 'osmDataset' in row.record && row.record.osmDataset==='taiwan')).toBe(true)
+})
+
+it('converges offline system-region creation on two devices and retries previously misclassified default-region conflicts', async () => {
+  const {osmRegion}=await import('../geo/osm-datasets')
+  const firstStorage=new SyncDatabase({projectId:crypto.randomUUID(),userId:admin})
+  const secondStorage=new SyncDatabase({projectId:crypto.randomUUID(),userId:admin})
+  const firstContext=new SyncAccountContext(),secondContext=new SyncAccountContext()
+  firstContext.activate(firstStorage.account);secondContext.activate(secondStorage.account)
+  const firstStore=new LocalSyncStore(firstStorage,firstContext),secondStore=new LocalSyncStore(secondStorage,secondContext)
+  await firstStore.prepareLocal();await secondStore.prepareLocal()
+  const cloud=adapter(admin)
+  try {
+    for(const dataset of ['okinawa','taiwan'] as const){
+      const id=await accountOsmRegionId(admin,dataset)
+      for(const store of [firstStore,secondStore])await store.mutateDatabase('regions.prepareOsm',async db=>{
+        await db.regions.add({...osmRegion(dataset),id})
+      })
+      await syncHybridManually(firstStore,cloud,lock)
+      if(dataset==='taiwan'){
+        const task=(await secondStore.listTasks())[0]
+        await secondStore.recordPushConflict(task,(await cloud.snapshot()).records)
+        expect((await secondStore.getSummary()).conflictCount).toBe(1)
+      }
+      const preview=await previewHybridSync(secondStore,cloud)
+      expect(preview.rows.filter(row=>row.conflict)).toEqual([])
+      await syncHybridManually(secondStore,cloud,lock)
+      expect(await secondStore.listTasks()).toEqual([])
+      expect((await secondStore.getSummary()).conflictCount).toBe(0)
+      expect(await secondStorage.regions.get(id)).toEqual({...osmRegion(dataset),id})
+    }
+  }finally{await firstStorage.delete();await secondStorage.delete()}
+})

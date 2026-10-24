@@ -1,3 +1,4 @@
+import { getOsmDataset } from '../../geo/osm-dataset-preference'
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps, FormEvent, ReactNode } from "react";
@@ -295,7 +296,7 @@ function ItineraryModule({
     action();
   }
 
-  const providerRegions = regionsForMapProvider(regions, mapProvider);
+  const providerRegions = regionsForMapProvider(regions, mapProvider, readonly ? null : getOsmDataset());
   const providerRegionIds = new Set(providerRegions.map((region) => region.id));
   const providerTrips = trips.filter((trip) => providerRegionIds.has(trip.regionId));
   const selectedTrip = providerTrips.find((trip) => trip.id === selectedTripId);
@@ -386,7 +387,7 @@ function ItineraryModule({
   );
   const tripPlaces = useMemo(
     () =>
-      placesForMapProvider(places, mapProvider).filter(
+      (mapProvider === 'osm' ? places.filter(place => !place.googlePlaceId) : placesForMapProvider(places, mapProvider)).filter(
         (place) =>
           selectedTrip && place.regionIds.includes(selectedTrip.regionId),
       ),
@@ -453,7 +454,7 @@ function ItineraryModule({
     setRegions(workspace.regions);
     setPlaces(workspace.places);
     setLabels(flattenLabels(labelTree));
-    const nextRegions = regionsForMapProvider(workspace.regions, mapProvider);
+    const nextRegions = regionsForMapProvider(workspace.regions, mapProvider, readonly ? null : getOsmDataset());
     const nextRegionIds = new Set(nextRegions.map((region) => region.id));
     const nextTrips = workspace.trips.filter((trip) => nextRegionIds.has(trip.regionId));
     const nextTrip =
@@ -504,7 +505,7 @@ function ItineraryModule({
         setRegions(workspace.regions);
         setPlaces(workspace.places);
         setLabels(flattenLabels(labelTree));
-        const nextRegions = regionsForMapProvider(workspace.regions, mapProvider);
+        const nextRegions = regionsForMapProvider(workspace.regions, mapProvider, readonly ? null : getOsmDataset());
         const nextRegionIds = new Set(nextRegions.map((region) => region.id));
         const nextTrips = workspace.trips.filter((trip) => nextRegionIds.has(trip.regionId));
         const nextTrip =
@@ -739,6 +740,7 @@ function ItineraryModule({
     mountWorkspaceMap(mapProvider, container, {
       center: visibleMapData.center,
       zoom: visibleMapData.zoom,
+      dataset: visibleMapData.osmDataset,
       ...(visibleMapData.viewport ? { viewport: visibleMapData.viewport } : {}),
       signal: abort.signal,
     }, cause => {
@@ -1479,7 +1481,7 @@ function ItineraryModule({
                         disabled={saving}
                       />
                     </label>
-                    {mapProvider !== 'osm' && <label className="itinerary-field itinerary-field-wide">
+                    <label className="itinerary-field itinerary-field-wide">
                       <span>
                         所屬區域 <b>*</b>
                       </span>
@@ -1503,7 +1505,7 @@ function ItineraryModule({
                           </option>
                         ))}
                       </select>
-                    </label>}
+                    </label>
                     <div className="itinerary-field-grid">
                       <label className="itinerary-field">
                         <span>
@@ -2243,7 +2245,7 @@ function ItineraryModule({
                         mapHandleRef.current?.resetView();
                       }}
                     >
-                      {mapProvider === 'osm' ? '沖繩全景' : '恢復預設'}
+                      {mapProvider === 'osm' ? `${selectedRegion?.name ?? '區域'}全景` : '恢復預設'}
                     </button>
                     <RouterLink
                       className="itinerary-map-tool-link"

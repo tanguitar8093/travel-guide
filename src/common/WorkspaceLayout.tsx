@@ -1,3 +1,5 @@
+import { useOsmDataset } from '../geo/osm-dataset-preference'
+import { osmDatasets } from '../geo/osm-datasets'
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { RouterLink } from "../router";
@@ -63,6 +65,7 @@ export function WorkspaceLayout({
 }: WorkspaceLayoutProps) {
   const { user, errorMessage, clearError, signOut } = useAuth();
   const { provider } = useMapProvider();
+  const dataset = useOsmDataset();
   const layoutDebug = useAdminLayoutDebug();
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [sidebarHovered, setSidebarHovered] = useState(false);
@@ -209,13 +212,13 @@ export function WorkspaceLayout({
           onClick={closeOnMobileNavigation}
         >
           <span>
-            <strong>{provider === 'osm' ? '旅圖 ‧ 沖繩' : '旅圖'}</strong>
-            <small>{provider === 'osm' ? 'TripMap．Okinawa' : '旅圖 · TripMap'}</small>
+            <strong>{provider === 'osm' && dataset ? `旅圖 ‧ ${osmDatasets[dataset].name}` : '旅圖'}</strong>
+            <small>{'旅圖 · TripMap'}</small>
           </span>
         </RouterLink>
         <div className="workspace-nav-caption">工作區</div>
         <nav className="workspace-nav" aria-label="主要導覽">
-          {navigationItems.filter((item) => provider !== 'osm' || item.id !== 'regions').map((item) => (
+          {navigationItems.map((item) => (
             <RouterLink
               key={item.id}
               to={item.path}

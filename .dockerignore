@@ -1,0 +1,8 @@
+.git
+node_modules
+.env*
+osm/.venv
+osm/**/__pycache__
+osm/data/*.osm.pbf
+osm/data/*.download
+osm/data/atlas-tiles-*

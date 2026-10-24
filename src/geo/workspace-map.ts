@@ -1,6 +1,8 @@
+import { getOsmDataset } from './osm-dataset-preference'
+import { osmDatasets, type OsmDatasetId } from './osm-datasets'
 import type { GeoProvider } from './contracts'
 import { createMapLibreRenderer } from './adapters/osm/maplibre-renderer'
-import { createOsmStyle, loadOsmMapLibre, osmDefaultBounds, osmDefaultCenter } from './adapters/osm/osm-resources'
+import { createOsmStyle, loadOsmMapLibre } from './adapters/osm/osm-resources'
 import type { GoogleMapHandle, GoogleMapMarkerData, GoogleMapPosition, GoogleMapViewport } from '../modules/place/google-places.service'
 import './map.css'
 import '../modules/place/google-map.css'
@@ -19,7 +21,7 @@ export function osmAssetBaseUrl(): string {
 
 export async function mountWorkspaceMap(
   provider: GeoProvider, host: HTMLElement,
-  options: { center: GoogleMapPosition; zoom: number; viewport?: GoogleMapViewport; maxZoom?: number; signal?: AbortSignal },
+  options: { dataset?: OsmDatasetId; center: GoogleMapPosition; zoom: number; viewport?: GoogleMapViewport; maxZoom?: number; signal?: AbortSignal },
   onError: (error: Error) => void,
 ): Promise<GoogleMapHandle> {
   throwIfAborted(options.signal)
@@ -28,10 +30,14 @@ export async function mountWorkspaceMap(
     throwIfAborted(options.signal)
     return mountGoogleMap(host, options)
   }
+  const dataset = options.dataset ?? getOsmDataset()
+  const definition = osmDatasets[dataset]
   const base = osmAssetBaseUrl()
+  const configuredStyle = import.meta.env.VITE_OSM_STYLE_URL?.trim()
+  const styleUrl = configuredStyle?.includes('{dataset}') ? configuredStyle.replaceAll('{dataset}', dataset) : dataset === 'okinawa' ? configuredStyle : undefined
   const [sdk, style] = await withAbort(Promise.all([
     loadOsmMapLibre(base),
-    import.meta.env.VITE_OSM_STYLE_URL?.trim() || createOsmStyle(base),
+    styleUrl || createOsmStyle(base, dataset),
   ]), options.signal)
   const renderer = createMapLibreRenderer({
     loadSdk: () => Promise.resolve(sdk),
@@ -39,8 +45,8 @@ export async function mountWorkspaceMap(
   })
   let markers: GoogleMapMarkerData[] = []
   const handle = await renderer.mount(host, {
-    center: osmDefaultCenter, zoom: 9.5,
-    bounds: osmDefaultBounds, maxZoom: options.maxZoom ?? 17, signal: options.signal,
+    center: definition.center, zoom: definition.zoom,
+    bounds: definition.bounds, maxZoom: options.maxZoom ?? 17, signal: options.signal,
     events: {
       onSelect: id => markers.find(marker => marker.id === id)?.onClick?.(),
       onError,
@@ -59,7 +65,7 @@ export async function mountWorkspaceMap(
       if (fit?.fitBounds && next.length) handle.fitMarkers()
     },
     setRoute: lines => handle.setRoute?.(lines),
-    resetView: () => handle.fitBounds(osmDefaultBounds),
+    resetView: () => handle.fitBounds(definition.bounds),
     destroy: () => handle.destroy(),
   }
 }

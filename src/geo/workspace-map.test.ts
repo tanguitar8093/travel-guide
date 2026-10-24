@@ -42,10 +42,10 @@ it('adapts real itinerary identities, selection callbacks and fitting to the neu
     center: { lat: 26, lng: 127 }, zoom: 10,
     viewport: { north: 27, south: 25, east: 129, west: 126 },
   }, onError)
-  expect(mocks.style).toHaveBeenCalledExactlyOnceWith('https://maps.example.test/assets')
+  expect(mocks.style).toHaveBeenCalledExactlyOnceWith('https://maps.example.test/assets', 'okinawa')
   const mountOptions = mocks.mount.mock.calls[0][1]
   expect(mountOptions).toMatchObject({
-    center: { latitude: 26.43, longitude: 127.9 }, zoom: 9.5, maxZoom: 17,
+    center: { latitude: 26.44, longitude: 127.97 }, zoom: 8, maxZoom: 17,
     bounds: { north: 26.9, south: 25.98, east: 128.36, west: 127.58 },
   })
   const first = vi.fn()

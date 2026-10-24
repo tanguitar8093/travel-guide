@@ -1,3 +1,5 @@
+import { datasetForCoordinate, osmDatasets, type OsmDatasetId } from '../../geo/osm-datasets'
+import { getOsmDataset } from '../../geo/osm-dataset-preference'
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { mountWorkspaceMap } from "../../geo/workspace-map";
@@ -7,6 +9,7 @@ import type { RouteMapPlace, TripMapData } from "./route-calculator.service";
 import { isTripMarker, markerKey, routeMarkerColors } from "./route-markers";
 
 interface Props {
+  dataset?: OsmDatasetId;
   markers: RouteMapPlace[];
   originId?: string;
   destinationId?: string;
@@ -20,6 +23,7 @@ interface Props {
 }
 
 export function RoutePreviewMap({
+  dataset: requestedDataset,
   markers,
   originId,
   destinationId,
@@ -31,6 +35,7 @@ export function RoutePreviewMap({
   tripData,
   provider = 'google',
 }: Props) {
+  const dataset = requestedDataset ?? (markers[0] ? datasetForCoordinate({ latitude: markers[0].position.lat, longitude: markers[0].position.lng }) : undefined) ?? getOsmDataset();
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<GoogleMapHandle | null>(null);
   const [ready, setReady] = useState(false);
@@ -83,6 +88,7 @@ export function RoutePreviewMap({
       if (map.current === owned) map.current = null;
     };
     void mountWorkspaceMap(provider, host, {
+      dataset,
       center: { lat: 25.033, lng: 121.5654 },
       zoom: 10,
       maxZoom: 17,
@@ -107,7 +113,7 @@ export function RoutePreviewMap({
       if (map.current === owned) map.current = null;
       host.remove();
     };
-  }, [configured, attempt, provider]);
+  }, [configured, attempt, provider, dataset]);
 
   useEffect(() => {
     if (!ready || !map.current) return;
@@ -153,7 +159,7 @@ export function RoutePreviewMap({
                 }
               }}
             >
-              {provider === 'osm' ? '沖繩全景' : '恢復預設'}
+              {provider === 'osm' ? `${osmDatasets[dataset].name}全景` : '恢復預設'}
             </button>
           </div>
         </div>

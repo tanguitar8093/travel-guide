@@ -1,3 +1,4 @@
+import { datasetForCoordinate } from './osm-datasets';
 import type { Coordinate, StoredLocation } from "./contracts";
 
 export interface NamedLocation {
@@ -26,6 +27,11 @@ export function placeDuplicateReason(
   left: NamedLocation,
   right: NamedLocation,
 ): PlaceDuplicateReason | undefined {
+  if (left.location && right.location) {
+    const leftDataset = datasetForCoordinate(left.location.coordinate);
+    const rightDataset = datasetForCoordinate(right.location.coordinate);
+    if (leftDataset && rightDataset && leftDataset !== rightDataset) return undefined;
+  }
   if (
     left.location &&
     right.location &&
@@ -47,6 +53,6 @@ export function placeDuplicateMessage(
   reason: PlaceDuplicateReason,
 ): string {
   return reason === "nearby"
-    ? `和「${name}」距離不到 50 公尺`
-    : `和「${name}」名稱相同，地點重複`;
+    ? `和「${name}」距離不到 50 公尺，請選用既有地點。`
+    : `和「${name}」名稱相同，請選用既有地點或修改名稱。`;
 }

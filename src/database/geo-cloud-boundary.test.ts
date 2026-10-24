@@ -42,7 +42,7 @@ describe('geo cloud boundary', () => {
     }
     await new SupabaseRegionRepository().create(region)
     expect(query.insert).toHaveBeenLastCalledWith(expect.objectContaining({
-      map_provider: 'osm', center_metadata: region.centerMetadata, zoom: 9.5,
+      osm_dataset: null, map_provider: 'osm', center_metadata: region.centerMetadata, zoom: 9.5,
     }))
     const origin = { kind: 'location', id: 'origin', value: { kind: 'stored', name: 'Origin', location } } as const
     await new SupabaseRouteMapRepository().create({ name: 'Map', transport: 'WALKING', origin })

@@ -71,6 +71,7 @@ export async function syncHybridManually(
   const assertCurrent = store.captureAccount()
   await lock(store.getSyncLockName(), async () => {
     assertCurrent()
+    await store.retryMatchingOsmRegionPreparations()
     let metadata = await store.getSyncMetadata()
     if (!metadata.initialized) {
       const snapshot = await cloud.snapshot()

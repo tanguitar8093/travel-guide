@@ -27,7 +27,7 @@ function MapIllustration({ osm }: { osm: boolean }) {
       </g>
     </svg>
     <div className="map-zoom-controls" aria-hidden="true"><span>+</span><span>−</span></div>
-    <div className="map-preview-label">{osm ? 'osm ‧ 沖繩' : 'Google'} 風格示意</div>
+    <div className="map-preview-label">{osm ? 'OpenStreetMap' : 'Google'} 風格示意</div>
   </div>
 }
 
@@ -37,7 +37,7 @@ export function MapProviderSettings() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   useEffect(() => { input.current?.focus() }, [])
-  const name = provider === 'osm' ? 'osm ‧ 沖繩' : provider === 'google' ? 'Google Maps' : '尚未選擇'
+  const name = provider === 'osm' ? 'OpenStreetMap' : provider === 'google' ? 'Google Maps' : '尚未選擇'
   return <section className="map-provider-settings settings-card" aria-labelledby="map-settings-heading">
     <div className="settings-card-heading">
       <div className="settings-card-icon" aria-hidden="true">⌖</div>
@@ -51,16 +51,16 @@ export function MapProviderSettings() {
           if (value !== 'google' && value !== 'osm') throw new Error('請選擇有效的地圖供應商。')
           setMapProvider(value)
           setError('')
-          setNotice(`已儲存 ${value === 'osm' ? 'osm ‧ 沖繩' : 'Google Maps'}；重新整理後仍會保留。`)
+          setNotice(`已儲存 ${value === 'osm' ? 'OpenStreetMap' : 'Google Maps'}；重新整理後仍會保留。`)
         } catch (cause) {
           setNotice('')
           setError(cause instanceof Error ? cause.message : '地圖偏好儲存失敗。')
         }
       }}>
         {!provider && <option value="" disabled>請重新選擇</option>}
-        <option value="google">Google Maps</option><option value="osm">osm ‧ 沖繩</option>
+        <option value="google">Google Maps</option><option value="osm">OpenStreetMap</option>
       </select>
-      <p className="provider-description" id="map-provider-description">目前套用於正式行程地圖，依此瀏覽器保存；不切換資料庫來源，也不變更旅行資料。</p>
+      <p className="provider-description" id="map-provider-description">依此瀏覽器保存。選用 OSM 後，請至「區域」頁面選擇沖繩或台灣。</p>
     </div>
     {(error || readError) && <p className="data-management-feedback data-management-error" role="alert">{error || readError}</p>}
     {notice && <p className="provider-description" role="status">{notice}</p>}
@@ -74,7 +74,7 @@ export function MapProviderSettings() {
     </div>
     <div className="provider-notice" role="note">
       <strong>整合範圍</strong>　OSM 行程地圖不會查 Google 座標；舊 Google-only 地點會列為未定位。
-      地點搜尋／新增與路程試算已支援 OSM；OSM 使用固定區域，區域資料僅供檢視。混合模式先儲存於本機，再透過既有背景同步上傳位置與路線端點；離線操作會保留在待同步清單。
+      地點搜尋／新增與路程試算已支援 OSM；OSM 可在區域頁面切換沖繩或台灣，地點只能加入所屬區域的圖資範圍。混合模式先儲存於本機，再透過既有背景同步上傳位置與路線端點；離線操作會保留在待同步清單。
     </div>
   </section>
 }

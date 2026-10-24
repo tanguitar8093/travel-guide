@@ -1,8 +1,9 @@
+import { osmDatasets, type OsmDatasetId } from '../../osm-datasets'
 import type { MapLibreSdk } from './maplibre-renderer'
 import { geoError } from '../../errors'
 import { OKINAWA_OSM_BOUNDS } from '../../osm-coverage'
 
-export const osmDefaultCenter = { latitude: 26.43, longitude: 127.9 }
+export const osmDefaultCenter = osmDatasets.okinawa.center
 export const osmDefaultBounds = OKINAWA_OSM_BOUNDS
 
 type OsmSdk = MapLibreSdk & { setWorkerUrl(url: string): void }
@@ -48,11 +49,11 @@ export function loadOsmMapLibre(baseUrl: string): Promise<MapLibreSdk> {
   return pending
 }
 
-export async function createOsmStyle(baseUrl: string) {
+export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'okinawa') {
   const service = baseUrl || '/local-map'
-  const sourceUrl = new URL(`${service.replace(/\/$/, '')}/tiles.json`, window.location.origin)
+  const sourceUrl = new URL(`${service.replace(/\/$/, '')}${dataset === 'okinawa' ? '' : `/datasets/${dataset}`}/tiles.json`, window.location.origin)
   const response = await fetch(sourceUrl, { cache: 'no-cache' })
-  if (!response.ok) throw geoError('SERVICE_UNAVAILABLE', '沖繩向量圖磚尚未就緒，請在 Travel 專案執行 npm run osm:build:tiles 並重新啟動圖資服務。')
+  if (!response.ok) throw geoError('SERVICE_UNAVAILABLE', `${osmDatasets[dataset].name}向量圖磚尚未就緒，請執行 npm run osm:setup -- --dataset ${dataset}。`)
   const tiles: unknown = await response.json()
   if (typeof tiles !== 'object' || tiles === null ||
       !('tiles' in tiles) || !Array.isArray(tiles.tiles) || !tiles.tiles.length || !tiles.tiles.every(url => typeof url === 'string') ||
@@ -61,7 +62,7 @@ export async function createOsmStyle(baseUrl: string) {
       !('bounds' in tiles) || !Array.isArray(tiles.bounds) || tiles.bounds.length !== 4 || !tiles.bounds.every(Number.isFinite) ||
       !('vector_layers' in tiles) || !Array.isArray(tiles.vector_layers) ||
       !['land', 'water', 'coastline', 'roads'].every(id => (tiles.vector_layers as unknown[]).some((layer: unknown) => typeof layer === 'object' && layer !== null && 'id' in layer && layer.id === id))) {
-    throw geoError('SERVICE_UNAVAILABLE', '沖繩向量圖磚索引格式不正確。')
+    throw geoError('SERVICE_UNAVAILABLE', `${osmDatasets[dataset].name}向量圖磚索引格式不正確。`)
   }
   const tileUrls = tiles.tiles.map((url: string) => {
     // Root-relative tile paths belong to the map service, including its proxy/base path.

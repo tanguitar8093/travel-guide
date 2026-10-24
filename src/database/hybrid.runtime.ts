@@ -86,11 +86,12 @@ export function scheduleForegroundPoll(): void {
   }, 4 * 60 * 1000)
 }
 
-async function triggerAutoSync(): Promise<void> {
+async function triggerAutoSync(manual = false): Promise<void> {
   const store = activeStore
-  if (!store || readSyncModePreference() !== 'auto') return
-  if ((status.summary?.personalConflictCount ?? 0) > 0) return
+  if (!store || (!manual && readSyncModePreference() !== 'auto')) return
+  if (!manual && (status.summary?.personalConflictCount ?? 0) > 0) return
   if (syncingStore === store) {
+    if (manual) throw new ValidationError('目前正在同步，請稍後再試。')
     scheduleHybridAutoSync()
     return
   }
@@ -100,18 +101,19 @@ async function triggerAutoSync(): Promise<void> {
   publish({ ...status, syncing: true })
   try {
     await syncHybridManually(store)
-    if (generation === autoSyncGeneration && activeStore === store) {
+    if ((manual || generation === autoSyncGeneration) && activeStore === store) {
       autoSyncRetryCount = 0
       publish({ ...status, summary: await store.getSummary(), error: undefined })
     }
   } catch (error) {
-    if (generation === autoSyncGeneration && activeStore === store) {
+    if ((manual || generation === autoSyncGeneration) && activeStore === store) {
       const message = error instanceof Error ? error.message : String(error)
       publish({
         ...status,
         summary: await store.getSummary(),
         error: message,
       })
+      if (manual) throw error
       if ((status.summary?.personalConflictCount ?? 0) > 0) return
       autoSyncRetryCount += 1
       const retryDelay = computeRetryDelayMs()
@@ -127,10 +129,15 @@ async function triggerAutoSync(): Promise<void> {
     if (activeStore === store) {
       publish({ ...status, syncing: false, startupSyncTimedOut: false, dataRevision: (status.dataRevision ?? 0) + 1 })
     }
-    if (generation === autoSyncGeneration && activeStore === store) {
+    if ((manual || generation === autoSyncGeneration) && activeStore === store) {
       scheduleForegroundPoll()
     }
   }
+}
+
+export function syncHybridWorkspace(): Promise<void> {
+  requireHybridStore()
+  return triggerAutoSync(true)
 }
 
 export function scheduleHybridAutoSync(): void {
@@ -237,6 +244,7 @@ export async function activateHybridAccount(
   activeDatabase = database
   try {
     await store.prepareLocal()
+    await store.retryMatchingOsmRegionPreparations()
     if (generation !== currentGeneration) return
     let startupError: string | undefined
     const syncOnLogin = options.checkCloudOnLogin && readSyncModePreference() === 'auto'

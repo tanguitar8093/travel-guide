@@ -4,6 +4,7 @@ export interface Region {
   id: string
   name: string
   mapProvider?: 'google' | 'osm'
+  osmDataset?: import('../geo/osm-datasets').OsmDatasetId
   center?: {
     latitude: number
     longitude: number

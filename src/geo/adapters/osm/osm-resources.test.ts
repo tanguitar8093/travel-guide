@@ -28,7 +28,7 @@ it.each([
 
 it('fails clearly when tiles are absent, without falling back to large GeoJSON', async () => {
   fetchTiles.mockResolvedValue({ ok: false })
-  await expect(createOsmStyle('')).rejects.toThrow('build:tiles')
+  await expect(createOsmStyle('')).rejects.toThrow('osm:setup')
 })
 
 it('rejects an index missing the independent coastline layer', async () => {
@@ -39,4 +39,12 @@ it('rejects an index missing the independent coastline layer', async () => {
 it('rejects unsupported tile URL protocols', async () => {
   fetchTiles.mockResolvedValue({ ok: true, json: async () => ({ ...tilejson, tiles: ['file:///tmp/tile.pbf'] }) })
   await expect(createOsmStyle('')).rejects.toThrow('HTTP')
+})
+
+
+it('loads Taiwan tile indexes and versioned tiles from the selected dataset', async () => {
+  fetchTiles.mockResolvedValue({ok:true,json:async()=>({...tilejson,tiles:['/datasets/taiwan/tiles/version/{z}/{x}/{y}.pbf']})})
+  const style=await createOsmStyle('/local-map','taiwan')
+  expect(String(fetchTiles.mock.calls[0][0])).toBe('https://travel.example.test/local-map/datasets/taiwan/tiles.json')
+  expect(style.sources.basemap.tiles[0]).toBe('https://travel.example.test/local-map/datasets/taiwan/tiles/version/{z}/{x}/{y}.pbf')
 })

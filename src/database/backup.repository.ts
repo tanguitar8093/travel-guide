@@ -185,6 +185,8 @@ function validateReferences(backup: NormalizedTravelBackup, allowSharedEndpoints
     if (!placeIds.has(item.placeId)) {
       throw new ValidationError(`行程項目「${item.id}」使用的地點「${item.placeId}」不存在。`)
     }
+    const linkedPlace = backup.data.places.find(place => place.id === item.placeId)
+    if (linkedPlace?.location && !linkedPlace.regionIds.includes(trip.regionId)) throw new ValidationError('行程地點不屬於行程區域。')
     if (item.date < trip.startDate || item.date > trip.endDate) {
       throw new ValidationError(`行程項目「${item.id}」的日期超出行程起訖日期。`)
     }
@@ -227,7 +229,7 @@ function validateBackup(value: unknown, allowSharedEndpoints = false): Normalize
       regionRecord,
       '區域',
       ['name', 'zoom'],
-      ['center', 'googlePlaceId', ...(geo ? ['centerMetadata', 'mapProvider'] : [])],
+      ['center', 'googlePlaceId', ...(geo ? ['centerMetadata', 'mapProvider', 'osmDataset'] : [])],
       validateRegion,
     )
   })

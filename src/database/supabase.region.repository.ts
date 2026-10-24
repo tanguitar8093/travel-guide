@@ -1,8 +1,9 @@
+import { osmRegion, type OsmDatasetId } from '../geo/osm-datasets'
 import { supabase } from './supabase.client'
 import { EntityInUseError, EntityNotFoundError, ValidationError } from './errors'
 import type { NewRegion, Region, RegionChanges } from './models'
 import { validateRegion } from './validation'
-import { DEFAULT_OSM_REGION, accountOsmRegionId } from '../geo/osm-coverage'
+import { accountOsmRegionId } from '../geo/osm-coverage'
 import { requireAuthenticatedUserId } from './supabase.utils'
 
 interface SupabaseRegionRow {
@@ -11,6 +12,7 @@ interface SupabaseRegionRow {
   center: { latitude?: number; longitude?: number } | null
   google_place_id: string | null
   map_provider: Region['mapProvider'] | null
+  osm_dataset?: Region['osmDataset'] | null
   center_metadata: Region['centerMetadata'] | null
   zoom: number | string
 }
@@ -49,6 +51,7 @@ function normalizeRegion(row: SupabaseRegionRow): Region {
         }
       : {}),
     ...(row.google_place_id ? { googlePlaceId: row.google_place_id } : {}),
+    ...(row.osm_dataset ? { osmDataset: row.osm_dataset } : {}),
     ...(row.map_provider ? { mapProvider: row.map_provider } : {}),
     ...(row.center_metadata ? { centerMetadata: row.center_metadata } : {}),
     zoom: Number(row.zoom),
@@ -61,6 +64,7 @@ function toSupabaseRegionInput(input: NewRegion) {
     center: input.center ?? null,
     google_place_id: input.googlePlaceId ?? null,
     map_provider: input.mapProvider ?? null,
+    osm_dataset: input.osmDataset ?? null,
     center_metadata: input.centerMetadata ?? null,
     zoom: input.zoom,
   }
@@ -79,12 +83,12 @@ function mapSupabaseError(error: { code?: string; message: string }, fallback: s
 }
 
 export class SupabaseRegionRepository {
-  async prepareOsmRegion(): Promise<void> {
+  async prepareOsmRegion(dataset: OsmDatasetId = 'okinawa'): Promise<void> {
     const owner = await requireAuthenticatedUserId()
-    const id = await accountOsmRegionId(owner)
+    const id = await accountOsmRegionId(owner, dataset)
     const { error } = await withTimeout(Promise.resolve(
       supabase.from('regions').upsert({
-        id, owner_uid: owner, ...toSupabaseRegionInput(DEFAULT_OSM_REGION),
+        id, owner_uid: owner, ...toSupabaseRegionInput(osmRegion(dataset)),
       }, { onConflict: 'id', ignoreDuplicates: true }),
     ), 'prepare OSM region')
     if (error) throw mapSupabaseError(error, id)
