@@ -8,9 +8,10 @@ import "./AuthGate.css";
 
 interface AuthGateProps {
   children: ReactNode;
+  pending?: boolean;
 }
 
-export function AuthGate({ children }: AuthGateProps) {
+export function AuthGate({ children, pending = false }: AuthGateProps) {
   const {
     status,
     loginWelcomeRequired,
@@ -142,51 +143,8 @@ export function AuthGate({ children }: AuthGateProps) {
     Boolean(loginWelcomeRequired) || (welcomeSound === "finished" && status === "loading")
   );
 
-  if (status === "loading" || showingOkinawaWelcome) {
-    return (
-      <div className="auth-shell">
-        <section
-          className="auth-panel auth-panel-loading"
-          role="status"
-          aria-label="正在確認登入狀態"
-          aria-live="polite"
-        >
-          {showingOkinawaWelcome ? (
-            <div className="auth-island-heading">
-              <p className="auth-eyebrow">旅圖 · TripMap</p>
-              <p className="auth-island-destination">
-                <span>沖繩</span>
-                <span className="auth-island-separator">·</span>
-                <span className="auth-island-english" lang="en">Okinawa</span>
-              </p>
-            </div>
-          ) : (
-            <p className="auth-eyebrow">旅圖 · TripMap</p>
-          )}
-          {showingOkinawaWelcome ? (
-            <OkinawaLoginScene />
-          ) : (
-            <TourGuideAnimation />
-          )}
-          <p className="auth-loading-caption">
-            {showingOkinawaWelcome && status === "authenticated"
-              ? "準備出發"
-              : "載入中"}
-            <span className="auth-loading-dots" aria-hidden="true">
-              <span>.</span>
-              <span>.</span>
-              <span>.</span>
-            </span>
-          </p>
-          {showingOkinawaWelcome && (
-            <p className="auth-tagline" lang="en">
-              Your Journey, Your Map.
-            </p>
-          )}
-
-        </section>
-      </div>
-    );
+  if (status === "loading" || showingOkinawaWelcome || (pending && status === "authenticated" && hasWorkspaceAccess)) {
+    return <AuthLoadingPanel welcome={showingOkinawaWelcome} ready={status === "authenticated"} allowRetry={!showingOkinawaWelcome} />;
   }
 
   if (status === "authenticated" && hasWorkspaceAccess) {
@@ -243,5 +201,63 @@ export function AuthGate({ children }: AuthGateProps) {
         </div>
       </section>
     </div>
+  );
+}
+
+// Shared presentation only. AuthGate retains all welcome audio and session behavior.
+export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中", allowRetry = false }: { welcome?: boolean; ready?: boolean; message?: string; allowRetry?: boolean }) {
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!allowRetry) return;
+    const timer = setTimeout(() => setSlow(true), 20000);
+    return () => clearTimeout(timer);
+  }, [allowRetry]);
+  return (
+      <div className="auth-shell">
+        <section
+          className="auth-panel auth-panel-loading"
+          role="status"
+          aria-label="正在確認登入狀態"
+          aria-live="polite"
+        >
+          {welcome ? (
+            <div className="auth-island-heading">
+              <p className="auth-eyebrow">旅圖 · TripMap</p>
+              <p className="auth-island-destination">
+                <span>沖繩</span>
+                <span className="auth-island-separator">·</span>
+                <span className="auth-island-english" lang="en">Okinawa</span>
+              </p>
+            </div>
+          ) : (
+            <p className="auth-eyebrow">旅圖 · TripMap</p>
+          )}
+          {welcome ? (
+            <OkinawaLoginScene />
+          ) : (
+            <TourGuideAnimation />
+          )}
+          <p className="auth-loading-caption">
+            {welcome && ready
+              ? "準備出發"
+              : message}
+            <span className="auth-loading-dots" aria-hidden="true">
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </span>
+          </p>
+          {allowRetry && slow && <div>
+            <p className="auth-copy">載入時間較長，請確認網路後重新載入。</p>
+            <button className="auth-secondary" type="button" onClick={() => window.location.reload()}>重新載入</button>
+          </div>}
+          {welcome && (
+            <p className="auth-tagline" lang="en">
+              Your Journey, Your Map.
+            </p>
+          )}
+
+        </section>
+      </div>
   );
 }

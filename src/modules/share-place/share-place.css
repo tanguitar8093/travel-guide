@@ -1,0 +1,15 @@
+.share-place-shell { min-height: 100dvh; display: grid; place-items: center; padding: 24px 16px; background: #f5f7f3; color: #263c30; }
+.share-place-panel { position: relative; width: min(100%, 420px); padding: 28px 24px; border: 1px solid #dde5dc; border-radius: 24px; background: #fff; box-shadow: 0 12px 36px #263c300d; overflow-wrap: anywhere; }
+.share-place-brand { font-size: 13px; letter-spacing: .08em; color: #64836c; }
+.share-place-panel h1 { font-size: 24px; margin: 20px 0; }
+.share-place-panel p { line-height: 1.7; }
+.share-place-panel button { display: block; width: 100%; min-height: 48px; margin-top: 16px; border: 0; border-radius: 12px; padding: 12px 16px; background: #436752; color: white; font: inherit; cursor: pointer; }
+.share-place-panel button:disabled { opacity: .6; cursor: wait; }
+.share-place-panel button:focus-visible { outline: 3px solid #90ad98; outline-offset: 3px; }
+.share-place-panel .share-place-secondary { background: #edf2eb; color: #263c30; }
+.share-place-name { font-size: 20px; font-weight: 600; }
+.share-place-hint, .share-place-account { font-size: 13px; color: #68796d; }
+.share-place-panel [role=alert] { color: #a03732; }
+
+.share-place-panel .share-place-close { position: absolute; top: 8px; right: 8px; display: grid; place-items: center; width: 44px; height: 44px; min-height: 44px; margin: 0; padding: 0; border-radius: 50%; background: transparent; color: #526c5b; font-size: 28px; line-height: 1; }
+.share-place-panel .share-place-close:hover { background: #edf2eb; }

@@ -1,4 +1,3 @@
-import { parsePlaceUrl } from "../../shared/place-import/place-url.js";
 import { isInsideOkinawaOsmCoverage } from "./osm-coverage";
 import type {
   Coordinate,
@@ -89,6 +88,45 @@ async function request(
   return data;
 }
 
+function googleMapsUrl(text: string): URL {
+  let url: URL;
+  try { url = new URL(/^https?:\/\//i.test(text) ? text : `https://${text}`); }
+  catch { throw new Error("請提供有效的 Google Maps 網址。"); }
+  const host = url.hostname.toLowerCase();
+  const short = ["maps.app.goo.gl", "goo.gl"].includes(host);
+  const google = ["google.com", "google.com.tw", "google.co.jp", "google.co.uk"]
+    .some(domain => [domain, `www.${domain}`, `maps.${domain}`].includes(host));
+  if ((!short && !google) || !["https:", "http:"].includes(url.protocol) || url.username || url.password || url.port ||
+    (host === "goo.gl" && !url.pathname.startsWith("/maps/")) ||
+    (google && !host.startsWith("maps.") && url.pathname !== "/maps" && !url.pathname.startsWith("/maps/"))) {
+    throw new Error("請提供有效的 Google Maps 網址。");
+  }
+  return url;
+}
+
+async function resolveMapUrl(url: URL, signal?: AbortSignal): Promise<unknown> {
+  const timeout = AbortSignal.timeout(30000);
+  const response = await fetch(
+    "https://mapu.retiolus.net/unshortener?" + new URLSearchParams({ link: url.href }),
+    { signal: signal ? AbortSignal.any([signal, timeout]) : timeout, credentials: "omit", referrerPolicy: "no-referrer" },
+  );
+  if (response.status === 429) throw new Error("網址解析服務目前請求過多，請稍後重試。");
+  if (!response.ok) throw new Error(`網址解析失敗（HTTP ${response.status}），請稍後重試。`);
+  let data: unknown;
+  try { data = await response.json(); }
+  catch { throw new Error("網址解析服務未回傳有效 JSON。"); }
+  if (!record(data) || typeof data.lat !== "number" || typeof data.long !== "number" ||
+    typeof data.name !== "string" || typeof data.full_link !== "string" || typeof data.approximate !== "boolean") {
+    throw new Error("網址解析結果格式不正確。");
+  }
+  validateCoordinatePair(data.lat, data.long);
+  return {
+    lat: data.lat, lng: data.long, name: data.name, resolved_url: data.full_link,
+    inBounds: isInsideOkinawaOsmCoverage({ latitude: data.lat, longitude: data.long }),
+    locationKind: "url-coordinate", approximate: data.approximate,
+  };
+}
+
 export function googleMapsNavigationUrl(coordinate: Coordinate): string {
   validateCoordinatePair(coordinate.latitude, coordinate.longitude);
   return `https://www.google.com/maps/dir/?api=1&destination=${coordinate.latitude},${coordinate.longitude}`;
@@ -125,12 +163,7 @@ export async function searchOsmLocations(
       text,
     )
   ) {
-    const parsed = parsePlaceUrl(text);
-    const data = parsed ? {
-      lat: parsed.coordinate.latitude, lng: parsed.coordinate.longitude,
-      name: parsed.name, resolved_url: parsed.sourceUrl, locationKind: "pin",
-      inBounds: isInsideOkinawaOsmCoverage(parsed.coordinate),
-    } : await request("/api/parse-map-url", signal, { url: text });
+    const data = await resolveMapUrl(googleMapsUrl(text), signal);
     if (
       !record(data) ||
       typeof data.lat !== "number" ||
@@ -171,14 +204,6 @@ export async function searchOsmLocations(
     ) {
       throw new Error("Google Maps 網址解析結果格式不正確。");
     }
-    if (
-      data.locationKind !== undefined &&
-      !["pin", "query-coordinate", "map-center", "url-coordinate"].includes(
-        String(data.locationKind),
-      )
-    ) {
-      throw new Error("Google Maps 網址解析結果格式不正確。");
-    }
     if (!data.inBounds) {
       throw new Error(
         typeof data.warning === "string"
@@ -186,16 +211,15 @@ export async function searchOsmLocations(
           : "此位置超出目前 OSM 圖資範圍。",
       );
     }
-    const kind =
-      data.locationKind === "map-center" ? "map-center" : "user-picked";
+    const kind = data.approximate === true ? "approximate-center" : "user-picked";
     const name = typeof data.name === "string" ? data.name.trim() : "";
     return [
       {
         id: `google-url:${data.lat},${data.lng}`,
         name: name || `${data.lat}, ${data.lng}`,
         mapsUrl: resolvedUrl.href,
-        ...(kind === "map-center"
-          ? { warning: "這是 Google 地圖視窗中心，不一定是地點入口，請確認。" }
+        ...(kind === "approximate-center"
+          ? { warning: "解析服務回傳推估位置，請確認地點座標。" }
           : {}),
         location: {
           source: "user",

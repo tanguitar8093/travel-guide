@@ -319,6 +319,7 @@ function PlaceModule() {
   const [googleDetailsErrorForId, setGoogleDetailsErrorForId] =
     useState<string>();
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
+  const editFromLinkRef = useRef(new URLSearchParams(window.location.search).get("edit"));
   const createFromLinkRef = useRef(
     new URLSearchParams(window.location.search).get("create") === "1",
   );
@@ -429,7 +430,19 @@ function PlaceModule() {
         setLabels(workspace.labels);
         setRegions(workspace.regions);
         setFilteredPlaces(visibleResults);
-        if (createFromLinkRef.current) {
+        if (editFromLinkRef.current) {
+          const requested = visiblePlaces.find(place => place.id === editFromLinkRef.current);
+          editFromLinkRef.current = null;
+          const url = new URL(window.location.href);
+          url.searchParams.delete('edit');
+          window.history.replaceState(null, '', url.pathname + url.search + url.hash);
+          if (requested) {
+            setSelectedPlaceId(requested.id);
+            setDraft(toDraft(requested));
+            setCreating(false);
+            setEditing(true);
+          } else setError('找不到分享的地點，請確認同步狀態與地圖偏好設定。');
+        } else if (createFromLinkRef.current) {
           createFromLinkRef.current = false;
           setCreating(true);
           setEditing(true);

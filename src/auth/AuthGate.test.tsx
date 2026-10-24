@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { AuthGate } from './AuthGate'
+import { AuthGate, AuthLoadingPanel } from './AuthGate'
 import type { AuthContextValue } from './auth-context'
 
 const mockAuth = vi.hoisted(() => ({
@@ -112,4 +112,27 @@ it('uses the normal loading icon after the login welcome is complete', () => {
   const html = renderGate()
   expect(html).toContain('class="tour-guide"')
   expect(html).not.toContain('Okinawa')
+})
+
+it('keeps app-module loading inside the existing panel after auth is ready', () => {
+  mockAuth.value = { ...mockAuth.value, status: 'authenticated', hasWorkspaceAccess: true, loginWelcomeRequired: false }
+  const html = renderToStaticMarkup(<AuthGate pending><div>workspace</div></AuthGate>)
+  expect(html).toContain('auth-panel-loading')
+  expect(html).toContain('class="tour-guide"')
+  expect(html).not.toContain('workspace')
+})
+
+it('does not replace Google login with module loading when signed out', () => {
+  mockAuth.value = { ...mockAuth.value, status: 'unauthenticated', loginWelcomeRequired: false }
+  const html = renderToStaticMarkup(<AuthGate pending><div>workspace</div></AuthGate>)
+  expect(html).toContain('Google 登入')
+  expect(html).not.toContain('auth-panel-loading')
+})
+
+it('renders the share receiving state inside the same animated loading panel without a heading', () => {
+  const html = renderToStaticMarkup(<AuthLoadingPanel message="正在接收分享" />)
+  expect(html).toContain('auth-panel-loading')
+  expect(html).toContain('class="tour-guide"')
+  expect(html).toContain('正在接收分享')
+  expect(html).not.toContain('<h1')
 })

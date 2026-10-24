@@ -40,6 +40,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     let active = true
+    let initialRoleReadPending = false
 
     async function applySession(nextSession: AuthContextValue['session']) {
       if (!active) return
@@ -62,9 +63,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setStatus('loading')
+      initialRoleReadPending = true
       const { role, error } = await fetchUserRole(nextSession.user.id)
 
       if (!active || generation !== sessionGeneration.current) return
+      initialRoleReadPending = false
 
       if (error) {
         setErrorMessage('無法讀取使用者權限，請稍後再試。')
@@ -114,7 +117,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void fetchCurrentSession().then(({ session: currentSession, error }) => {
       if (!active || initialGeneration !== sessionGeneration.current) return
       if (error) {
-        setErrorMessage('無法讀取登入狀態，請重新整理頁面。')
+        setErrorMessage(error.message || '無法讀取登入狀態，請重新整理頁面。')
         setSession(null)
         setUserRole(null)
         setHasWorkspaceAccess(false)
@@ -134,7 +137,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       if (
         nextSession &&
         currentUserId.current === nextSession.user.id &&
-        (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')
+        (event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN')
       ) {
         setSession(nextSession)
         if (event === 'SIGNED_IN') {
@@ -151,7 +154,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               setErrorMessage('無法重新確認使用者權限，請稍後再試。')
               return
             }
-            if (role !== currentUserRole.current) {
+            if (!initialRoleReadPending && role !== currentUserRole.current) {
               void applySession(nextSession)
             }
           })

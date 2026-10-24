@@ -53,56 +53,21 @@ it('deduplicates nearby results regardless of name and equal names regardless of
     .toEqual(['node/1', 'node/4', 'node/5'])
 })
 
-it('shares exact Google place pin parsing with the extension and retains navigation URLs', async () => {
-  request.mockResolvedValue(new Response(JSON.stringify({
-    name: 'Kaichu Rd, Uruma, Okinawa, 日本', lat: 26.3316539, lng: 127.927996, inBounds: true,
-    resolved_url: 'https://www.google.com/maps/place/Kaichu+Rd,+Uruma,+Okinawa,+日本/@26.3316587,127.9254157,17z/data=!3m1!4b1!4m6!3m5!1s0x34e509b449e6e1f5:0x6961d4cf7583cfb0!8m2!3d26.3316539!4d127.927996!16s/m/0j_5g8l?authuser=0&entry=ttu',
-    locationKind: 'pin',
-  })))
-  const url = 'https://www.google.com/maps/place/Kaichu+Rd,+Uruma,+Okinawa,+%E6%97%A5%E6%9C%AC/@26.3316587,127.9254157,17z/data=!3m1!4b1!4m6!3m5!1s0x34e509b449e6e1f5:0x6961d4cf7583cfb0!8m2!3d26.3316539!4d127.927996!16s%2Fm%2F0j_5g8l?authuser=0&entry=ttu&g_ep=EgoyMDI2MTAxOS4wIKXMDSoASAFQAw%3D%3D'
-  const [candidate] = await searchOsmLocations(url)
-  expect(candidate).toMatchObject({
-    name: 'Kaichu Rd, Uruma, Okinawa, 日本',
-    location: { source: 'user', kind: 'user-picked', coordinate: { latitude: 26.3316539, longitude: 127.927996 } },
-  })
-  expect(suggestedOsmLocationName(candidate)).toBe('Kaichu Rd, Uruma, Okinawa, 日本')
-  expect(candidate.mapsUrl).toContain('google.com/maps/place/Kaichu')
-  expect(request).not.toHaveBeenCalled()
-})
-
 it.each([
+  'https://www.google.com/maps/place/Kaichu+Road/data=!3d26.3316539!4d127.927996',
   'https://www.google.com/maps/place/Shuri+Castle/@26.2,127.6,17z',
   'https://maps.google.com/maps?q=26.2,127.6',
   'https://www.google.com/maps/embed?pb=!3d26.2!2d127.6',
-  'https://maps.app.goo.gl/short-link',
-  'https://goo.gl/maps/short-link',
   'maps.google.co.jp/maps?q=26.2,127.6',
-])('passes supported Google Maps URL format to the maps project parser: %s', async url => {
-  request.mockResolvedValue(new Response(JSON.stringify({
-    name: '地點', lat: 26.2, lng: 127.6, inBounds: true,
-    resolved_url: url.startsWith('http') ? url : `https://${url}`, locationKind: 'query-coordinate',
-  })))
+])('sends every long Maps URL to Mapu even when coordinates are already present: %s', async url => {
+  request.mockResolvedValue(new Response(JSON.stringify(unshortened)))
   const [candidate] = await searchOsmLocations(url)
-  expect(candidate.location.source).toBe('user')
-  expect(request).toHaveBeenCalledWith('https://maps.example.test/api/parse-map-url', expect.objectContaining({
-    method: 'POST', body: JSON.stringify({ url }),
-  }))
-  expect(suggestedOsmLocationName(candidate)).toBe('地點')
-})
-
-it('marks view-center URLs for confirmation and rejects places outside local map coverage', async () => {
-  request.mockResolvedValueOnce(new Response(JSON.stringify({
-    name: '附近', lat: 26.2, lng: 127.6, inBounds: true, resolved_url: 'https://maps.google.com/maps/@26.2,127.6,17z', locationKind: 'map-center',
-  })))
-  const [center] = await searchOsmLocations('https://maps.google.com/maps/@26.2,127.6,17z')
-  expect(center.location.kind).toBe('map-center')
-  expect(center.warning).toContain('不一定是地點入口')
-  expect(suggestedOsmLocationName(center)).toBe('附近')
-  request.mockResolvedValueOnce(new Response(JSON.stringify({
-    name: '台北', lat: 25.03, lng: 121.56, inBounds: false, warning: '超出沖繩圖資範圍',
-    resolved_url: 'https://www.google.com/maps?q=25.03,121.56',
-  })))
-  await expect(searchOsmLocations('https://www.google.com/maps?q=25.03,121.56')).rejects.toThrow('超出沖繩圖資範圍')
+  const normalized = url.startsWith('https://') ? url : 'https://' + url
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request).toHaveBeenCalledWith('https://mapu.retiolus.net/unshortener?' + new URLSearchParams({ link: normalized }), expect.any(Object))
+  expect(candidate.name).toBe(unshortened.name)
+  expect(candidate.mapsUrl).toBe(unshortened.full_link)
+  expect(candidate.location.coordinate).toEqual({ latitude: unshortened.lat, longitude: unshortened.long })
 })
 
 it('rejects invalid parser responses and malformed coordinate input', async () => {
@@ -160,4 +125,59 @@ it('returns ordered road geometry when explicitly requested', async () => {
 it('rejects missing road geometry rather than drawing a straight substitute', async () => {
   request.mockResolvedValue(new Response(JSON.stringify({ duration: 80, distance: 900 })))
   await expect(routeOsmLocations(origin, destination, 'DRIVING', undefined, true)).rejects.toThrow('缺少道路軌跡')
+})
+
+const unshortened = {
+  approximate: false, full_link: 'https://www.google.com/maps?q=26.2083403,127.65044104999998',
+  lat: 26.2083403, long: 127.65044104999998, name: '那霸機場150 Kagamizu',
+  nominatim: false, searched: false, steps: 3, timestamp: 1792825663,
+}
+it.each([
+  'https://maps.app.goo.gl/tWvNV7FfEfHbpd5X6',
+  'https://goo.gl/maps/short-link',
+  'maps.app.goo.gl/tWvNV7FfEfHbpd5X6',
+])('sends every Maps short URL directly to Mapu and adapts its response: %s', async url => {
+  request.mockResolvedValue(new Response(JSON.stringify(unshortened)))
+  const [candidate] = await searchOsmLocations(url)
+  const normalized = url.startsWith('https://') ? url : 'https://' + url
+  expect(request).toHaveBeenCalledTimes(1)
+  expect(request).toHaveBeenCalledWith('https://mapu.retiolus.net/unshortener?' + new URLSearchParams({ link: normalized }),
+    expect.objectContaining({ credentials: 'omit', referrerPolicy: 'no-referrer' }))
+  expect(candidate).toMatchObject({ name: unshortened.name, mapsUrl: unshortened.full_link,
+    location: { source: 'user', kind: 'user-picked', coordinate: { latitude: unshortened.lat, longitude: unshortened.long } } })
+})
+it('retains an approximate result warning rather than presenting it as an exact pin', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({ ...unshortened, approximate: true })))
+  const [candidate] = await searchOsmLocations('https://maps.app.goo.gl/test')
+  expect(candidate.location.kind).toBe('approximate-center')
+  expect(candidate.warning).toContain('推估')
+})
+it.each([
+  { ...unshortened, long: '127.6' },
+  { ...unshortened, lat: null },
+  { ...unshortened, lat: 100 },
+  { ...unshortened, approximate: undefined },
+  { ...unshortened, full_link: 'https://evil.test/maps' },
+])('rejects invalid Mapu fields or unsafe result links', async data => {
+  request.mockResolvedValue(new Response(JSON.stringify(data)))
+  await expect(searchOsmLocations('https://maps.app.goo.gl/test')).rejects.toThrow()
+  expect(request).toHaveBeenCalledTimes(1)
+})
+it('reports external service errors without falling back to another parser', async () => {
+  request.mockResolvedValueOnce(new Response('{}', { status: 429 }))
+  await expect(searchOsmLocations('https://maps.app.goo.gl/test')).rejects.toThrow('請求過多')
+  request.mockResolvedValueOnce(new Response('{}', { status: 503 }))
+  await expect(searchOsmLocations('https://maps.app.goo.gl/test')).rejects.toThrow('HTTP 503')
+  request.mockResolvedValueOnce(new Response('<html>error</html>'))
+  await expect(searchOsmLocations('https://maps.app.goo.gl/test')).rejects.toThrow('有效 JSON')
+  expect(request).toHaveBeenCalledTimes(3)
+})
+it('preserves coverage checks for Mapu coordinates', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({ ...unshortened, lat: 25.03, long: 121.56 })))
+  await expect(searchOsmLocations('https://maps.app.goo.gl/test')).rejects.toThrow('範圍')
+})
+
+it.each(['https://google.com.evil.test/maps', 'https://user@www.google.com/maps', 'https://goo.gl/not-maps'])('rejects invalid Maps input before sending it to Mapu: %s', async url => {
+  await expect(searchOsmLocations(url)).rejects.toThrow('有效的 Google Maps 網址')
+  expect(request).not.toHaveBeenCalled()
 })
