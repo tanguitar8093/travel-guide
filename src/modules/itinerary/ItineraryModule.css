@@ -302,8 +302,12 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-action-menu[open] > summary > .itinerary-map-operations-chevron { margin-top: 3px; transform: rotate(225deg); }
 .itinerary-day-travel-summary { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; padding: 8px 16px; color: #587461; background: #f3f7f2; font-size: 11px; }
 .itinerary-day-travel-summary small { color: #829087; font-size: 10px; }
-.itinerary-batch-transport { flex: 0 0 auto; display: grid; gap: 10px; margin: 10px; padding: 12px; border: 1px solid #e1e8e2; border-radius: 8px; background: #f7faf6; color: #5c6b60; font-size: 12px; }
-.itinerary-batch-transport label { display: flex; align-items: center; gap: 10px; }
-.itinerary-batch-transport select { min-width: 0; min-height: 36px; flex: 1; padding: 4px 8px; border: 1px solid #dfe7df; border-radius: 6px; background: #fff; color: inherit; }
-.itinerary-batch-transport small { line-height: 1.5; }
-.itinerary-batch-transport > div { display: flex; justify-content: flex-end; gap: 8px; }
+
+.itinerary-transfer-body { display: grid; gap: 14px; }
+.itinerary-transfer-body p { margin: 0; font-size: 12px; color: #6b7c70; }
+.itinerary-transfer-body small { line-height: 1.7; color: #839087; }
+
+.itinerary-item-actions > .itinerary-item-action-trigger { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 8px; font-size: 11px; }
+.itinerary-item-action-trigger .itinerary-menu-chevron { width: 12px; height: 12px; }
+.itinerary-item-action-trigger[aria-expanded="true"] .itinerary-menu-chevron { transform: rotate(180deg); }
+.itinerary-item-popover { position: fixed; inset: auto; width: 184px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; margin: 0; font: 12px Inter,"Noto Sans TC",sans-serif; }

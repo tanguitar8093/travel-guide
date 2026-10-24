@@ -45,7 +45,10 @@ import { ItemEditorDialog } from "../../common/ItemEditorDialog";
 import { ToastStack } from "../../common/ToastStack";
 import { useToasts } from "../../common/useToasts";
 import { buildDayRouteGeometry } from "./day-route-geometry";
+import { transferItineraryItems } from "./transfer-itinerary-items";
+import type { TransferKind } from "./transfer-itinerary-items";
 import { dayTravelSummary, runDayJobs } from "./day-route-operations";
+import { ItineraryItemActions } from "./ItineraryItemActions";
 import { ItinerarySortableList } from "./ItinerarySortableList";
 
 function PreviewLayout({ children }: ComponentProps<typeof WorkspaceLayout>) {
@@ -247,6 +250,11 @@ function ItineraryModule({
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number }>();
   const [batchTransportOpen, setBatchTransportOpen] = useState(false);
+  const [transferDialog, setTransferDialog] = useState<{ kind: TransferKind; ids: string[]; sourceDate: string; wholeDay: boolean }>();
+  const [transferDate, setTransferDate] = useState("");
+  const [transferError, setTransferError] = useState("");
+  const [transferDone, setTransferDone] = useState(0);
+  const transferRunning = useRef(false);
   const [batchTransport, setBatchTransport] = useState("DRIVING");
   const [dayOrderDraftIds, setDayOrderDraftIds] = useState<string[]>();
   const [error, setError] = useState("");
@@ -495,6 +503,8 @@ function ItineraryModule({
 
   const hasOpenDraft =
     creatingTrip ||
+    transferDialog !== undefined ||
+    batchTransportOpen ||
     editingTrip ||
     addingItem ||
     editingItemId !== undefined ||
@@ -812,7 +822,7 @@ function ItineraryModule({
         if (abort.signal.aborted) return;
         handle.setRoute?.(result.lines);
         setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製路程軌跡。"
-          : result.skipped ? (result.lines.length ? `已顯示可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。`)
+          : result.skipped ? (result.lines.length ? `已顯示可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的路程軌跡，請先確認交通方式，略過 ${result.skipped} 段路線。`)
           : result.lines.length ? "已顯示當天行程的路程軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
       } catch (cause) {
         if (!abort.signal.aborted) setNotice(cause instanceof Error ? cause.message : "路程軌跡繪製失敗。", "error");
@@ -1147,6 +1157,43 @@ function ItineraryModule({
     }
   }
 
+  function openTransfer(kind: TransferKind, item?: ItineraryItem) {
+    if (!selectedTrip || !canEditItems || interactionBusy || itemFormVisible || hasPendingDayReorder || tripDates.length < 2) return;
+    const sourceDate = item?.date ?? selectedDate;
+    const ids = item ? [item.id] : dayItems.map(row => row.id);
+    if (!ids.length) return;
+    closeDayActions();
+    setBatchTransportOpen(false);
+    setTransferError("");
+    setTransferDone(0);
+    setTransferDate(tripDates.find(date => date > sourceDate) ?? tripDates.find(date => date !== sourceDate) ?? "");
+    setTransferDialog({ kind, ids, sourceDate, wholeDay: !item });
+  }
+
+  async function submitTransfer(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTrip || !transferDialog || !canEditItems || transferRunning.current || interactionBusy) return;
+    transferRunning.current = true;
+    setSaving(true);
+    setTransferError("");
+    try {
+      const result = await transferItineraryItems(itineraryController, selectedTrip, transferDialog.sourceDate,
+        transferDialog.ids, transferDate, transferDialog.kind, setTransferDone);
+      const action = transferDialog.kind === "move" ? "移動" : "複製";
+      try { setItems(await itineraryController.listItems(selectedTrip.id)); }
+      catch { setWorkspaceReloadKey(value => value + 1); setNotice("正在重新載入更新後的行程。", "error"); }
+      setTransferDialog(undefined);
+      if (result.succeeded && !result.failures.length) setSelectedDate(transferDate);
+      if (result.succeeded) setNotice(`已${action} ${result.succeeded} 個項目至 ${transferDate}，接在當日安排最後。`);
+      if (result.failures.length) setNotice(`${result.failures.length} 個項目未${action}，仍保留在來源日期。${result.failures[0].message}`, "error");
+    } catch (cause) {
+      setTransferError(cause instanceof Error ? cause.message : "無法處理行程，請重試。");
+    } finally {
+      transferRunning.current = false;
+      setSaving(false);
+    }
+  }
+
   function reorderDayCards(orderedIds: string[]) {
     if (!canEditItems || interactionBusy || itemFormVisible) return;
     setDayOrderDraftIds(orderedIds);
@@ -1239,7 +1286,7 @@ function ItineraryModule({
       mainClassName="itinerary-main"
       sidebarToggleTarget={sidebarToggleTarget}
     >
-      {!itemFormVisible && <ToastStack toasts={toasts} dismiss={dismissToast} />}
+      {!itemFormVisible && !batchTransportOpen && <ToastStack toasts={toasts} dismiss={dismissToast} />}
       {sharedNavigation}
       {publicationOperation && selectedTrip && selectedRegion && (
         <PublicationDialog operation={publicationOperation} trip={selectedTrip} regionName={selectedRegion.name}
@@ -1423,6 +1470,53 @@ function ItineraryModule({
           </form>
         </ItemEditorDialog>
       )}
+      {batchTransportOpen && <ItemEditorDialog label="批次修改交通方式" busy={interactionBusy} onClose={() => setBatchTransportOpen(false)}>
+        <ToastStack toasts={toasts} dismiss={dismissToast} />
+        <form className="itinerary-item-form" onSubmit={event => { event.preventDefault(); void runDayOperation(batchTransport); }}>
+          <div className="itinerary-form-title">
+            <strong>批次修改交通方式</strong>
+            <div className="itinerary-editor-actions">
+              <button className="itinerary-primary" type="submit" disabled={interactionBusy || !batchTransport}>{batchProgress ? "套用中…" : "套用"}</button>
+              <button className="itinerary-secondary" type="button" disabled={interactionBusy} onClick={() => setBatchTransportOpen(false)}>取消</button>
+            </div>
+          </div>
+          <div className="itinerary-item-editor-body itinerary-transfer-body">
+            <p>{formatDate(selectedDate)} · {Math.max(0, dayItems.length - 1)} 段路程</p>
+            <label className="itinerary-field">當日交通方式
+              <select data-dialog-autofocus aria-label="當日交通方式" value={batchTransport} disabled={interactionBusy} onChange={event => setBatchTransport(event.target.value)}>
+                {availableTransportOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+              </select>
+            </label>
+            <small>套用至上一站到下一站的所有路段，變更後需重新計算路程。</small>
+            {batchProgress && <p role="status">已處理 {batchProgress.done}/{batchProgress.total} 段…</p>}
+          </div>
+        </form>
+      </ItemEditorDialog>}
+      {transferDialog && <ItemEditorDialog label={`${transferDialog.kind === "move" ? "移動" : "複製"}${transferDialog.wholeDay ? "當日行程" : "行程項目"}到他日`}
+        busy={saving} onClose={() => setTransferDialog(undefined)}>
+        <form className="itinerary-item-form" onSubmit={event => void submitTransfer(event)}>
+          <div className="itinerary-form-title">
+            <strong>{transferDialog.kind === "move" ? "移動" : "複製"}{transferDialog.wholeDay ? "當日行程" : "行程項目"}到他日</strong>
+            <div className="itinerary-editor-actions">
+              <button type="submit" className="itinerary-primary" disabled={saving || !transferDate}>{saving ? "處理中…" : transferDialog.kind === "move" ? "移動" : "複製"}</button>
+              <button type="button" className="itinerary-secondary" disabled={saving} onClick={() => setTransferDialog(undefined)}>取消</button>
+            </div>
+          </div>
+          <div className="itinerary-item-editor-body itinerary-transfer-body">
+            <p>{transferDialog.sourceDate} · {transferDialog.ids.length} 個項目</p>
+            <label className="itinerary-field">目的日期
+              <select data-dialog-autofocus aria-label="目的日期" value={transferDate} disabled={saving} onChange={event => setTransferDate(event.target.value)} required>
+                {tripDates.filter(date => date !== transferDialog.sourceDate).map(date => <option key={date} value={date}>
+                  {formatDate(date)} · {tripItems.filter(item => item.date === date).length} 個項目
+                </option>)}
+              </select>
+            </label>
+            <small>{transferDialog.kind === "copy" ? "保留來源安排，複製到目的日最後。" : "從來源日期移除，接到目的日最後。"}多個項目會保持原本順序，路程需重新計算。</small>
+            {saving && <p role="status">已處理 {transferDone}/{transferDialog.ids.length} 個項目…</p>}
+            {transferError && <div className="itinerary-feedback itinerary-error" role="alert">{transferError}</div>}
+          </div>
+        </form>
+      </ItemEditorDialog>}
       {placePickerOpen && itemFormVisible && (
         <SearchableSelectDialog
           label="地點"
@@ -1785,8 +1879,10 @@ function ItineraryModule({
                         type="button"
                         className="itinerary-secondary"
                         onClick={cancelTripEdit}
+                        aria-label="返回行程"
+                        title="返回行程"
                       >
-                        返回
+                        <span aria-hidden="true">←</span>
                       </button>
                     </div>
                   </div>
@@ -1825,9 +1921,6 @@ function ItineraryModule({
                         {focusMode ? (
                           <>
                             <span aria-hidden="true">↙</span>
-                            <span className="itinerary-focus-toggle-label">
-                              返回
-                            </span>
                           </>
                         ) : (
                           <svg
@@ -1905,27 +1998,20 @@ function ItineraryModule({
                               onClick={() => { closeDayActions(); setBatchTransport(availableTransportOptions[0]?.value ?? ""); setBatchTransportOpen(true); }}>批次修改交通方式</button>
                             <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || dayItems.length < 2 || !mapProvider}
                               onClick={() => void runDayOperation()}>計算所有路程</button>
+                            <hr />
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || !dayItems.length || tripDates.length < 2}
+                              onClick={() => openTransfer("move")}>移動當日行程到他日</button>
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || !dayItems.length || tripDates.length < 2}
+                              onClick={() => openTransfer("copy")}>複製當日行程到他日</button>
                           </div>
                         </details>}
                       </div>
                     </div>
-                    {(travelSummary.calculated > 0 || batchProgress) && <div className="itinerary-day-travel-summary" role="status">
+                    {(travelSummary.calculated > 0 || (batchProgress && !batchTransportOpen)) && <div className="itinerary-day-travel-summary" role="status">
                       {travelSummary.label}
                       {travelSummary.calculated < travelSummary.total && <small>（已計算 {travelSummary.calculated}/{travelSummary.total} 段）</small>}
-                      {batchProgress && <small>處理中 {batchProgress.done}/{batchProgress.total} 段…</small>}
+                      {batchProgress && !batchTransportOpen && <small>處理中 {batchProgress.done}/{batchProgress.total} 段…</small>}
                     </div>}
-                    {batchTransportOpen && <form className="itinerary-batch-transport" onSubmit={event => { event.preventDefault(); void runDayOperation(batchTransport); }}>
-                      <label>當日交通方式
-                        <select value={batchTransport} disabled={interactionBusy} onChange={event => setBatchTransport(event.target.value)}>
-                          {availableTransportOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-                        </select>
-                      </label>
-                      <small>套用至上一站到下一站的所有路段，變更後需重新計算路程。</small>
-                      <div>
-                        <button className="itinerary-secondary" type="button" disabled={interactionBusy} onClick={() => setBatchTransportOpen(false)}>取消</button>
-                        <button className="itinerary-primary" type="submit" disabled={interactionBusy || !batchTransport}>套用</button>
-                      </div>
-                    </form>}
                     <div className="itinerary-items-scroll">
                       {dayItems.length ? (
                         <ItinerarySortableList
@@ -2085,6 +2171,7 @@ function ItineraryModule({
                                   {item.note && <p>{item.note}</p>}
                                 </div>
                                 {!readonly && <div className="itinerary-item-actions">
+                                  <ItineraryItemActions label={`${place?.name ?? "行程項目"}的操作`} disabled={interactionBusy || !canEditItems}>
                                   {previousItem && (
                                     <button
                                       type="button"
@@ -2121,14 +2208,22 @@ function ItineraryModule({
                                   >
                                     編輯
                                   </button>
+                                  <button type="button" aria-label="移動此項目到他日" title="移動此項目到他日"
+                                    disabled={interactionBusy || !canEditItems || itemFormVisible || hasPendingDayReorder || tripDates.length < 2}
+                                    onClick={() => openTransfer("move", item)}>移動</button>
+                                  <button type="button" aria-label="複製此項目到他日" title="複製此項目到他日"
+                                    disabled={interactionBusy || !canEditItems || itemFormVisible || hasPendingDayReorder || tripDates.length < 2}
+                                    onClick={() => openTransfer("copy", item)}>複製</button>
                                   <button
                                     type="button"
                                     aria-label="移除項目"
+                                    className="itinerary-action-danger"
                                     disabled={interactionBusy || !canEditItems}
                                     onClick={() => void handleDeleteItem(item)}
                                   >
                                     移除
                                   </button>
+                                  </ItineraryItemActions>
                                 </div>}
                               </>
                             );
@@ -2202,20 +2297,6 @@ function ItineraryModule({
                     <span className="itinerary-map-operations-chevron" aria-hidden="true" />
                   </summary>
                   <div className="itinerary-dropdown itinerary-action-options">
-                    {mapProvider === 'osm' && <button
-                      type="button"
-                      aria-pressed={routeVisible}
-                      disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId}
-                      onClick={() => {
-                        setMapCollapsed(false);
-                        setRouteVisible(value => !value);
-                        if (mapToolsRef.current) {
-                          mapToolsRef.current.open = false;
-                          mapToolsRef.current.querySelector('summary')?.focus();
-                        }
-                      }}
-                    >{routeVisible ? '隱藏路程軌跡' : '路程軌跡'}</button>}
-
                     <button type="button"
                       disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId || !googleMapMarkers.some(marker => marker.sequence !== undefined)}
                       onClick={() => {
@@ -2244,7 +2325,7 @@ function ItineraryModule({
                         });
                       }}
                     >
-                      查看全程
+                      旅程全程
                     </button>
                     <button
                       type="button"
@@ -2261,6 +2342,19 @@ function ItineraryModule({
                     >
                       {mapProvider === 'osm' ? `${selectedRegion?.name ?? '區域'}全景` : '恢復預設'}
                     </button>
+                    {mapProvider === 'osm' && <button
+                      type="button"
+                      aria-pressed={routeVisible}
+                      disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId}
+                      onClick={() => {
+                        setMapCollapsed(false);
+                        setRouteVisible(value => !value);
+                        if (mapToolsRef.current) {
+                          mapToolsRef.current.open = false;
+                          mapToolsRef.current.querySelector('summary')?.focus();
+                        }
+                      }}
+                    >{routeVisible ? '隱藏路程軌跡' : '路程軌跡'}</button>}                    
                     <RouterLink
                       className="itinerary-map-tool-link"
                       to={routes.routeCalculator}

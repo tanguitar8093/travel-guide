@@ -145,7 +145,7 @@ export function RoutePreviewMap({
               disabled={!ready || !markers.length}
               onClick={() => setFit((value) => value + 1)}
             >
-              查看全程
+              旅程全程
             </button>
             <button
               type="button"
