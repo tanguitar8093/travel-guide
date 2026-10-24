@@ -1,3 +1,4 @@
+import { refreshAccountDatasetPreference } from '../../geo/account-dataset-preference'
 import { getOsmDataset } from '../../geo/osm-dataset-preference'
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
@@ -34,6 +35,8 @@ import {
   transportOptionsForProvider,
 } from "../../common/route-estimate";
 import { TripCollaborationPanel } from "./TripCollaborationPanel";
+import { syncHybridWorkspace } from "../../database/hybrid.runtime";
+import { useHybridStatus } from "../../database/useHybridStatus";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import { useDatabaseMode } from '../../database/useDatabaseMode';
 import { createPublicItineraryController, publicSharingAvailable } from '../public-itinerary/public-itinerary.controller';
@@ -247,6 +250,8 @@ function ItineraryModule({
   const [workspaceLoadFailed, setWorkspaceLoadFailed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshingSharedTrip, setRefreshingSharedTrip] = useState(false);
+  const pageSyncRunning = useRef(false);
+  const hybridStatus = useHybridStatus();
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number }>();
   const [batchTransportOpen, setBatchTransportOpen] = useState(false);
@@ -1181,7 +1186,7 @@ function ItineraryModule({
         } : row));
       },
         // Shared document writes must use the latest revision, one at a time.
-        transport !== undefined || sharedTripIds.includes(selectedTripId) ? 1 : 3,
+        transport !== undefined || mapProvider === "osm" || sharedTripIds.includes(selectedTripId) ? 1 : 3,
         done => setBatchProgress({ done, total: jobs.length }));
       setItems(await itineraryController.listItems(selectedTripId));
       const action = transport === undefined ? "計算路程" : "修改交通方式";
@@ -1292,6 +1297,30 @@ function ItineraryModule({
     setNotice(error, "error");
     setError("");
   }, [error, workspaceLoadFailed, itemFormVisible, editingTrip, deleteTripDialogOpen, setNotice]);
+
+  async function syncItineraryPage() {
+    if (readonly || !selectedTripId || loading || interactionBusy || sharedSyncBusy || hybridStatus.syncing ||
+      hasOpenDraft || collaborationOpen || deleteTripDialogOpen || pageSyncRunning.current) return;
+    pageSyncRunning.current = true;
+    setRefreshingSharedTrip(true);
+    setError("");
+    try {
+      await refreshAccountDatasetPreference();
+      if (databaseMode === "hybrid") await syncHybridWorkspace();
+      await onRefreshSharedTrips?.();
+      await refreshWorkspace(selectedTripId);
+      setItems(await itineraryController.listItems(selectedTripId));
+      setDayOrderDraftIds(undefined);
+      setMapRetry(value => value + 1);
+      setWorkspaceReloadKey(value => value + 1);
+      setNotice(databaseMode === "indexeddb" ? "已重新載入此頁資料。" : "行程頁面資料已同步。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "同步行程頁面資料失敗，請重試。");
+    } finally {
+      pageSyncRunning.current = false;
+      setRefreshingSharedTrip(false);
+    }
+  }
 
   async function refreshSharedTrip() {
     if (
@@ -1965,6 +1994,14 @@ function ItineraryModule({
                     <span className="itinerary-day-count">
                       {formatDate(selectedDate)} · {totalDays} 天
                     </span>
+                    {!readonly && <button type="button" className="itinerary-focus-toggle itinerary-page-sync"
+                      aria-label={refreshingSharedTrip ? "正在同步行程頁面資料" : "同步行程頁面資料"}
+                      aria-busy={refreshingSharedTrip}
+                      title={hasOpenDraft ? "請先儲存或取消編輯，再同步" : "同步此頁相關資料"}
+                      disabled={loading || interactionBusy || sharedSyncBusy || hybridStatus.syncing || hasOpenDraft || collaborationOpen || deleteTripDialogOpen}
+                      onClick={() => void syncItineraryPage()}>
+                      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5" /><path d="M6.1 7a7 7 0 0 1 11.6-1L20 9M4 15l2.3 3A7 7 0 0 0 17.9 17" /></svg>
+                    </button>}
                     {!readonly && (focusMode || (!itemFormVisible && !editingTrip)) && (
                       <button
                         ref={

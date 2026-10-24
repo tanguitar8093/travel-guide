@@ -53,3 +53,24 @@ Run all Python fixtures with `npm run osm:test`. The browser regression script i
 context and local-only mutations. `OSM_CHECK_HYBRID=1` checks real account sync;
 it may create the account's normal fixed OSM regions, but does not create test
 places or trips in the cloud.
+
+## Routing and Taiwan search indexes
+
+Taiwan routing reads indexed edges on demand rather than rebuilding a nationwide
+in-memory graph for every transport mode. Taiwan place search also uses a disk
+index instead of retaining the complete JSON catalog in the HTTP process.
+`osm:setup` and server startup prepare disposable indexes automatically; the first
+preparation can take about a minute for both datasets of derived information.
+Subsequent starts reuse them. Changed source files invalidate their indexes.
+
+To prepare manually before starting the server:
+
+```sh
+python3 -B osm/scripts/prepare-routing-index.py osm/data/taiwan-routing.sqlite
+python3 -B osm/scripts/prepare-search-index.py osm/data/taiwan-places.json
+```
+
+Caches live in ignored `data/.routing-cache/` and `data/.search-cache/` directories.
+Keep the original SQLite/JSON inputs; restart after replacing them. See
+[measurements and limits](../docs/system/routing-performance.md) for reproducible
+benchmarks, resource bounds, first-build costs, and long-route limitations.

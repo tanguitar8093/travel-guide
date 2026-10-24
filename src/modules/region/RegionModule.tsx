@@ -1,3 +1,4 @@
+import { useDatasetSyncError } from '../../geo/account-dataset-preference'
 import { getOsmDataset, setOsmDataset } from '../../geo/osm-dataset-preference'
 import { regionOsmDataset, osmDatasets } from '../../geo/osm-datasets'
 import { useEffect, useRef, useState } from "react";
@@ -40,6 +41,7 @@ function toDraft(region: Region): RegionDraft {
 function RegionModule() {
   const { provider, error: providerError } = useMapProvider();
   const readonly = provider === 'osm';
+  const datasetSyncError = useDatasetSyncError();
   const dataRevision = useHybridDataRevision();
   const [regions, setRegions] = useState<Region[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -86,8 +88,9 @@ function RegionModule() {
     const workspace = await regionController.loadWorkspace();
     const filteredRegions = regionsForMapProvider(workspace.regions, provider, null);
     const nextRegion =
-      filteredRegions.find((region) => region.id === preferredId) ??
-      filteredRegions.find(region => provider === 'osm' && regionOsmDataset(region) === getOsmDataset()) ?? filteredRegions[0];
+      provider === 'osm'
+        ? filteredRegions.find(region => regionOsmDataset(region) === getOsmDataset())
+        : filteredRegions.find(region => region.id === preferredId) ?? filteredRegions[0];
     setRegions(workspace.regions);
     setPlaces(workspace.places);
     setTrips(workspace.trips);
@@ -140,8 +143,9 @@ function RegionModule() {
         });
         const filteredRegions = regionsForMapProvider(workspace.regions, provider, null);
         const firstRegion =
-          filteredRegions.find((region) => region.id === selectedIdRef.current) ??
-          filteredRegions.find(region => provider === 'osm' && regionOsmDataset(region) === getOsmDataset()) ?? filteredRegions[0];
+          provider === 'osm'
+            ? filteredRegions.find(region => regionOsmDataset(region) === getOsmDataset())
+            : filteredRegions.find(region => region.id === selectedIdRef.current) ?? filteredRegions[0];
         setSelectedId(firstRegion?.id);
         setDraft(firstRegion ? toDraft(firstRegion) : emptyDraft);
       })
@@ -403,6 +407,7 @@ function RegionModule() {
             {error || providerError}
           </div>
         )}
+        {provider === 'osm' && datasetSyncError && <p className="region-feedback region-error" role="status">{datasetSyncError}</p>}
         {notice && !deleteDialogOpen && (
           <div className="region-feedback region-success" role="status">
             {notice}

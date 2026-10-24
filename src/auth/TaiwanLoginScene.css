@@ -1,0 +1,6 @@
+.taiwan-login-scene { display: block; width: 100%; height: auto; margin: 20px auto 0; }
+.taiwan-festival-dancer { animation: taiwan-dance 1.6s ease-in-out infinite alternate; }
+.taiwan-clouds { animation: taiwan-cloud 9s ease-in-out infinite alternate; }
+@keyframes taiwan-dance { from { transform: translateY(0) rotate(-2deg); } to { transform: translateY(-4px) rotate(2deg); } }
+@keyframes taiwan-cloud { to { transform: translateX(12px); } }
+@media (prefers-reduced-motion: reduce) { .taiwan-login-scene * { animation: none; } }

@@ -1,11 +1,23 @@
 .osm-location-search, .osm-location-search > .searchable-select { width: 100%; min-width: 0; box-sizing: border-box; }
-.osm-location-search input { width: 100%; min-width: 0; box-sizing: border-box; height: auto; min-height: 40px; padding: 10px 12px; border: 1px solid #e1e8e2; border-radius: 6px; font: inherit; font-size: 12px; color: #4f6053; background: #fff; }
-.osm-location-search .searchable-select ul { box-sizing: border-box; }
+.google-autocomplete.osm-location-search { display: block; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; }
+.osm-location-search input { width: 100%; min-width: 0; box-sizing: border-box; min-height: 42px; padding: 10px 12px; border: 1px solid #dce6da; border-radius: 8px; font: inherit; font-size: 14px; line-height: 1.5; color: #526057; background: #fff; }
+.osm-location-search input:focus { outline: none; border-color: #648a74; box-shadow: 0 0 0 3px #648a741a; }
+.osm-location-search .osm-search-options { position: absolute; z-index: 100; top: calc(100% + 6px); inset-inline: 0; box-sizing: border-box; max-height: min(280px, 40dvh); overflow-y: auto; overscroll-behavior: contain; margin: 0; padding: 4px; border: 1px solid #e1e8e2; border-radius: 8px; list-style: none; background: #fff; box-shadow: 0 8px 24px #28372b1a; font: inherit; font-size: 13px; font-weight: 400; line-height: 1.5; text-align: left; }
+.osm-location-search .osm-search-options[hidden] { display: none; }
+.osm-search-options > .osm-search-option { display: block; box-sizing: border-box; min-height: 44px; margin: 0; padding: 11px 12px; border: 0; border-radius: 5px; color: #526057; background: transparent; font: inherit; list-style: none; white-space: normal; overflow-wrap: anywhere; cursor: pointer; touch-action: manipulation; }
+.osm-search-options > .osm-search-option:hover, .osm-search-options > .osm-search-option.active { color: #456f53; background: #eef5ec; }
+.osm-search-options > .osm-search-option[aria-selected="true"] { color: #456f53; background: #eef5ec; }
+.osm-search-options > .osm-search-message { display: flex; align-items: center; gap: 8px; box-sizing: border-box; min-height: 44px; margin: 0; padding: 11px 12px; color: #829086; font: inherit; list-style: none; overflow-wrap: anywhere; }
+.osm-search-message.is-error { color: #a56357; }
+.osm-search-message.is-loading::before { content: ""; flex: 0 0 auto; width: 14px; height: 14px; box-sizing: border-box; border: 2px solid #e1e8e2; border-top-color: #648a74; border-radius: 50%; animation: osm-search-spin .8s linear infinite; }
+@keyframes osm-search-spin { to { transform: rotate(360deg); } }
+@media (max-width: 680px) { .osm-location-search input { font-size: 16px; } .osm-location-search .osm-search-options { font-size: 14px; } }
+@media (prefers-reduced-motion: reduce) { .osm-search-message.is-loading::before { animation: none; } }
 .osm-location-search p { color: #7e8e82; font-size: 11px; line-height: 1.7; }
 .osm-location-search .osm-search-status { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .osm-location-result { width: 100%; text-align: left; margin-top: 6px; padding: 9px 12px; border: 1px solid #e1e8e2; border-radius: 6px; background: #fff; color: #4f6053; font: inherit; font-size: 12px; cursor: pointer; overflow-wrap: anywhere; }
 .osm-location-result small { display: block; margin-top: 4px; color: #948261; font-size: 10px; }
-.osm-location-search input:focus-visible, .osm-location-result:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
+.osm-location-result:focus-visible { outline: 2px solid #648a74; outline-offset: 2px; }
 .osm-search-heading { display: inline-flex; align-items: center; gap: 7px; }
 .osm-search-help { width: 22px; height: 22px; display: inline-grid; place-items: center; padding: 0; border: 1px solid #dce5dc; border-radius: 50%; background: #fff; color: #648a74; cursor: pointer; font-size: 12px; }
 .osm-search-dialog { width: min(380px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); overflow: auto; padding: 18px; border: 1px solid #dce5dc; border-radius: 10px; color: #4f6053; background: #fff; box-shadow: 0 16px 45px #263e3826; font-size: 12px; text-align: left; }

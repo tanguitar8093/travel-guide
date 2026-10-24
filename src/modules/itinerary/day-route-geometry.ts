@@ -22,7 +22,7 @@ export async function buildDayRouteGeometry(items: readonly RouteStop[], markers
     signal.throwIfAborted()
     if (!result.geometry?.length) throw new Error('無可用路線')
     segments[index] = result.geometry
-  }, 3, () => {})
+  }, 1, () => {})
   signal.throwIfAborted()
   return { lines: segments.flat(), skipped: result.failures.length, total: jobs.length }
 }

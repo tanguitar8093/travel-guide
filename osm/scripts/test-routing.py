@@ -1,4 +1,5 @@
 import sys
+import math
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from routing import Router, allowed
@@ -43,3 +44,31 @@ walk=fallback.route([[127.68,26.21],[127.70,26.21]],'walk')
 assert walk['distance']>1000 and len(walk['legs'][0]['geometry']['coordinates'])>=2
 assert max(walk['legs'][0]['snapDistances'])<800
 print('PASS: disconnected exact walking nodes retry nearby connected roads')
+
+# Disconnected searches have a strict work/time budget, rather than scanning the island.
+from unittest.mock import patch
+bounded = Router({'nodes': [[i,127.68+i*.000001,26.21] for i in range(1102)], 'ways': []})
+graph = {i:[(i+1,1,1)] for i in range(1100)}
+graph[1100], graph[1101] = [], []
+bounded.graph = lambda _mode: graph
+bounded.snap = lambda coordinate, _graph, _expanded: [(0, 0 if coordinate[0] == 127.68 else 1101)]
+with patch('routing.time.monotonic', side_effect=[0,100]):
+    try: bounded.leg((127.68,26.21),(127.7,26.21),'walk')
+    except ValueError as error: assert '搜尋範圍過大' in str(error)
+    else: raise AssertionError('An exhausted walking search must stop')
+print('PASS: expensive disconnected walking searches stop within their budget')
+
+# Different building/user coordinates may share the same nearest road vertex.
+# The access legs are part of the route, not a reason to return 0 seconds/metres.
+from routing import distance
+for mode in ('car','walk','bike'):
+    access_router = Router(fixture())
+    start, end = (127.6809,26.2101), (127.6811,26.2101)
+    result = access_router.leg(start,end,mode)
+    assert result['snapped'][0] == result['snapped'][1]
+    assert result['duration'] > 0
+    assert result['distance'] >= distance(start,end)
+    assert result['distance'] == math.ceil(sum(distance(point,snap) for point,snap in zip((start,end),result['snapped'])))
+    assert tuple(result['geometry']['coordinates'][0]) == start
+    assert tuple(result['geometry']['coordinates'][-1]) == end
+print('PASS: shared snapped vertices retain access distance, duration and complete geometry')

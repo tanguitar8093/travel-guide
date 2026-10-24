@@ -108,7 +108,7 @@ button,input,select,textarea{font:inherit}button,a{touch-action:manipulation}but
 .sharing-details { padding: 12px; border-radius: 7px; background: #eff5ef; }
 .sharing-readonly { flex: 1; min-height: 0; overflow: auto; }
 .sharing-readonly .itinerary-main { min-height: 0; flex: 1; }
-.sharing-readonly .itinerary-heading > div:first-child { padding-left: 0; }
+.sharing-readonly .itinerary-heading { display: none; }
 .sharing-readonly .itinerary-item-actions, .sharing-readonly .itinerary-add-button, .sharing-readonly .itinerary-items-actions, .sharing-readonly .itinerary-map-actions, .sharing-readonly .itinerary-focus-toggle, .sharing-readonly .itinerary-day-empty button { display: none; }
 .sharing-readonly .itinerary-workspace { min-height: 450px; }
 @media(max-width:680px) { .sharing-readonly .itinerary-map-canvas { min-height: 300px; } .sharing-readonly .itinerary-workspace { min-height: 0; } }

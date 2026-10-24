@@ -2,8 +2,11 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
 import { TourGuideAnimation } from "../common/TourGuideAnimation";
+import { TaiwanLoginScene } from "./TaiwanLoginScene";
+import { useOsmDataset } from "../geo/osm-dataset-preference";
 import { OkinawaLoginScene } from "./OkinawaLoginScene";
-import loginSoundUrl from "../../media/okiniwa-login.wav";
+import okinawaLoginSoundUrl from "../../media/okiniwa-login.wav";
+import taiwanLoginSoundUrl from "../../media/taiwan-login.mp3";
 import "./AuthGate.css";
 
 interface AuthGateProps {
@@ -23,6 +26,8 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     signOut,
     clearError,
   } = useAuth();
+  const dataset = useOsmDataset();
+  const loginSoundUrl = dataset === "taiwan" ? taiwanLoginSoundUrl : okinawaLoginSoundUrl;
   const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeSound, setWelcomeSound] = useState<
@@ -33,6 +38,13 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
   const playGeneration = useRef(0);
   const playbackFinished = useRef(false);
   const isSignedOut = status === "unauthenticated";
+
+  useEffect(() => {
+    const preloaded = document.getElementById("login-welcome-audio");
+    if (preloaded instanceof HTMLAudioElement && preloaded.src !== new URL(loginSoundUrl, document.baseURI).href) {
+      preloaded.src = loginSoundUrl;
+    }
+  }, [loginSoundUrl]);
 
   useEffect(() => {
     // Back from the OAuth provider can restore this page from the back/forward
@@ -110,6 +122,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     if (!audio) {
       const preloaded = document.getElementById("login-welcome-audio");
       audio = preloaded instanceof HTMLAudioElement ? preloaded : new Audio(loginSoundUrl);
+      if (audio.src !== new URL(loginSoundUrl, document.baseURI).href) audio.src = loginSoundUrl;
       audio.preload = "auto";
       welcomeAudio.current = audio;
       audio.onplaying = () => {
@@ -238,6 +251,8 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
 
 // Shared presentation only. AuthGate retains all welcome audio and session behavior.
 export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中" }: { welcome?: boolean; ready?: boolean; message?: string }) {
+  const dataset = useOsmDataset();
+  const taiwan = dataset === "taiwan";
   return (
       <div className="auth-shell">
         <section
@@ -250,16 +265,16 @@ export function AuthLoadingPanel({ welcome = false, ready = false, message = "�
             <div className="auth-island-heading">
               <p className="auth-eyebrow">旅圖 · TripMap</p>
               <p className="auth-island-destination">
-                <span>沖繩</span>
+                <span>{taiwan ? "台灣" : "沖繩"}</span>
                 <span className="auth-island-separator">·</span>
-                <span className="auth-island-english" lang="en">Okinawa</span>
+                <span className="auth-island-english" lang="en">{taiwan ? "Taiwan" : "Okinawa"}</span>
               </p>
             </div>
           ) : (
             <p className="auth-eyebrow">旅圖 · TripMap</p>
           )}
           {welcome ? (
-            <OkinawaLoginScene />
+            taiwan ? <TaiwanLoginScene /> : <OkinawaLoginScene />
           ) : (
             <TourGuideAnimation />
           )}

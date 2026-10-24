@@ -18,6 +18,7 @@ export function osmDevAssets(): Plugin {
       let startupError: string | undefined
       let stopping = false
       const startService = () => {
+        startupError = undefined
         child = spawn('python3', ['server.py'], {
           cwd: maps,
           env: { ...process.env, PORT: String(port), HOST: '127.0.0.1' },
@@ -37,6 +38,8 @@ export function osmDevAssets(): Plugin {
         })
         child.once('exit', (code, signal) => {
           if (stopping) return
+          ready = undefined
+          lastHealthyAt = 0
           startupError = signal
             ? `maps service exited on ${signal}`
             : `maps service exited with code ${code ?? 'unknown'}`
@@ -48,8 +51,13 @@ export function osmDevAssets(): Plugin {
       })
 
       let ready: Promise<void> | undefined
+      let lastHealthyAt = 0
       const waitForService = () => {
         if (configuredService) return Promise.resolve()
+        if (ready && lastHealthyAt > 0 && Date.now() - lastHealthyAt > 2000) {
+          ready = undefined
+          lastHealthyAt = 0
+        }
         ready ??= (async () => {
           const target = `http://127.0.0.1:${port}/api/health`
           const isMapsServiceReady = () => new Promise<boolean>(resolve => {
@@ -71,10 +79,10 @@ export function osmDevAssets(): Plugin {
             request.on('error', () => resolve(false))
             request.end()
           })
-          if (await isMapsServiceReady()) return
+          if (await isMapsServiceReady()) { lastHealthyAt = Date.now(); return }
           startService()
           for (let attempt = 0; attempt < 120; attempt += 1) {
-            if (await isMapsServiceReady()) return
+            if (await isMapsServiceReady()) { lastHealthyAt = Date.now(); return }
             if (startupError) throw new Error(startupError)
             await new Promise(resolve => setTimeout(resolve, 500))
           }
@@ -118,6 +126,8 @@ export function osmDevAssets(): Plugin {
             })
             proxyRequest.on('timeout', () => proxyRequest.destroy(new Error('maps service request timed out')))
             proxyRequest.on('error', cause => {
+              ready = undefined
+              lastHealthyAt = 0
               if (!response.headersSent) {
                 response.statusCode = 503
                 response.setHeader('Content-Type', 'application/json; charset=utf-8')

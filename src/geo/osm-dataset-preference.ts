@@ -8,10 +8,10 @@ export function getOsmDataset(): OsmDatasetId {
   if (!isOsmDatasetId(stored)) throw new Error('OSM 區域設定無效，請到區域頁面重新選擇。')
   return stored
 }
-export function setOsmDataset(dataset: OsmDatasetId): void {
+export function setOsmDataset(dataset: OsmDatasetId, source: 'local' | 'cloud' = 'local'): void {
   if (!isOsmDatasetId(dataset)) throw new Error('不支援此 OSM 區域。')
   window.localStorage.setItem(key, dataset)
-  window.dispatchEvent(new Event(osmDatasetChangeEvent))
+  window.dispatchEvent(new CustomEvent(osmDatasetChangeEvent, { detail: { source } }))
 }
 function snapshot(): string {
   try { return getOsmDataset() } catch { return 'invalid' }

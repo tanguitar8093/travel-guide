@@ -122,7 +122,7 @@ function ItineraryWorkspace({ ready }: { ready: boolean }) {
     sourceRevision={JSON.stringify([revision, snapshots, tasks])}
     sharedTripIds={enabled ? snapshots.filter((snapshot) => snapshot.document).map((snapshot) => snapshot.id) : []}
     sharedSyncBusy={busy}
-    onRefreshSharedTrips={refreshSharedTrips}
+    onRefreshSharedTrips={enabled ? refreshSharedTrips : undefined}
     onCollaborationChange={() => {
       if (enabled) void run(async () => { await sharedTripController.refresh() })
     }} />

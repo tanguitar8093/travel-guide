@@ -10,6 +10,7 @@ import osmium
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT))
 from routing import allowed, speed, distance
+from routing_index import ensure_routing_index
 
 class Count(osmium.SimpleHandler):
     def __init__(self):
@@ -82,5 +83,6 @@ def main():
         db.commit()
         print(f'Routing: {handler.total:,} segments; {db.execute("select count(*) from nodes").fetchone()[0]:,} junction nodes',flush=True)
     temporary.replace(destination)
+    ensure_routing_index(destination)
 
 if __name__=='__main__':main()

@@ -1,6 +1,7 @@
 """Local OSM graph routing for the demo; static speeds, no live traffic."""
 import heapq
 import math
+import time
 from functools import lru_cache
 from threading import RLock
 from datasets import definition, inside
@@ -121,8 +122,19 @@ class Router:
 
     @lru_cache(maxsize=128)
     def cached_leg(self, start, end, mode, expanded=False):
+        return self.search_leg(start, end, mode, expanded, time.monotonic() + 2)
+
+    def search_leg(self, start, end, mode, expanded, deadline):
         graph = self.graph(mode)
         starts, ends = self.snap(start, graph, expanded), self.snap(end, graph, expanded)
+        if hasattr(graph, 'connected_candidates'):
+            starts, ends = graph.connected_candidates(starts, ends)
+            if not starts or not ends:
+                if mode == 'walk' and not expanded:
+                    return self.search_leg(start, end, mode, True, deadline)
+                raise ValueError('這兩個地點找不到交通方式的連通道路。')
+        if hasattr(graph, 'reverse_neighbors'):
+            return self.bidirectional_leg(start,end,mode,graph,starts,ends,expanded,deadline)
         # Consider several nearby vertices to avoid disconnected parking paths.
         connector_speed = 4.5 / 3.6
         end_costs = {node:meters/connector_speed for meters,node in ends}
@@ -139,7 +151,11 @@ class Router:
             source_for[node] = node
             heapq.heappush(heap,(costs[node]+heuristic(node),costs[node],node))
         best_cost, target = math.inf, None
+        visited = 0
         while heap:
+            visited += 1
+            if visited % 128 == 0 and (visited > 50000 or time.monotonic() > deadline):
+                raise ValueError('此路段搜尋範圍過大或計算超過時限，請分段計算後重試。')
             priority, cost, node = heapq.heappop(heap)
             if cost != costs.get(node):
                 continue
@@ -156,7 +172,7 @@ class Router:
                     heapq.heappush(heap, (total+heuristic(neighbor), total, neighbor))
         if target is None:
             if mode == 'walk' and not expanded:
-                return self.cached_leg(start,end,mode,True)
+                return self.search_leg(start,end,mode,True,deadline)
             raise ValueError('這兩個地點找不到交通方式的連通道路。')
         source = source_for[target]
         start_snap = distance(start,self.nodes[source])
@@ -169,7 +185,27 @@ class Router:
             meters += edge_meters
             path.append(parent)
         path.reverse()
-        return {'duration':round(road_seconds),'distance':round(meters),'geometry':{'type':'LineString','coordinates':self.path_geometry(path,mode)},'snapped':[self.nodes[source],self.nodes[target]],'snapDistances':[round(start_snap),round(end_snap)]}
+        return self.finish_leg(start,end,mode,path,source,target,road_seconds,meters)
+
+    def finish_leg(self, start, end, mode, path, source, target, road_seconds, meters):
+        start_snap = distance(start,self.nodes[source])
+        end_snap = distance(end,self.nodes[target])
+        connector_speed = 4.5 / 3.6
+        # The search already includes these walking access costs. Do not discard
+        # them from the result: two distinct places can share one road vertex.
+        access_meters = start_snap + end_snap
+        access_seconds = access_meters / connector_speed
+        coordinates = self.path_geometry(path, mode)
+        if tuple(coordinates[0]) != start:
+            coordinates = [list(start), *coordinates]
+        if tuple(coordinates[-1]) != end:
+            coordinates = [*coordinates, list(end)]
+        return {'duration':math.ceil(road_seconds + access_seconds),
+                'distance':math.ceil(meters + access_meters),
+                'geometry':{'type':'LineString','coordinates':coordinates},
+                'snapped':[self.nodes[source],self.nodes[target]],
+                'snapDistances':[round(start_snap),round(end_snap)],
+                'accessDistance':round(access_meters),'accessDuration':round(access_seconds)}
 
     def path_geometry(self, path, _mode):
         return [self.nodes[node] for node in path]

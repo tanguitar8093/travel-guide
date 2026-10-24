@@ -9,7 +9,7 @@ import {
   validateCoordinatePair,
   validateStoredLocation,
 } from "../database/location.validation";
-import { throwIfAborted } from "./errors";
+import { throwIfAborted, withAbort } from "./errors";
 import { placeDuplicateReason } from "./place-duplicate";
 import "./osm-search.css";
 import "../common/SearchableSelect.css";
@@ -290,6 +290,15 @@ export async function searchOsmLocations(
   return unique;
 }
 
+// Share one route queue across map geometry and time estimates in this tab.
+// Bound simultaneous searches; canceled queued requests are skipped before fetching.
+let routeQueue: Promise<unknown> = Promise.resolve();
+function requestOsmRoute(payload: object, dataset: OsmDatasetId, signal?: AbortSignal): Promise<unknown> {
+  const result = routeQueue.then(() => request("/api/route", signal, payload, dataset));
+  routeQueue = result.catch(() => undefined);
+  return withAbort(result, signal);
+}
+
 export async function routeOsmLocations(
   origin: Coordinate,
   destination: Coordinate,
@@ -319,13 +328,13 @@ export async function routeOsmLocations(
   if (!routeDataset) throw new Error("起點超出已支援的 OSM 圖資範圍。");
   requireOsmCoverage(origin, routeDataset);
   requireOsmCoverage(destination, routeDataset);
-  const data = await request("/api/route", signal, {
+  const data = await requestOsmRoute({
     points: [
       [origin.longitude, origin.latitude],
       [destination.longitude, destination.latitude],
     ],
     mode,
-  }, routeDataset);
+  }, routeDataset, signal);
   if (
     !record(data) ||
     typeof data.duration !== "number" ||
@@ -336,6 +345,9 @@ export async function routeOsmLocations(
     data.distance < 0
   ) {
     throw new Error("OSM 路線回應沒有合法的時間與距離。");
+  }
+  if (data.duration === 0 || data.distance === 0) {
+    throw new Error("OSM 未取得有效的非零路線，請選擇地點出入口或附近道路後重試。");
   }
   let geometry: Coordinate[][] | undefined;
   if (includeGeometry) {
@@ -376,6 +388,7 @@ export async function mountOsmAutocomplete(
   input.setAttribute("aria-expanded", "false");
   input.setAttribute("aria-controls", listId);
   results.id = listId;
+  results.className = "osm-search-options";
   results.setAttribute("role", "listbox");
   results.setAttribute("aria-label", options.label ?? "搜尋 OSM 地點");
   results.hidden = true;
@@ -404,17 +417,23 @@ export async function mountOsmAutocomplete(
     results.hidden = false;
     input.setAttribute("aria-expanded", "true");
   }
+  function showMessage(message: string, state: "loading" | "empty" | "error") {
+    selectedIndex = -1;
+    input.removeAttribute("aria-activedescendant");
+    input.setAttribute("aria-busy", String(state === "loading"));
+    const row = document.createElement("li");
+    row.className = `osm-search-message is-${state}`;
+    row.setAttribute("role", "presentation");
+    row.setAttribute("aria-disabled", "true");
+    row.textContent = message;
+    results.replaceChildren(row);
+    status.textContent = message;
+    status.hidden = false;
+    if (document.activeElement === input) open();
+  }
   function showSearching() {
     searching = true;
-    const hint = document.createElement("li");
-    hint.setAttribute("role", "presentation");
-    hint.setAttribute("aria-disabled", "true");
-    const message = document.createElement("span");
-    message.setAttribute("role", "status");
-    message.textContent = "搜尋中...";
-    hint.append(message);
-    results.replaceChildren(hint);
-    if (document.activeElement === input) open();
+    showMessage("搜尋中...", "loading");
   }
   const search = async (current: number) => {
     const query = input.value.trim();
@@ -424,18 +443,23 @@ export async function mountOsmAutocomplete(
     }
     abort = new AbortController();
     showSearching();
-    status.hidden = true;
     try {
       const candidates = await searchOsmLocations(query, abort.signal, dataset);
       if (!active || current !== revision) return;
       searching = false;
-      status.textContent = candidates.length ? "" : "找不到符合的地點。";
-      status.hidden = candidates.length > 0;
+      input.setAttribute("aria-busy", "false");
+      status.textContent = "";
+      status.hidden = true;
+      if (!candidates.length) {
+        showMessage("找不到符合的地點，請試試其他名稱。", "empty");
+        return;
+      }
       results.replaceChildren();
       selectedIndex = -1;
       for (const [index, candidate] of candidates.entries()) {
         const button = document.createElement("li");
         button.id = `${listId}-${index}`;
+        button.className = "osm-search-option";
         button.setAttribute("role", "option");
         button.setAttribute("aria-selected", "false");
         button.textContent = candidate.name;
@@ -455,10 +479,7 @@ export async function mountOsmAutocomplete(
     } catch (cause) {
       if (active && current === revision) {
         searching = false;
-        results.replaceChildren();
-        close();
-        status.textContent = cause instanceof Error ? cause.message : "搜尋失敗。";
-        status.hidden = false;
+        showMessage(cause instanceof Error ? cause.message : "搜尋失敗，請稍後重試。", "error");
         console.error("OSM 地點搜尋失敗", cause);
       }
     }
@@ -472,9 +493,12 @@ export async function mountOsmAutocomplete(
     status.textContent = "";
     status.hidden = true;
     searching = false;
+    input.setAttribute("aria-busy", "false");
     options.onInput?.();
-    if (input.value.trim()) showSearching();
-    timer = setTimeout(() => void search(current), 300);
+    if (input.value.trim()) {
+      showSearching();
+      timer = setTimeout(() => void search(current), 300);
+    }
   };
   input.onkeydown = (event) => {
     if (event.isComposing) return;
@@ -483,12 +507,15 @@ export async function mountOsmAutocomplete(
       ++revision;
       clearTimeout(timer);
       abort?.abort();
+      searching = false;
+      input.setAttribute("aria-busy", "false");
+      results.replaceChildren();
       close();
       status.hidden = true;
     } else if (event.key === "Enter") {
       event.preventDefault();
       if (!results.hidden && selectedIndex >= 0) {
-        results.children
+        results.querySelectorAll('[role="option"]')
           .item(selectedIndex)
           ?.dispatchEvent(new MouseEvent("click"));
         return;
@@ -500,23 +527,24 @@ export async function mountOsmAutocomplete(
       void search(++revision);
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (searching || !results.children.length) return;
+      const choices = Array.from(results.querySelectorAll<HTMLElement>('[role="option"]'));
+      if (searching || !choices.length) return;
       open();
       const direction = event.key === "ArrowDown" ? 1 : -1;
       selectedIndex =
         selectedIndex < 0
           ? direction === 1
             ? 0
-            : results.children.length - 1
+            : choices.length - 1
           : Math.max(
               0,
-              Math.min(results.children.length - 1, selectedIndex + direction),
+              Math.min(choices.length - 1, selectedIndex + direction),
             );
-      Array.from(results.children).forEach((element, index) => {
+      choices.forEach((element, index) => {
         element.classList.toggle("active", index === selectedIndex);
         element.setAttribute("aria-selected", String(index === selectedIndex));
       });
-      const selected = results.children.item(selectedIndex);
+      const selected = choices[selectedIndex];
       if (selected) {
         input.setAttribute("aria-activedescendant", selected.id);
         selected.scrollIntoView({ block: "nearest" });

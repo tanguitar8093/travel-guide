@@ -314,3 +314,8 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 
 .itinerary-batch-delete-option { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; }
 .itinerary-batch-delete-option input { width: 18px; height: 18px; flex-shrink: 0; }
+
+.itinerary-page-sync:disabled { opacity: .45; cursor: not-allowed; }
+.itinerary-page-sync[aria-busy="true"] svg { animation: itinerary-sync-spin 1s linear infinite; }
+@keyframes itinerary-sync-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .itinerary-page-sync[aria-busy="true"] svg { animation: none; } }

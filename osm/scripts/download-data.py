@@ -49,6 +49,8 @@ def main():
             raise SystemExit('PBF checksum mismatch. Remove the local PBF and retry (the upstream latest file may have rotated).')
     for script in ('prepare-dataset.py','extract-places.py','build-routing.py'):
         subprocess.run([str(python),str(ROOT/'scripts'/script),str(pbf),'--dataset',args.dataset],check=True)
+    if args.dataset == 'taiwan':
+        subprocess.run([str(python),str(ROOT/'scripts/prepare-search-index.py'),str(ROOT/'data/taiwan-places.json')],check=True)
     subprocess.run([str(python),str(ROOT/'scripts/build-tiles.py'),'--dataset',args.dataset],check=True)
     subprocess.run([str(python),str(ROOT/'scripts/write-manifest.py'),'--dataset',args.dataset],check=True)
     print(f'{args.dataset} ready. Restart npm run dev / npm run osm:start to publish the new dataset.',flush=True)

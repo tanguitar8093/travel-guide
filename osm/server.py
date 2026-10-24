@@ -7,6 +7,8 @@ import hashlib
 import threading
 import re
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit, parse_qs
@@ -14,6 +16,7 @@ from routing import Router, BOUNDS
 from compact_routing import CompactRouter
 from datasets import definition, DEFINITIONS
 from search import PlaceSearch
+from disk_search import DiskPlaceSearch
 from maps_urls import parse_map_link
 from tiles import VectorTiles
 
@@ -23,6 +26,8 @@ SEARCH = None
 TILES = None
 DATASETS = {}
 DATASETS_LOCK = threading.Lock()
+# Bound expensive route requests; tile and health requests remain independent.
+ROUTING_SLOTS = threading.BoundedSemaphore(1)
 
 def load_dataset(identifier):
     definition(identifier)
@@ -35,21 +40,22 @@ def load_dataset(identifier):
             DATASETS[identifier] = {
                 "tiles": VectorTiles(tiles) if tiles.is_file() else None,
                 "search": None, "places":places,
-                "router": None, "roads": roads, "compact": Path(str(prefix) + "-routing.sqlite"), "lock": threading.Lock(),
+                "router": None, "roads": roads, "compact": Path(str(prefix) + "-routing.sqlite"),
+                "search_lock": threading.Lock(), "router_lock": threading.Lock(),
             }
         return DATASETS[identifier]
 
 def dataset_search(identifier, state):
-    with state['lock']:
+    with state.setdefault('search_lock', threading.Lock()):
         if state['search'] is None:
             places=state.get('places')
             if places is None or not places.is_file():
                 raise ValueError(f"{definition(identifier)['name']}地點資料尚未安裝，請執行 npm run osm:setup -- --dataset {identifier}。")
-            state['search']=PlaceSearch(json.loads(places.read_text()), identifier)
+            state['search'] = DiskPlaceSearch(places) if identifier == 'taiwan' else PlaceSearch(json.loads(places.read_text()), identifier)
         return state['search']
 
 def dataset_router(identifier, state):
-    with state["lock"]:
+    with state.setdefault("router_lock", threading.Lock()):
         if state["router"] is None:
             if state["compact"].is_file():
                 state["router"] = CompactRouter(state["compact"], identifier)
@@ -203,8 +209,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.json(SEARCH.search(parse_qs(urlsplit(self.path).query).get('q',[''])[0]))
             except ValueError as error:
                 return self.json({'error':str(error)},400)
+            except (OSError,sqlite3.Error) as error:
+                self.log_error('Search index unavailable: %s',error)
+                return self.json({'error':'地點搜尋索引無法讀取，請重新準備圖資並重啟地圖服務。'},503)
         if path=='/api/health':
-            return self.json({'ok':True,'dataset':'Okinawa OSM' if self.dataset == 'okinawa' else 'Taiwan OSM', 'datasetId':self.dataset, 'serviceVersion':2,'supportedDatasets':list(DEFINITIONS), 'bounds':definition(self.dataset)['bounds'], 'ready':bool(TILES and (SEARCH or (self.state.get('places') and self.state['places'].is_file())) and (self.state['compact'].is_file() or (self.dataset=='okinawa' and self.state['roads'].is_file()))), 'placeCount':len(SEARCH.entries) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
+            return self.json({'ok':True,'dataset':'Okinawa OSM' if self.dataset == 'okinawa' else 'Taiwan OSM', 'datasetId':self.dataset, 'serviceVersion':2,'supportedDatasets':list(DEFINITIONS), 'bounds':definition(self.dataset)['bounds'], 'ready':bool(TILES and (SEARCH or (self.state.get('places') and self.state['places'].is_file())) and (self.state['compact'].is_file() or (self.dataset=='okinawa' and self.state['roads'].is_file()))), 'placeCount':(SEARCH.entry_count if isinstance(SEARCH,DiskPlaceSearch) else len(SEARCH.entries)) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
         files = {'/': ('public/index.html', 'text/html; charset=utf-8')}
         for name in ('maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs', 'maplibre-gl.css'):
             for prefix in ('/vendor/', '/osm-vendor/'):
@@ -239,14 +248,29 @@ class Handler(BaseHTTPRequestHandler):
                 raise ValueError('Invalid request')
             if path=='/api/parse-map-url':
                 return self.json(parse_map_link(payload.get('url'), dataset=self.dataset))
-            ROUTER = dataset_router(self.dataset, self.state)
-            with ROUTER.lock:
-                result = ROUTER.route(payload.get('points'),payload.get('mode'))
-            self.json(result)
+            if not ROUTING_SLOTS.acquire(blocking=False):
+                return self.json({'error':'目前正在計算其他路段，請稍後再試。'}, 503)
+            try:
+                ROUTER = dataset_router(self.dataset, self.state)
+                with ROUTER.lock:
+                    result = ROUTER.route(payload.get('points'),payload.get('mode'))
+                self.json(result)
+            finally:
+                ROUTING_SLOTS.release()
         except (ValueError,TypeError) as error:
             self.json({'error':str(error)},400)
+        except (OSError, sqlite3.Error) as error:
+            self.log_error('Routing index unavailable: %s', error)
+            self.json({'error':'路網索引無法讀取，請重新準備圖資並重啟地圖服務。'},503)
 
 if __name__=='__main__':
+    # Prepare disposable indexes once, outside request handling. The short-lived
+    # builder process releases its working memory before the HTTP service starts.
+    for routing_path in sorted((ROOT / 'data').glob('*-routing.sqlite')):
+        subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-routing-index.py'), str(routing_path)], check=True)
+    search_path = ROOT / 'data/taiwan-places.json'
+    if search_path.is_file():
+        subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-search-index.py'), str(search_path)], check=True)
     port=int(os.environ.get('PORT',3000))
     tiles_path = ROOT / 'data/okinawa.mbtiles'
     if tiles_path.is_file():

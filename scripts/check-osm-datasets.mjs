@@ -47,6 +47,9 @@ try{
 
   await page.getByRole('button',{name:/台灣.*個行程/}).click()
   await page.waitForFunction(()=>localStorage.getItem('travel-planner:osm-dataset')==='taiwan')
+  await page.reload()
+  await page.waitForFunction(()=>document.querySelector('.region-list-item.selected strong')?.textContent==='台灣')
+  assert.equal(await page.evaluate(()=>localStorage.getItem('travel-planner:osm-dataset')), 'taiwan')
   await page.goto(base+'/places')
   const add=page.getByRole('button',{name:'地點',exact:true}).first()
   await add.click()

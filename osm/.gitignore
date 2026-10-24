@@ -8,3 +8,7 @@ kyushu.osm.pbf
 *.osm.pbf
 data/taiwan*
 data/atlas-tiles-*/
+
+# Disposable routing spatial/connectivity indexes
+data/.routing-cache/
+data/.search-cache/

@@ -1,3 +1,4 @@
+import { setDatasetPreferenceAccount } from '../geo/account-dataset-preference'
 import { isGooglePopupPending } from './google-popup'
 import { hasPendingLoginWelcome, requestLoginWelcome, clearLoginWelcome } from './login-welcome'
 import { adminSyncInfoKey, canConfigureSyncInfo } from '../common/useAdminSyncInfo'
@@ -56,6 +57,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         currentUserRole.current = null
       }
       currentUserId.current = nextSession?.user.id ?? null
+      const datasetReady = setDatasetPreferenceAccount(nextSession?.user.id ?? null)
       if (!nextSession) {
         setUserRole(null)
         currentUserRole.current = null
@@ -66,7 +68,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       setStatus('loading')
       initialRoleReadPending = true
-      const { role, error } = await fetchUserRole(nextSession.user.id)
+      const [{ role, error }] = await Promise.all([fetchUserRole(nextSession.user.id), datasetReady])
 
       if (!active || generation !== sessionGeneration.current) return
       initialRoleReadPending = false
@@ -174,6 +176,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       applySessionRef.current = null
       sessionGeneration.current += 1
       deactivateHybridAccount()
+      void setDatasetPreferenceAccount(null)
       setPublicCatalogAccount(null)
       setDatabaseModeRole(null)
       unsubscribe()
@@ -189,6 +192,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     completeLoginWelcome()
     sessionGeneration.current += 1
     deactivateHybridAccount()
+    void setDatasetPreferenceAccount(null)
     setPublicCatalogAccount(null)
     setDatabaseModeRole(null)
     currentUserId.current = null

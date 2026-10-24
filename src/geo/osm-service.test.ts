@@ -181,3 +181,27 @@ it.each(['https://google.com.evil.test/maps', 'https://user@www.google.com/maps'
   await expect(searchOsmLocations(url)).rejects.toThrow('有效的 Google Maps 網址')
   expect(request).not.toHaveBeenCalled()
 })
+
+it('serializes route requests across travel modes and continues after a failed request', async () => {
+  let rejectFirst!: (error: Error) => void
+  request.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectFirst = reject }))
+  request.mockResolvedValueOnce(new Response(JSON.stringify({ duration: 300, distance: 400 })))
+  const first = routeOsmLocations(origin, destination, 'DRIVING')
+  const failed = expect(first).rejects.toThrow('connection lost')
+  const walking = routeOsmLocations(origin, destination, 'WALKING')
+  await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1))
+  rejectFirst(new Error('connection lost'))
+  await failed
+  expect(await walking).toEqual({ durationMinutes: 5, distanceMeters: 400 })
+  expect(request).toHaveBeenCalledTimes(2)
+  expect(JSON.parse(request.mock.calls[1][1].body).mode).toBe('walk')
+})
+
+it.each([
+  { duration: 0, distance: 0 },
+  { duration: 0, distance: 400 },
+  { duration: 320, distance: 0 },
+])('rejects zero routes for distinct endpoints rather than saving an invalid estimate: %j', async estimate => {
+  request.mockResolvedValue(new Response(JSON.stringify(estimate)))
+  await expect(routeOsmLocations(origin, destination, 'WALKING')).rejects.toThrow('非零路線')
+})
