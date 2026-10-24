@@ -74,3 +74,29 @@ Caches live in ignored `data/.routing-cache/` and `data/.search-cache/` director
 Keep the original SQLite/JSON inputs; restart after replacing them. See
 [measurements and limits](../docs/system/routing-performance.md) for reproducible
 benchmarks, resource bounds, first-build costs, and long-route limitations.
+
+## Experimental streaming display extraction
+
+`scripts/prepare-display-stream.py` extracts display-only GeoJSONL layers into a
+new output directory. It uses a disk location index, streams road/water features,
+and processes coastline topology after finishing way extraction. It does not register a new
+dataset, build MBTiles, extract places, or prepare routing. Existing setup and
+service paths continue to use their current implementations.
+
+First use the optional native `osmium-tool` to retain display candidates and all
+their referenced nodes (do not use `--omit-referenced`):
+
+```sh
+osmium tags-filter /path/to/input.osm.pbf \
+  w/highway w/natural=coastline,water w/waterway=riverbank \
+  -o /path/to/display-input.osm.pbf
+osmium check-refs /path/to/display-input.osm.pbf
+osm/.venv/bin/python -B osm/scripts/prepare-display-stream.py \
+  /path/to/display-input.osm.pbf /path/to/new-output-directory --prefix japan
+```
+
+The output contains roads, water, land and coastline `.geojsonl` files plus a
+checksum manifest. The input extent is used without production coverage clipping;
+these intermediate layers are not a selectable Japan dataset. Run experiments
+outside `osm/data`, with measured memory, disk and time limits. See the
+[Japan feasibility and experiment log](../docs/system/osm-japan-feasibility.md).
