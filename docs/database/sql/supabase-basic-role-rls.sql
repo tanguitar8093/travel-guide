@@ -1,6 +1,8 @@
 -- Supabase RBAC bootstrap for signup-based default basic role
 -- Goal:
 -- 1) New signup users are assigned role=basic
+-- Apply supabase/migrations/20261024093915_google_auth_member_role.sql after this
+-- bootstrap so Google signup/login grants member (existing admins are preserved).
 -- 2) Member accesses own business data; admin accesses all business data
 -- 3) Admin can manage role assignments
 
