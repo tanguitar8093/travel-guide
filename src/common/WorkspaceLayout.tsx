@@ -2,6 +2,7 @@ import { useOsmDataset } from '../geo/osm-dataset-preference'
 import { osmDatasets } from '../geo/osm-datasets'
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { RouterLink } from "../router";
 import { routes } from "../routes";
 import { useAuth } from "../auth/useAuth";
@@ -18,6 +19,7 @@ interface WorkspaceLayoutProps {
   active: WorkspaceSection;
   children: ReactNode;
   counts?: Partial<Record<WorkspaceSection, number>>;
+  sidebarToggleTarget?: HTMLElement | null;
   mainClassName?: string;
   shellClassName?: string;
 }
@@ -60,6 +62,7 @@ export function WorkspaceLayout({
   active,
   children,
   counts,
+  sidebarToggleTarget,
   mainClassName = "",
   shellClassName = "",
 }: WorkspaceLayoutProps) {
@@ -181,6 +184,20 @@ export function WorkspaceLayout({
     }
   }
 
+  const sidebarToggle = (
+    <button
+      ref={toggleRef}
+      className="workspace-sidebar-toggle"
+      type="button"
+      aria-label={sidebarOpen ? "收合工作區側欄" : "展開工作區側欄"}
+      aria-expanded={sidebarOpen}
+      aria-controls="workspace-sidebar"
+      onClick={toggleSidebar}
+    >
+      <span aria-hidden="true">☰</span>
+    </button>
+  );
+
   return (
     <div
       className={`workspace-layout ${shellClassName}`.trim()}
@@ -258,17 +275,7 @@ export function WorkspaceLayout({
         </div>
       </aside>
 
-      <button
-        ref={toggleRef}
-        className="workspace-sidebar-toggle"
-        type="button"
-        aria-label={sidebarOpen ? "收合工作區側欄" : "展開工作區側欄"}
-        aria-expanded={sidebarOpen}
-        aria-controls="workspace-sidebar"
-        onClick={toggleSidebar}
-      >
-        <span aria-hidden="true">☰</span>
-      </button>
+      {sidebarToggleTarget ? createPortal(sidebarToggle, sidebarToggleTarget) : sidebarToggle}
 
       <main className={`workspace-main ${mainClassName}`.trim()}>
         <HybridStatus />

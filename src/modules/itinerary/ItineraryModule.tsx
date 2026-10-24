@@ -1,6 +1,6 @@
 import { getOsmDataset } from '../../geo/osm-dataset-preference'
 import { placesForMapProvider } from "../../geo/place-provider";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { ComponentProps, FormEvent, ReactNode } from "react";
 import type {
   ItineraryItem,
@@ -196,6 +196,7 @@ function ItineraryModule({
   const { provider: mapProvider, error: mapPreferenceError } = useMapProvider();
   const availableTransportOptions = transportOptionsForProvider(mapProvider);
   const Layout = readonly ? PreviewLayout : WorkspaceLayout;
+  const [sidebarToggleTarget, setSidebarToggleTarget] = useState<HTMLDivElement | null>(null);
   const databaseMode = useDatabaseMode();
   const { user } = useAuth();
   const publicItineraryController = useMemo(() => createPublicItineraryController(user?.id ?? ''), [user?.id]);
@@ -211,6 +212,8 @@ function ItineraryModule({
   const [selectedTripId, setSelectedTripId] = useState<string>();
   const [selectedDate, setSelectedDate] = useState("");
   const [focusMode, setFocusMode] = useState(false);
+  const [mapCollapsed, setMapCollapsed] = useState(false);
+  const mapBodyId = useId();
   const [collaborationOpen, setCollaborationOpen] = useState(false);
   const [tripDraft, setTripDraft] = useState<TripDraft>(emptyTripDraft);
   const [itemDraft, setItemDraft] = useState<ItemDraft>({
@@ -1196,6 +1199,7 @@ function ItineraryModule({
       active="itinerary"
       shellClassName="itinerary-app-shell"
       mainClassName="itinerary-main"
+      sidebarToggleTarget={sidebarToggleTarget}
     >
       {sharedNavigation}
       {publicationOperation && selectedTrip && selectedRegion && (
@@ -1230,6 +1234,7 @@ function ItineraryModule({
       )}
       <div className="itinerary-content">
         <section className="itinerary-heading">
+          {!readonly && <div className="itinerary-menu-slot" ref={setSidebarToggleTarget} />}
           <div className="workspace-page-heading-title">
             {providerTrips.length > 1 && !editingTrip && !creatingTrip ? (
               <details
@@ -1290,12 +1295,6 @@ function ItineraryModule({
                 {selectedTrip?.name ??
                   (creatingTrip ? "新增行程" : "開始規劃一趟旅行")}
               </h1>
-            )}
-            {selectedTrip && (
-              <p>
-                {selectedTrip.startDate} — {selectedTrip.endDate} <i />{" "}
-                {totalDays} 天
-              </p>
             )}
           </div>
           {!readonly && <div className="itinerary-heading-actions">
@@ -1428,6 +1427,7 @@ function ItineraryModule({
               ? "itinerary-workspace itinerary-workspace-focused"
               : "itinerary-workspace"
           }
+          data-map-collapsed={mapCollapsed}
           role={focusMode ? "dialog" : undefined}
           aria-modal={focusMode ? true : undefined}
           aria-label={focusMode ? "當日行程專注檢視" : undefined}
@@ -1763,7 +1763,7 @@ function ItineraryModule({
                               aria-readonly="true"
                             />
                             <small>
-                              依上一站的抵達時間／參考時間加上停留時間推算，僅供參考。
+                              依上一站時間與停留時長估算。
                             </small>
                           </label>
                           <label className="itinerary-field">
@@ -2188,14 +2188,8 @@ function ItineraryModule({
                 )}
                 <details className="itinerary-action-menu" ref={mapToolsRef}>
                   <summary className="itinerary-secondary">
-                    地圖工具
-                    <svg
-                      className="itinerary-menu-chevron"
-                      viewBox="0 0 16 16"
-                      aria-hidden="true"
-                    >
-                      <path d="m4 6 4 4 4-4" />
-                    </svg>
+                    <span>操作</span>
+                    <span className="itinerary-map-operations-chevron" aria-hidden="true" />
                   </summary>
                   <div className="itinerary-dropdown itinerary-action-options">
                     {mapProvider === 'osm' && <button
@@ -2203,6 +2197,7 @@ function ItineraryModule({
                       aria-pressed={routeVisible}
                       disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId}
                       onClick={() => {
+                        setMapCollapsed(false);
                         setRouteVisible(value => !value);
                         if (mapToolsRef.current) {
                           mapToolsRef.current.open = false;
@@ -2226,6 +2221,7 @@ function ItineraryModule({
                           mapToolsRef.current.open = false;
                           mapToolsRef.current.querySelector("summary")?.focus();
                         }
+                        setMapCollapsed(false);
                         mapHandleRef.current?.setMarkers(googleMapMarkers, {
                           fitBounds: true,
                         });
@@ -2242,6 +2238,7 @@ function ItineraryModule({
                           mapToolsRef.current.open = false;
                           mapToolsRef.current.querySelector('summary')?.focus();
                         }
+                        setMapCollapsed(false);
                         mapHandleRef.current?.resetView();
                       }}
                     >
@@ -2282,8 +2279,25 @@ function ItineraryModule({
                     </RouterLink>
                   </div>
                 </details>
+                <button
+                  type="button"
+                  className="itinerary-map-collapse-toggle"
+                  aria-expanded={!mapCollapsed}
+                  aria-controls={mapBodyId}
+                  aria-label={mapCollapsed ? "展開地圖" : "收合地圖"}
+                  title={mapCollapsed ? "展開地圖" : "收合地圖"}
+                  onClick={() => {
+                    if (mapToolsRef.current) mapToolsRef.current.open = false;
+                    setMapCollapsed(value => !value);
+                  }}
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d={mapCollapsed ? "m6 9 6 6 6-6" : "m6 15 6-6 6 6"} />
+                  </svg>
+                </button>
               </span>
             </div>
+            <div id={mapBodyId} className="itinerary-map-body" hidden={mapCollapsed}>
             {routeVisible && mapProvider === 'osm' && routeStatus && <p role="status">{routeStatus}</p>}
             <div className="itinerary-map-canvas">
               <div className="itinerary-google-map" ref={mapContainerRef} />
@@ -2355,6 +2369,7 @@ function ItineraryModule({
                 <i className="itinerary-map-legend-dot" /> 區域收藏地點
               </span>
               <span>{visibleMapData?.markers.length ?? 0} 個已定位</span>
+            </div>
             </div>
           </section>
         </section>
