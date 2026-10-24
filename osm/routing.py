@@ -157,7 +157,7 @@ class Router:
         if target is None:
             if mode == 'walk' and not expanded:
                 return self.cached_leg(start,end,mode,True)
-            raise ValueError('這兩個地點之間找不到此交通方式的連通道路，請改選道路附近的地點。')
+            raise ValueError('這兩個地點找不到交通方式的連通道路。')
         source = source_for[target]
         start_snap = distance(start,self.nodes[source])
         end_snap = distance(end,self.nodes[target])

@@ -77,7 +77,7 @@
   .public-demo-badge { display: none; }
   .public-intro p { font-size: 11px; }
   .public-list-filters { width: 100%; flex-wrap: wrap; }
-  .public-list-filters label:first-child { flex: 1; }
+  .public-list-filters label:first-of-type { flex: 1; }
   .public-list-filters input { width: 100%; }
   .public-list-footer { flex-direction: column; line-height: 1.6; }
   .public-apply-notice { flex-wrap: wrap; }
@@ -113,3 +113,5 @@ button,input,select,textarea{font:inherit}button,a{touch-action:manipulation}but
 .sharing-readonly .itinerary-workspace { min-height: 450px; }
 @media(max-width:680px) { .sharing-readonly .itinerary-map-canvas { min-height: 300px; } .sharing-readonly .itinerary-workspace { min-height: 0; } }
 .sharing-dialog { min-height: 0; }
+
+.public-refresh-button { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; flex-shrink: 0; }

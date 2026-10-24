@@ -250,6 +250,10 @@ function ItineraryModule({
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
   const [batchProgress, setBatchProgress] = useState<{ done: number; total: number }>();
   const [batchTransportOpen, setBatchTransportOpen] = useState(false);
+  const [batchDeleteItems, setBatchDeleteItems] = useState<ItineraryItem[]>();
+  const [batchDeleteIds, setBatchDeleteIds] = useState<string[]>([]);
+  const [batchDeleteError, setBatchDeleteError] = useState("");
+  const batchDeleteRunning = useRef(false);
   const [transferDialog, setTransferDialog] = useState<{ kind: TransferKind; ids: string[]; sourceDate: string; wholeDay: boolean }>();
   const [transferDate, setTransferDate] = useState("");
   const [transferError, setTransferError] = useState("");
@@ -505,6 +509,7 @@ function ItineraryModule({
     creatingTrip ||
     transferDialog !== undefined ||
     batchTransportOpen ||
+    batchDeleteItems !== undefined ||
     editingTrip ||
     addingItem ||
     editingItemId !== undefined ||
@@ -821,11 +826,11 @@ function ItineraryModule({
           (from, to, transport, signal) => routeOsmLocations(from, to, transport, signal, true));
         if (abort.signal.aborted) return;
         handle.setRoute?.(result.lines);
-        setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製路程軌跡。"
-          : result.skipped ? (result.lines.length ? `已顯示可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的路程軌跡，請先確認交通方式，略過 ${result.skipped} 段路線。`)
-          : result.lines.length ? "已顯示當天行程的路程軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
+        setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製交通軌跡。"
+          : result.skipped ? (result.lines.length ? `已顯示可繪製的交通軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的交通軌跡，請先確認交通方式`)
+          : result.lines.length ? "已顯示當天行程的交通軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
       } catch (cause) {
-        if (!abort.signal.aborted) setNotice(cause instanceof Error ? cause.message : "路程軌跡繪製失敗。", "error");
+        if (!abort.signal.aborted) setNotice(cause instanceof Error ? cause.message : "交通軌跡繪製失敗。", "error");
       }
     })();
     return () => { abort.abort(); handle.setRoute?.([]); };
@@ -1079,6 +1084,40 @@ function ItineraryModule({
       setError(cause instanceof Error ? cause.message : "移除行程項目失敗。");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function submitBatchDelete(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedTripId || !canEditItems || interactionBusy || batchDeleteRunning.current || !batchDeleteItems) return;
+    const jobs = batchDeleteItems.filter(item => batchDeleteIds.includes(item.id));
+    if (!jobs.length || !window.confirm(`確定要從當日安排移除選取的 ${jobs.length} 個項目嗎？`)) return;
+    batchDeleteRunning.current = true;
+    itineraryController.beginEdit(selectedTripId);
+    setSaving(true);
+    setBatchDeleteError("");
+    setBatchProgress({ done: 0, total: jobs.length });
+    try {
+      const result = await runDayJobs(jobs, async item => {
+        await itineraryController.deleteItem(item.id);
+        setItems(current => current.filter(row => row.id !== item.id));
+        setBatchDeleteItems(current => current?.filter(row => row.id !== item.id));
+        setBatchDeleteIds(current => current.filter(id => id !== item.id));
+      }, 1, done => setBatchProgress({ done, total: jobs.length }));
+      setDayOrderDraftIds(undefined);
+      try { setItems(await itineraryController.listItems(selectedTripId)); }
+      catch { setWorkspaceReloadKey(value => value + 1); }
+      if (result.succeeded) setNotice(`已從當日安排移除 ${result.succeeded} 個項目。`);
+      if (result.failures.length) {
+        setBatchDeleteError(result.failures.map(({ job, message }) =>
+          `${places.find(place => place.id === job.placeId)?.name ?? "地點"}：${message}`).join("；"));
+      } else setBatchDeleteItems(undefined);
+    } catch (cause) {
+      setBatchDeleteError(cause instanceof Error ? cause.message : "批次刪除失敗。");
+    } finally {
+      batchDeleteRunning.current = false;
+      setSaving(false);
+      setBatchProgress(undefined);
     }
   }
 
@@ -1470,6 +1509,31 @@ function ItineraryModule({
           </form>
         </ItemEditorDialog>
       )}
+      {batchDeleteItems && <ItemEditorDialog label="批次刪除項目" busy={interactionBusy} onClose={() => setBatchDeleteItems(undefined)}>
+        <form className="itinerary-item-form" onSubmit={event => void submitBatchDelete(event)}>
+          <div className="itinerary-form-title">
+            <strong>批次刪除項目</strong>
+            <div className="itinerary-editor-actions">
+              <button className="itinerary-delete" type="submit" disabled={interactionBusy || !batchDeleteIds.length}>{saving ? "刪除中…" : `刪除選取項目（${batchDeleteIds.length}）`}</button>
+              <button className="itinerary-secondary" type="button" disabled={interactionBusy} onClick={() => setBatchDeleteItems(undefined)}>取消</button>
+            </div>
+          </div>
+          <div className="itinerary-item-editor-body itinerary-transfer-body">
+            <p>{formatDate(selectedDate)} · 勾選要從當日安排移除的項目。</p>
+            <button type="button" className="itinerary-secondary" data-dialog-autofocus disabled={interactionBusy}
+              onClick={() => setBatchDeleteIds(batchDeleteIds.length === batchDeleteItems.length ? [] : batchDeleteItems.map(item => item.id))}>
+              {batchDeleteIds.length === batchDeleteItems.length ? "取消全選" : "全選"}
+            </button>
+            {batchDeleteItems.map((item, index) => <label key={item.id} className="itinerary-batch-delete-option">
+              <input type="checkbox" checked={batchDeleteIds.includes(item.id)} disabled={interactionBusy}
+                onChange={event => setBatchDeleteIds(current => event.target.checked ? [...current, item.id] : current.filter(id => id !== item.id))} />
+              <span>{index + 1}. {places.find(place => place.id === item.placeId)?.name ?? "地點已不存在"}{item.arrivalTime ? ` · ${item.arrivalTime}` : ""}</span>
+            </label>)}
+            {batchProgress && <p role="status">已處理 {batchProgress.done}/{batchProgress.total} 個項目…</p>}
+            {batchDeleteError && <p className="itinerary-feedback itinerary-error" role="alert">{batchDeleteError}</p>}
+          </div>
+        </form>
+      </ItemEditorDialog>}
       {batchTransportOpen && <ItemEditorDialog label="批次修改交通方式" busy={interactionBusy} onClose={() => setBatchTransportOpen(false)}>
         <ToastStack toasts={toasts} dismiss={dismissToast} />
         <form className="itinerary-item-form" onSubmit={event => { event.preventDefault(); void runDayOperation(batchTransport); }}>
@@ -1998,6 +2062,8 @@ function ItineraryModule({
                               onClick={() => { closeDayActions(); setBatchTransport(availableTransportOptions[0]?.value ?? ""); setBatchTransportOpen(true); }}>批次修改交通方式</button>
                             <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || dayItems.length < 2 || !mapProvider}
                               onClick={() => void runDayOperation()}>計算所有路程</button>
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || !dayItems.length}
+                              onClick={() => { closeDayActions(); setBatchDeleteIds([]); setBatchDeleteError(""); setBatchDeleteItems([...dayItems]); }}>批次刪除項目</button>
                             <hr />
                             <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || !dayItems.length || tripDates.length < 2}
                               onClick={() => openTransfer("move")}>移動當日行程到他日</button>
@@ -2354,7 +2420,7 @@ function ItineraryModule({
                           mapToolsRef.current.querySelector('summary')?.focus();
                         }
                       }}
-                    >{routeVisible ? '隱藏路程軌跡' : '路程軌跡'}</button>}                    
+                    >{routeVisible ? '隱藏交通軌跡' : '交通軌跡'}</button>}                    
                     <RouterLink
                       className="itinerary-map-tool-link"
                       to={routes.routeCalculator}

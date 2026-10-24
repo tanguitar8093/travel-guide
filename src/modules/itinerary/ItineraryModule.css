@@ -152,8 +152,8 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-item-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .itinerary-item-title > strong { min-width: 0; overflow: hidden; color: #4f5c52; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 .itinerary-place-icon { margin-right: 5px; font-size: 1.05em; }
-.itinerary-map-link { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #e4ebe4; border-radius: 5px; color: #587861; background: #fff; font-size: 9px; line-height: 1.2; text-decoration: none; white-space: nowrap; }
-.itinerary-map-link:hover { background: #f5f8f5; }
+.itinerary-map-link, .itinerary-item-actions > .itinerary-item-action-trigger { flex: 0 0 auto; padding: 4px 7px; border: 1px solid #e4ebe4; border-radius: 5px; color: #587861; background: #fff; font-size: 9px; line-height: 1.2; text-decoration: none; white-space: nowrap; }
+.itinerary-map-link:hover, .itinerary-item-actions > .itinerary-item-action-trigger:hover { background: #f5f8f5; }
 .itinerary-place-note-toggle { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; padding: 0; border: 1px solid #e4ebe4; border-radius: 5px; color: #77877a; background: #fff; font-size: 11px; cursor: pointer; }
 .itinerary-place-note-toggle:hover,.itinerary-place-note-toggle[aria-expanded="true"] { border-color: #dce8de; color: #52745a; background: #f5f8f5; }
 .itinerary-place-note-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; stroke-width: 1.2; }
@@ -307,7 +307,10 @@ details[open] > summary > .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-transfer-body p { margin: 0; font-size: 12px; color: #6b7c70; }
 .itinerary-transfer-body small { line-height: 1.7; color: #839087; }
 
-.itinerary-item-actions > .itinerary-item-action-trigger { display: flex; align-items: center; gap: 4px; min-height: 30px; padding: 0 8px; font-size: 11px; }
+.itinerary-item-actions > .itinerary-item-action-trigger { display: inline-flex; align-items: center; gap: 4px; min-height: 0; align-self: center; }
 .itinerary-item-action-trigger .itinerary-menu-chevron { width: 12px; height: 12px; }
 .itinerary-item-action-trigger[aria-expanded="true"] .itinerary-menu-chevron { transform: rotate(180deg); }
 .itinerary-item-popover { position: fixed; inset: auto; width: 184px; max-width: calc(100vw - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; margin: 0; font: 12px Inter,"Noto Sans TC",sans-serif; }
+
+.itinerary-batch-delete-option { display: flex; align-items: center; gap: 10px; padding: 10px 0; cursor: pointer; }
+.itinerary-batch-delete-option input { width: 18px; height: 18px; flex-shrink: 0; }

@@ -73,11 +73,9 @@ export function PublicItineraryModule() {
   }
   return <WorkspaceLayout active="public-itinerary" shellClassName="itinerary-app-shell" mainClassName="public-itinerary-main">
     <div className="public-itinerary-content"><header className="public-page-heading"><div className="workspace-page-heading-title">
-      <span className="public-eyebrow">旅行靈感，從這裡開始</span><h1>公開行程</h1><p>看看已分享的安排，把喜歡的行程變成下一趟旅行。</p>
+      <h1>公開行程</h1><p>看看已分享的安排，把喜歡的行程變成下一趟旅行。</p>
     </div><RouterLink to={routes.itinerary} className="itinerary-secondary public-link-button">我的行程 ↗</RouterLink></header>
-    <div className="public-intro"><span className="public-intro-icon">◉</span><div><strong>預覽靈感，套用後自由調整</strong>
-      <p>套用會複製區域與地點，建立分享標籤，方便統一管理。公開內容同步至雲端後，所有帳號與裝置都能查看。</p></div></div>
-    <div className="public-list-toolbar"><p role="status">{sync.syncing ? '正在同步公開行程…' : sync.pending ? `${sync.pending} 筆公開行程操作待同步` : '公開行程已同步'}{sync.error && ` · ${sync.error}`}</p><button className="itinerary-secondary" disabled={sync.syncing} onClick={() => void refreshPublicCatalog()}>同步公開行程</button></div>
+    <div className="public-list-toolbar"><p role="status">{sync.syncing ? '正在同步公開行程…' : sync.pending ? `${sync.pending} 筆公開行程操作待同步` : '公開行程已同步'}{sync.error && ` · ${sync.error}`}</p></div>
     {sync.conflicts.map(conflict => <p key={conflict.id} className="itinerary-feedback itinerary-error" role="alert">「{conflict.name}」的雲端版本已變更，本機操作保留中。<button className="itinerary-secondary" disabled={sync.syncing} onClick={() => { if (window.confirm('放棄此公開行程的待同步操作，改用雲端版本？個人來源行程不受影響。')) void acceptPublicCloudVersion(conflict.id) }}>採用雲端版本</button></p>)}
     {!available && <p className="itinerary-feedback itinerary-error">請切換至本機工作區使用公開行程。</p>}
     {available && !ready && <p role="status">正在準備本機工作區…</p>}
@@ -87,6 +85,7 @@ export function PublicItineraryModule() {
     {previewId && !preview && <p className="itinerary-feedback itinerary-error" role="alert">此公開行程已下架，無法繼續預覽或套用。</p>}
     {<section className="public-list-card" aria-label="公開行程列表"><div className="public-list-toolbar"><div><h2>探索行程 <span>{rows.length}</span></h2>
       <p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div className="public-list-filters">
+      <button type="button" className="itinerary-secondary public-refresh-button" aria-label="重新整理公開行程" title="重新整理" disabled={sync.syncing} onClick={() => void refreshPublicCatalog()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M20 12a8 8 0 1 0-2.3 5.7M20 7l-2.3-2.3" /></svg></button>
       <label><span className="public-sr-only">搜尋公開行程</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="搜尋行程名稱或區域" /></label>
       {<label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
         {[...new Set(rows.map(row => row.snapshot.region.name))].map(name => <option key={name}>{name}</option>)}

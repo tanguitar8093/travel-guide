@@ -392,6 +392,7 @@ export async function mountOsmAutocomplete(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let abort: AbortController | undefined;
   let selectedIndex = -1;
+  let searching = false;
   function close() {
     results.hidden = true;
     selectedIndex = -1;
@@ -403,6 +404,18 @@ export async function mountOsmAutocomplete(
     results.hidden = false;
     input.setAttribute("aria-expanded", "true");
   }
+  function showSearching() {
+    searching = true;
+    const hint = document.createElement("li");
+    hint.setAttribute("role", "presentation");
+    hint.setAttribute("aria-disabled", "true");
+    const message = document.createElement("span");
+    message.setAttribute("role", "status");
+    message.textContent = "搜尋中...";
+    hint.append(message);
+    results.replaceChildren(hint);
+    if (document.activeElement === input) open();
+  }
   const search = async (current: number) => {
     const query = input.value.trim();
     if (!query) {
@@ -410,11 +423,12 @@ export async function mountOsmAutocomplete(
       return;
     }
     abort = new AbortController();
-    status.textContent = "正在搜尋…";
-    status.hidden = false;
+    showSearching();
+    status.hidden = true;
     try {
       const candidates = await searchOsmLocations(query, abort.signal, dataset);
       if (!active || current !== revision) return;
+      searching = false;
       status.textContent = candidates.length ? "" : "找不到符合的地點。";
       status.hidden = candidates.length > 0;
       results.replaceChildren();
@@ -440,6 +454,7 @@ export async function mountOsmAutocomplete(
       if (document.activeElement === input) open();
     } catch (cause) {
       if (active && current === revision) {
+        searching = false;
         results.replaceChildren();
         close();
         status.textContent = cause instanceof Error ? cause.message : "搜尋失敗。";
@@ -456,7 +471,9 @@ export async function mountOsmAutocomplete(
     close();
     status.textContent = "";
     status.hidden = true;
+    searching = false;
     options.onInput?.();
+    if (input.value.trim()) showSearching();
     timer = setTimeout(() => void search(current), 300);
   };
   input.onkeydown = (event) => {
@@ -483,7 +500,7 @@ export async function mountOsmAutocomplete(
       void search(++revision);
     } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      if (!results.children.length) return;
+      if (searching || !results.children.length) return;
       open();
       const direction = event.key === "ArrowDown" ? 1 : -1;
       selectedIndex =
