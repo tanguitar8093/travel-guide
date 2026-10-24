@@ -26,7 +26,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
   const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeSound, setWelcomeSound] = useState<
-    "idle" | "playing" | "blocked" | "failed" | "finished"
+    "idle" | "buffering" | "playing" | "blocked" | "failed" | "finished"
   >("idle");
   const welcomeAudio = useRef<HTMLAudioElement | null>(null);
   const playPending = useRef(false);
@@ -73,10 +73,13 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     if (!loginWelcomeRequired || (welcomeSound !== "blocked" && welcomeSound !== "failed")) return;
     // Retry on browser activation without adding controls or changing the welcome screen.
     const retry = () => playWelcomeSound();
+    const retryWhenVisible = () => { if (document.visibilityState === "visible") retry(); };
+    document.addEventListener("visibilitychange", retryWhenVisible);
     window.addEventListener("pointerdown", retry);
     window.addEventListener("keydown", retry);
     window.addEventListener("focus", retry);
     return () => {
+      document.removeEventListener("visibilitychange", retryWhenVisible);
       window.removeEventListener("pointerdown", retry);
       window.removeEventListener("keydown", retry);
       window.removeEventListener("focus", retry);
@@ -91,9 +94,11 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     const audio = welcomeAudio.current;
     welcomeAudio.current = null;
     if (audio) {
+      audio.onplaying = null;
       audio.onended = null;
       audio.onerror = null;
       audio.pause();
+      audio.currentTime = 0;
     }
     setWelcomeSound("idle");
   }
@@ -103,8 +108,13 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     let audio = welcomeAudio.current;
     if (audio && !audio.paused) return;
     if (!audio) {
-      audio = new Audio(loginSoundUrl);
+      const preloaded = document.getElementById("login-welcome-audio");
+      audio = preloaded instanceof HTMLAudioElement ? preloaded : new Audio(loginSoundUrl);
+      audio.preload = "auto";
       welcomeAudio.current = audio;
+      audio.onplaying = () => {
+        if (welcomeAudio.current === audio) setWelcomeSound("playing");
+      };
       audio.onended = () => {
         if (welcomeAudio.current === audio) {
           playbackFinished.current = true;
@@ -113,15 +123,24 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
         }
       };
       audio.onerror = () => {
-        if (welcomeAudio.current === audio) setWelcomeSound("failed");
+        if (welcomeAudio.current === audio) {
+          console.warn("[welcome-audio] 音檔載入失敗", audio?.error);
+          setWelcomeSound("failed");
+        }
       };
     }
     // Resume the existing element at its current position; load() would restart it.
     const generation = ++playGeneration.current;
     playPending.current = true;
-    setWelcomeSound("playing");
-    void audio.play().catch((cause) => {
+    setWelcomeSound("buffering");
+    const requestedAt = performance.now();
+    void audio.play().then(() => {
+      if (generation === playGeneration.current && !audio.paused) {
+        console.info(`[welcome-audio] 開始播放，等待 ${Math.round(performance.now() - requestedAt)} ms`);
+      }
+    }).catch((cause) => {
       if (welcomeAudio.current === audio && generation === playGeneration.current) {
+        console.warn("[welcome-audio] 播放未開始", cause);
         setWelcomeSound(
           cause instanceof DOMException && cause.name === "NotAllowedError"
             ? "blocked"
@@ -142,24 +161,29 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     } catch (error) {
       stopWelcomeSound();
       setFormErrorMessage(error instanceof Error ? error.message : "登入失敗，請稍後再試。");
+    } finally {
       setIsSubmitting(false);
     }
   }
 
   const visibleError = formErrorMessage ?? authErrorMessage;
+  const welcomePending = status !== "unauthenticated" && Boolean(loginWelcomeRequired);
   const showingOkinawaWelcome = status !== "unauthenticated" && (
-    Boolean(loginWelcomeRequired) || (welcomeSound === "finished" && status === "loading")
+    welcomeSound === "playing" || (welcomeSound === "finished" && status === "loading")
   );
+  // Keep the existing login card until playback starts. Never insert a flag/loading
+  // detour between the Google window and the synchronized Okinawa welcome.
+  const preparingWelcome = welcomePending && !showingOkinawaWelcome;
 
-  if (status === "loading" || showingOkinawaWelcome || (pending && status === "authenticated" && hasWorkspaceAccess)) {
-    return <AuthLoadingPanel welcome={showingOkinawaWelcome} ready={status === "authenticated"} allowRetry={!showingOkinawaWelcome} />;
+  if ((status === "loading" && !preparingWelcome) || showingOkinawaWelcome || (!preparingWelcome && pending && status === "authenticated" && hasWorkspaceAccess)) {
+    return <AuthLoadingPanel welcome={showingOkinawaWelcome} ready={status === "authenticated"} />;
   }
 
-  if (status === "authenticated" && hasWorkspaceAccess) {
+  if (!preparingWelcome && status === "authenticated" && hasWorkspaceAccess) {
     return <>{children}</>;
   }
 
-  if (status === "authenticated" && !hasWorkspaceAccess) {
+  if (!preparingWelcome && status === "authenticated" && !hasWorkspaceAccess) {
     return (
       <div className="auth-shell">
         <section className="auth-panel" aria-labelledby="auth-pending-title">
@@ -196,7 +220,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
         <TourGuideAnimation />
         <div className="auth-form">
           <button className="auth-secondary auth-google-login" type="button"
-            disabled={isSubmitting} onClick={() => void handleGoogleSignIn()}>
+            disabled={isSubmitting || preparingWelcome} onClick={() => void handleGoogleSignIn()}>
             <svg className="auth-google-logo" viewBox="0 0 48 48" aria-hidden="true">
               <path fill="#4285F4" d="M43.61 24.46c0-1.36-.12-2.66-.35-3.92H24.8v7.42h10.54a9.02 9.02 0 0 1-3.91 5.92v4.92h6.33c3.7-3.41 5.85-8.43 5.85-14.34Z" />
               <path fill="#34A853" d="M24.8 43.6c5.28 0 9.71-1.75 12.95-4.8l-6.33-4.92c-1.75 1.18-3.99 1.89-6.62 1.89-5.1 0-9.42-3.45-10.96-8.1H7.3v5.07A19.56 19.56 0 0 0 24.8 43.6Z" />
@@ -213,13 +237,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
 }
 
 // Shared presentation only. AuthGate retains all welcome audio and session behavior.
-export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中", allowRetry = false }: { welcome?: boolean; ready?: boolean; message?: string; allowRetry?: boolean }) {
-  const [slow, setSlow] = useState(false);
-  useEffect(() => {
-    if (!allowRetry) return;
-    const timer = setTimeout(() => setSlow(true), 20000);
-    return () => clearTimeout(timer);
-  }, [allowRetry]);
+export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中" }: { welcome?: boolean; ready?: boolean; message?: string }) {
   return (
       <div className="auth-shell">
         <section
@@ -255,10 +273,6 @@ export function AuthLoadingPanel({ welcome = false, ready = false, message = "�
               <span>.</span>
             </span>
           </p>
-          {allowRetry && slow && <div>
-            <p className="auth-copy">載入時間較長，請確認網路後重新載入。</p>
-            <button className="auth-secondary" type="button" onClick={() => window.location.reload()}>重新載入</button>
-          </div>}
           {welcome && (
             <p className="auth-tagline" lang="en">
               Your Journey, Your Map.

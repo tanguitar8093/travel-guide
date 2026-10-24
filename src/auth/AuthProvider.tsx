@@ -1,3 +1,4 @@
+import { isGooglePopupPending } from './google-popup'
 import { hasPendingLoginWelcome, requestLoginWelcome, clearLoginWelcome } from './login-welcome'
 import { adminSyncInfoKey, canConfigureSyncInfo } from '../common/useAdminSyncInfo'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [hasWorkspaceAccess, setHasWorkspaceAccess] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const sessionGeneration = useRef(0)
+  const applySessionRef = useRef<((session: AuthContextValue['session']) => Promise<void>) | null>(null)
   const currentUserId = useRef<string | null>(null)
   const currentUserRole = useRef<AuthContextValue['userRole']>(null)
 
@@ -113,6 +115,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       setStatus('authenticated')
     }
 
+    applySessionRef.current = applySession
+
     const initialGeneration = sessionGeneration.current
     void fetchCurrentSession().then(({ session: currentSession, error }) => {
       if (!active || initialGeneration !== sessionGeneration.current) return
@@ -129,6 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     })
 
     const unsubscribe = subscribeSessionChange((nextSession, event) => {
+      if (nextSession && isGooglePopupPending()) return
       setErrorMessage(null)
       if (nextSession && event === 'SIGNED_IN' && !currentUserId.current) {
         requestLoginWelcome()
@@ -166,6 +171,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     return () => {
       active = false
+      applySessionRef.current = null
       sessionGeneration.current += 1
       deactivateHybridAccount()
       setPublicCatalogAccount(null)
@@ -185,6 +191,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     deactivateHybridAccount()
     setPublicCatalogAccount(null)
     setDatabaseModeRole(null)
+    currentUserId.current = null
+    currentUserRole.current = null
     setSession(null)
     setStatus('unauthenticated')
     setUserRole(null)
@@ -196,12 +204,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   async function signInWithGoogle(): Promise<void> {
     setErrorMessage(null)
     requestLoginWelcome()
-    const error = await signInWithGoogleGateway(window.location.origin)
+    const { session: nextSession, error } = await signInWithGoogleGateway(window.location.origin)
     if (error) {
       clearLoginWelcome()
       setErrorMessage(error.message)
       throw error
     }
+    setLoginWelcomeRequired(true)
+    void applySessionRef.current?.(nextSession)
   }
 
   async function signInWithPassword(email: string, password: string): Promise<void> {

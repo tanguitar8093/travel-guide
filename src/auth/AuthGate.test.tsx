@@ -99,11 +99,11 @@ describe('AuthGate role access control', () => {
   })
 })
 
-it('keeps a new login behind the Okinawa welcome even after authentication succeeds', () => {
+it('holds a new login on the login card until audio starts, even if data is already ready', () => {
   mockAuth.value = { ...mockAuth.value, status: 'authenticated', hasWorkspaceAccess: true, loginWelcomeRequired: true }
   const html = renderGate()
-  expect(html).toContain('Okinawa')
-  expect(html).toContain('準備出發')
+  expect(html).toContain('Google 登入')
+  expect(html).not.toContain('Okinawa')
   expect(html).not.toContain('workspace content')
 })
 
@@ -135,4 +135,14 @@ it('renders the share receiving state inside the same animated loading panel wit
   expect(html).toContain('class="tour-guide"')
   expect(html).toContain('正在接收分享')
   expect(html).not.toContain('<h1')
+})
+
+
+it('does not insert a flag/loading detour while preparing the welcome audio', () => {
+  mockAuth.value = { ...mockAuth.value, status: 'loading', loginWelcomeRequired: true }
+  const html = renderGate()
+  expect(html).toContain('Google 登入')
+  expect(html).not.toContain('auth-panel-loading')
+  expect(html).not.toContain('重新載入')
+  expect(html).not.toContain('workspace content')
 })

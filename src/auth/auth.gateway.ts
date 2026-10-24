@@ -112,10 +112,4 @@ export async function signOutLocally(): Promise<Error | null> {
   return error ?? null
 }
 
-export async function signInWithGoogle(redirectTo: string): Promise<Error | null> {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo },
-  })
-  return error ?? null
-}
+export { signInWithGoogle } from './google-popup'

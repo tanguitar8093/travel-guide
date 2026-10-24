@@ -9,6 +9,8 @@
     <title>旅圖 · TripMap</title>
   </head>
   <body>
+    <!-- Download before the app/auth modules finish; AuthGate owns playback. -->
+    <audio id="login-welcome-audio" src="/media/okiniwa-login.wav" preload="auto" hidden></audio>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

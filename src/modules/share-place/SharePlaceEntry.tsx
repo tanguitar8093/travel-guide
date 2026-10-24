@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { AuthGate, AuthLoadingPanel } from '../../auth/AuthGate'
 import { useAuth } from '../../auth/useAuth'
 import { importSharedPlace, prepareSharedPlace } from './share-import.service'
-import { prepareShareLogin, receiveShare, saveShare, shareLifetime, type ImportResult, type PendingShare } from './share-store'
+import { receiveShare, saveShare, shareLifetime, type ImportResult, type PendingShare } from './share-store'
 import './share-place.css'
 
 export function SharePlaceEntry() {
@@ -23,8 +23,9 @@ export function SharePlaceEntry() {
     if (!share) return
     setSigningIn(true)
     setError('')
-    try { prepareShareLogin(share.id); await auth.signInWithGoogle() }
-    catch (cause) { setError(cause instanceof Error ? cause.message : '無法開始登入。'); setSigningIn(false) }
+    try { await auth.signInWithGoogle() }
+    catch (cause) { setError(cause instanceof Error ? cause.message : '無法開始登入。') }
+    finally { setSigningIn(false) }
   }
   if (!share && !error) return <AuthLoadingPanel message="正在接收分享" />
   if (!share || auth.status === 'unauthenticated') return <ShareShell>
