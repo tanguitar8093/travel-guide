@@ -148,3 +148,16 @@ it('aborts before a request and requires production service configuration', asyn
   vi.stubEnv('VITE_OSM_SERVICE_URL', '')
   await expect(searchOsmLocations('首里城')).rejects.toThrow('VITE_OSM_SERVICE_URL')
 })
+
+it('returns ordered road geometry when explicitly requested', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({ duration: 80, distance: 900, legs: [
+    { geometry: { type: 'LineString', coordinates: [[127.6, 26.2], [127.65, 26.25], [127.7, 26.3]] } },
+  ] })))
+  expect((await routeOsmLocations(origin, destination, 'WALKING', undefined, true)).geometry)
+    .toEqual([[origin, { latitude: 26.25, longitude: 127.65 }, destination]])
+})
+
+it('rejects missing road geometry rather than drawing a straight substitute', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({ duration: 80, distance: 900 })))
+  await expect(routeOsmLocations(origin, destination, 'DRIVING', undefined, true)).rejects.toThrow('缺少道路軌跡')
+})

@@ -58,6 +58,7 @@ export async function mountWorkspaceMap(
       })))
       if (fit?.fitBounds && next.length) handle.fitMarkers()
     },
+    setRoute: lines => handle.setRoute?.(lines),
     resetView: () => handle.fitBounds(osmDefaultBounds),
     destroy: () => handle.destroy(),
   }

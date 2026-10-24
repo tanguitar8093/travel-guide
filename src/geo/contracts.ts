@@ -79,6 +79,7 @@ export interface MapMountOptions {
 }
 
 export interface MapHandle {
+  setRoute?(lines: readonly (readonly Coordinate[])[]): void
   setMarkers(markers: readonly MapMarker[]): void
   focus(coordinate: Coordinate, zoom?: number): void
   fitBounds(bounds: Bounds): void

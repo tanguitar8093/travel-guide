@@ -32,6 +32,7 @@ export interface GoogleMapMarkerData {
 }
 
 export interface GoogleMapHandle {
+  setRoute?(lines: readonly (readonly import("../../geo/contracts").Coordinate[])[]): void
   setMarkers(markers: GoogleMapMarkerData[], options?: { fitBounds?: boolean }): void
   resetView(): void
   destroy(): void

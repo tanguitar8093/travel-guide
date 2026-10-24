@@ -16,7 +16,7 @@ import type { LabelTreeNode } from "../label";
 import { labelController } from "../label/label.controller";
 import { mountWorkspaceMap } from "../../geo/workspace-map";
 import { useMapProvider } from "../../geo/provider-preference";
-import { googleMapsNavigationUrl } from "../../geo/osm-service";
+import { googleMapsNavigationUrl, routeOsmLocations } from "../../geo/osm-service";
 import { defaultRegionIds, regionsForMapProvider } from "../../geo/region-provider";
 import type {
   GoogleMapHandle,
@@ -245,6 +245,9 @@ function ItineraryModule({
   const [mapRetry, setMapRetry] = useState(0);
   const [mapErrorRegionId, setMapErrorRegionId] = useState<string>();
   const [mountedMapRegionId, setMountedMapRegionId] = useState<string>();
+  const [mapMountRevision, setMapMountRevision] = useState(0);
+  const [routeVisible, setRouteVisible] = useState(false);
+  const [routeStatus, setRouteStatus] = useState("");
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapHandleRef = useRef<GoogleMapHandle | undefined>(undefined);
   const mapMarkersFittedRef = useRef(false);
@@ -751,6 +754,7 @@ function ItineraryModule({
         }
         handle = mapHandle;
         mapHandleRef.current = mapHandle;
+        setMapMountRevision(value => value + 1);
         mapMarkersFittedRef.current = false;
         setMountedMapRegionId(visibleMapData.regionId);
       })
@@ -778,6 +782,39 @@ function ItineraryModule({
       if (fitBounds) mapMarkersFittedRef.current = true;
     }
   }, [googleMapMarkers, mountedMapRegionId, visibleMapData?.regionId]);
+
+  useEffect(() => {
+    const handle = mapHandleRef.current;
+    const abort = new AbortController();
+    handle?.setRoute?.([]);
+    setRouteStatus("");
+    if (!routeVisible || mapProvider !== 'osm' || !visibleMapData || mountedMapRegionId !== visibleMapData.regionId || !handle?.setRoute) return;
+    setRouteStatus("正在繪製路程軌跡…");
+    void (async () => {
+      try {
+        const stops = dayItems.map(item => {
+          const marker = visibleMapData.markers.find(marker => marker.id === item.placeId);
+          if (!marker) throw new Error("部分行程地點缺少座標，無法繪製完整路線。");
+          return { coordinate: { latitude: marker.position.lat, longitude: marker.position.lng }, transport: item.transport || 'DRIVING' };
+        });
+        if (stops.length < 2) throw new Error("當天至少需要兩個地點才能繪製路程軌跡。");
+        const lines: import('../../geo/contracts').Coordinate[][] = [];
+        for (let index = 1; index < stops.length; index++) {
+          const previous = stops[index - 1].coordinate;
+          const current = stops[index].coordinate;
+          if (previous.latitude === current.latitude && previous.longitude === current.longitude) continue;
+          const result = await routeOsmLocations(previous, current, stops[index].transport, abort.signal, true);
+          lines.push(...(result.geometry ?? []));
+        }
+        if (abort.signal.aborted) return;
+        handle.setRoute?.(lines);
+        setRouteStatus(lines.length ? "已顯示當天行程的路程軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
+      } catch (cause) {
+        if (!abort.signal.aborted) setRouteStatus(cause instanceof Error ? cause.message : "路程軌跡繪製失敗。");
+      }
+    })();
+    return () => { abort.abort(); handle.setRoute?.([]); };
+  }, [routeVisible, mapProvider, visibleMapData, mountedMapRegionId, mapMountRevision, dayItems]);
 
   function selectTrip(trip: Trip) {
     if (
@@ -2159,6 +2196,19 @@ function ItineraryModule({
                     </svg>
                   </summary>
                   <div className="itinerary-dropdown itinerary-action-options">
+                    {mapProvider === 'osm' && <button
+                      type="button"
+                      aria-pressed={routeVisible}
+                      disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId}
+                      onClick={() => {
+                        setRouteVisible(value => !value);
+                        if (mapToolsRef.current) {
+                          mapToolsRef.current.open = false;
+                          mapToolsRef.current.querySelector('summary')?.focus();
+                        }
+                      }}
+                    >{routeVisible ? '隱藏路程軌跡' : '路程軌跡'}</button>}
+
                     <button
                       type="button"
                       title="將地圖調整為顯示全部標記"
@@ -2232,6 +2282,7 @@ function ItineraryModule({
                 </details>
               </span>
             </div>
+            {routeVisible && mapProvider === 'osm' && routeStatus && <p role="status">{routeStatus}</p>}
             <div className="itinerary-map-canvas">
               <div className="itinerary-google-map" ref={mapContainerRef} />
               {!selectedRegion ? (

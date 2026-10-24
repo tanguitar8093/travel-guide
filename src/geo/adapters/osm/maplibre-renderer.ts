@@ -3,7 +3,11 @@ import { geoError, throwIfAborted, toGeoError, withAbort } from '../../errors'
 import { markerBounds, validateBounds, validateCoordinate, validateMarkers, validateMountOptions, validateZoom } from '../../map-validation'
 import { createMarkerElement } from '../../marker-element'
 
+type RouteData = { type: 'FeatureCollection'; features: { type: 'Feature'; properties: Record<string, never>; geometry: { type: 'LineString'; coordinates: number[][] } }[] }
 interface MapLibreMap {
+  getSource(id: string): { setData(data: RouteData): void } | undefined
+  addSource(id: string, source: { type: 'geojson'; data: RouteData }): void
+  addLayer(layer: object): void
   on(type: 'load', listener: () => void): void
   on(type: 'error', listener: (event: { error: Error }) => void): void
   off(type: 'load', listener: () => void): void
@@ -133,6 +137,23 @@ export function createMapLibreRenderer(config: {
               }
               markers = next
             } catch (cause) { markers = []; clearMarkers(); throw toGeoError(cause) }
+          },
+          setRoute(lines) {
+            if (destroyed) return
+            const data: RouteData = { type: 'FeatureCollection', features: lines.filter(line => line.length >= 2).map(line => ({
+              type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: line.map(point => {
+                validateCoordinate(point)
+                return [point.longitude, point.latitude]
+              }) },
+            })) }
+            const source = currentMap.getSource('tripmap-itinerary-route')
+            if (source) source.setData(data)
+            else if (data.features.length) {
+              currentMap.addSource('tripmap-itinerary-route', { type: 'geojson', data })
+              currentMap.addLayer({ id: 'tripmap-itinerary-route', type: 'line', source: 'tripmap-itinerary-route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: { 'line-color': '#2275ca', 'line-width': 5, 'line-opacity': 0.85 } })
+            }
           },
           focus(coordinate, zoom) {
             if (destroyed) return

@@ -263,7 +263,8 @@ export async function routeOsmLocations(
   destination: Coordinate,
   transport: string,
   signal?: AbortSignal,
-): Promise<{ durationMinutes: number; distanceMeters: number }> {
+  includeGeometry = false,
+): Promise<{ durationMinutes: number; distanceMeters: number; geometry?: Coordinate[][] }> {
   validateCoordinatePair(origin.latitude, origin.longitude);
   validateCoordinatePair(destination.latitude, destination.longitude);
   const mode =
@@ -299,7 +300,20 @@ export async function routeOsmLocations(
   ) {
     throw new Error("OSM 路線回應沒有合法的時間與距離。");
   }
+  let geometry: Coordinate[][] | undefined;
+  if (includeGeometry) {
+    if (!Array.isArray(data.legs) || !data.legs.length) throw new Error("OSM 路線缺少道路軌跡。");
+    geometry = data.legs.map(leg => {
+      if (!record(leg) || !record(leg.geometry) || leg.geometry.type !== 'LineString' || !Array.isArray(leg.geometry.coordinates) || leg.geometry.coordinates.length < 2) throw new Error("OSM 道路軌跡格式無效。");
+      return leg.geometry.coordinates.map(point => {
+        if (!Array.isArray(point) || point.length < 2) throw new Error("OSM 道路座標格式無效。");
+        validateCoordinatePair(point[1], point[0]);
+        return { latitude: point[1] as number, longitude: point[0] as number };
+      });
+    });
+  }
   return {
+    ...(geometry ? { geometry } : {}),
     durationMinutes: Math.ceil(data.duration / 60),
     distanceMeters: Math.round(data.distance),
   };

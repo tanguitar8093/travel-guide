@@ -70,6 +70,10 @@ function googleHarness(autoReady = true) {
 }
 
 function osmHarness(autoReady = true) {
+  const setData = vi.fn()
+  const addLayer = vi.fn()
+  const addSource = vi.fn()
+  let sourceExists = false
   const fit = vi.fn()
   const focus = vi.fn()
   const remove = vi.fn()
@@ -88,6 +92,9 @@ function osmHarness(autoReady = true) {
         off(type: string, listener: (() => void) | ((event: { error: Error }) => void)) {
           if (type === 'error') errors.delete(listener)
         }
+        getSource() { return sourceExists ? { setData } : undefined }
+        addSource(...args: unknown[]) { sourceExists = true; addSource(...args) }
+        addLayer = addLayer
         jumpTo = focus
         fitBounds = fit
         addControl = vi.fn()
@@ -103,7 +110,7 @@ function osmHarness(autoReady = true) {
       NavigationControl: class {},
     }),
   })
-  return { renderer, fit, focus, remove, markerRemove, positions, elements, errors }
+  return { renderer, fit, focus, remove, markerRemove, positions, elements, errors, setData, addSource, addLayer }
 }
 
 describe.each(['google', 'osm'] as const)('%s renderer contract', provider => {
@@ -300,4 +307,17 @@ it('loads only maps and marker, chains the existing Google auth handler, and rem
   const later = vi.fn()
   sdk.subscribeErrors?.(later)()
   expect(later).toHaveBeenCalledTimes(1)
+})
+
+it('draws road geometry in a native line layer and clears it without duplicating the layer', async () => {
+  const harness = osmHarness()
+  const handle = await harness.renderer.mount(document.createElement('div'), { center, zoom: 10 })
+  handle.setRoute?.([[center, { latitude: 27, longitude: 128 }]])
+  expect(harness.addSource).toHaveBeenCalledWith('tripmap-itinerary-route', expect.objectContaining({
+    data: expect.objectContaining({ features: [expect.objectContaining({ geometry: { type: 'LineString', coordinates: [[127, 26], [128, 27]] } })] }),
+  }))
+  handle.setRoute?.([])
+  expect(harness.setData).toHaveBeenLastCalledWith({ type: 'FeatureCollection', features: [] })
+  expect(harness.addLayer).toHaveBeenCalledTimes(1)
+  handle.destroy()
 })
