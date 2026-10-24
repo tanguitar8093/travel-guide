@@ -34,6 +34,14 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
   const playbackFinished = useRef(false);
   const isSignedOut = status === "unauthenticated";
 
+  useEffect(() => {
+    // Back from the OAuth provider can restore this page from the back/forward
+    // cache, including its pending button state. No auth request completes then.
+    const resetAfterReturn = () => setIsSubmitting(false);
+    window.addEventListener("pageshow", resetAfterReturn);
+    return () => window.removeEventListener("pageshow", resetAfterReturn);
+  }, []);
+
   useEffect(
     () => () => {
       // Invalidate an interrupted play promise (including StrictMode effect cleanup).
