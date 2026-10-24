@@ -9,6 +9,7 @@ import { markerBounds } from './map-validation'
 class FakeElement extends EventTarget {
   className = ''
   textContent = ''
+  querySelector = vi.fn(() => null)
   title = ''
   type = ''
   style = { backgroundColor: '' }

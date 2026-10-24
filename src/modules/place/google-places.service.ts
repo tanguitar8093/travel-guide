@@ -33,7 +33,7 @@ export interface GoogleMapMarkerData {
 
 export interface GoogleMapHandle {
   setRoute?(lines: readonly (readonly import("../../geo/contracts").Coordinate[])[]): void
-  setMarkers(markers: GoogleMapMarkerData[], options?: { fitBounds?: boolean }): void
+  setMarkers(markers: GoogleMapMarkerData[], options?: { fitBounds?: boolean; fitMarkerIds?: readonly string[] }): void
   resetView(): void
   destroy(): void
 }
@@ -407,10 +407,14 @@ export async function mountGoogleMap(
         if (clickHandler) marker.addEventListener('gmp-click', clickHandler)
         mountedMarkers.set(markerData.id, { marker, clickHandler })
       }
-      if (options?.fitBounds && markers.length) {
-        const bounds = new coreLibrary.LatLngBounds()
-        for (const marker of markers) bounds.extend(marker.position)
-        map.fitBounds(bounds, 50)
+      if (options?.fitBounds) {
+        const ids = options.fitMarkerIds && new Set(options.fitMarkerIds)
+        const fitted = ids ? markers.filter(marker => ids.has(marker.id)) : markers
+        if (fitted.length) {
+          const bounds = new coreLibrary.LatLngBounds()
+          for (const marker of fitted) bounds.extend(marker.position)
+          map.fitBounds(bounds, 50)
+        }
       }
     },
     destroy() {

@@ -41,6 +41,11 @@ import type { PublicItinerary } from '../public-itinerary/models';
 import { useAuth } from '../../auth/useAuth';
 import type { SharedPublicItinerary } from '../public-itinerary/shared-catalog';
 import { PublicationDialog } from '../public-itinerary/PublicationDialog';
+import { ItemEditorDialog } from "../../common/ItemEditorDialog";
+import { ToastStack } from "../../common/ToastStack";
+import { useToasts } from "../../common/useToasts";
+import { buildDayRouteGeometry } from "./day-route-geometry";
+import { dayTravelSummary, runDayJobs } from "./day-route-operations";
 import { ItinerarySortableList } from "./ItinerarySortableList";
 
 function PreviewLayout({ children }: ComponentProps<typeof WorkspaceLayout>) {
@@ -240,9 +245,12 @@ function ItineraryModule({
   const [saving, setSaving] = useState(false);
   const [refreshingSharedTrip, setRefreshingSharedTrip] = useState(false);
   const [calculatingItemId, setCalculatingItemId] = useState<string>();
+  const [batchProgress, setBatchProgress] = useState<{ done: number; total: number }>();
+  const [batchTransportOpen, setBatchTransportOpen] = useState(false);
+  const [batchTransport, setBatchTransport] = useState("DRIVING");
   const [dayOrderDraftIds, setDayOrderDraftIds] = useState<string[]>();
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
+  const { toasts, notify: setNotice, dismiss: dismissToast } = useToasts();
   const [mapData, setMapData] = useState<ItineraryMapData>();
   const [mapDataRegionId, setMapDataRegionId] = useState<string>();
   const [mapError, setMapError] = useState("");
@@ -251,7 +259,6 @@ function ItineraryModule({
   const [mountedMapRegionId, setMountedMapRegionId] = useState<string>();
   const [mapMountRevision, setMapMountRevision] = useState(0);
   const [routeVisible, setRouteVisible] = useState(false);
-  const [routeStatus, setRouteStatus] = useState("");
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapHandleRef = useRef<GoogleMapHandle | undefined>(undefined);
   const mapMarkersFittedRef = useRef(false);
@@ -264,10 +271,11 @@ function ItineraryModule({
   const tripSwitcherRef = useRef<HTMLDetailsElement>(null);
   const tripActionsRef = useRef<HTMLDetailsElement>(null);
   const mapToolsRef = useRef<HTMLDetailsElement>(null);
+  const dayActionsRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     function closeMenus(event: PointerEvent | KeyboardEvent) {
-      for (const ref of [tripSwitcherRef, tripActionsRef, mapToolsRef]) {
+      for (const ref of [tripSwitcherRef, tripActionsRef, mapToolsRef, dayActionsRef]) {
         const menu = ref.current;
         if (!menu?.open) continue;
         if (event instanceof KeyboardEvent) {
@@ -420,7 +428,6 @@ function ItineraryModule({
       setEditingItemId(item.id);
       setAddingItem(false);
       setError("");
-      setNotice("");
     },
     [itineraryController, readonly],
   );
@@ -494,7 +501,7 @@ function ItineraryModule({
     hasPendingDayReorder;
 
   useEffect(() => {
-    if (hasOpenDraft || saving || calculatingItemId || refreshingSharedTrip)
+    if (hasOpenDraft || saving || calculatingItemId || batchProgress || refreshingSharedTrip)
       return;
     let active = true;
     Promise.all([
@@ -548,6 +555,7 @@ function ItineraryModule({
     hasOpenDraft,
     saving,
     calculatingItemId,
+    batchProgress,
     refreshingSharedTrip,
     hybridDataRevision,
     readonly,
@@ -654,6 +662,7 @@ function ItineraryModule({
     focusModeCloseRef.current?.focus();
 
     function handleFocusModeKeyDown(event: KeyboardEvent) {
+      if (document.querySelector("dialog[open]")) return;
       if (event.key === "Escape") {
         setFocusMode(false);
         return;
@@ -788,40 +797,33 @@ function ItineraryModule({
     }
   }, [googleMapMarkers, mountedMapRegionId, visibleMapData?.regionId]);
 
+  // Saved durations do not change route geometry; avoid rerouting the entire day after each batch result.
+  const routeStopsKey = JSON.stringify(dayItems.map(({ placeId, transport }) => ({ placeId, transport })));
   useEffect(() => {
     const handle = mapHandleRef.current;
     const abort = new AbortController();
     handle?.setRoute?.([]);
-    setRouteStatus("");
     if (!routeVisible || mapProvider !== 'osm' || !visibleMapData || mountedMapRegionId !== visibleMapData.regionId || !handle?.setRoute) return;
-    setRouteStatus("正在繪製路程軌跡…");
     void (async () => {
       try {
-        const stops = dayItems.map(item => {
-          const marker = visibleMapData.markers.find(marker => marker.id === item.placeId);
-          if (!marker) throw new Error("部分行程地點缺少座標，無法繪製完整路線。");
-          return { coordinate: { latitude: marker.position.lat, longitude: marker.position.lng }, transport: item.transport || 'DRIVING' };
-        });
-        if (stops.length < 2) throw new Error("當天至少需要兩個地點才能繪製路程軌跡。");
-        const lines: import('../../geo/contracts').Coordinate[][] = [];
-        for (let index = 1; index < stops.length; index++) {
-          const previous = stops[index - 1].coordinate;
-          const current = stops[index].coordinate;
-          if (previous.latitude === current.latitude && previous.longitude === current.longitude) continue;
-          const result = await routeOsmLocations(previous, current, stops[index].transport, abort.signal, true);
-          lines.push(...(result.geometry ?? []));
-        }
+        const routeItems: Pick<ItineraryItem, "placeId" | "transport">[] = JSON.parse(routeStopsKey);
+        const result = await buildDayRouteGeometry(routeItems, visibleMapData.markers, abort.signal,
+          (from, to, transport, signal) => routeOsmLocations(from, to, transport, signal, true));
         if (abort.signal.aborted) return;
-        handle.setRoute?.(lines);
-        setRouteStatus(lines.length ? "已顯示當天行程的路程軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
+        handle.setRoute?.(result.lines);
+        setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製路程軌跡。"
+          : result.skipped ? (result.lines.length ? `已顯示可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的路程軌跡，略過 ${result.skipped} 段無可用路線。`)
+          : result.lines.length ? "已顯示當天行程的路程軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
       } catch (cause) {
-        if (!abort.signal.aborted) setRouteStatus(cause instanceof Error ? cause.message : "路程軌跡繪製失敗。");
+        if (!abort.signal.aborted) setNotice(cause instanceof Error ? cause.message : "路程軌跡繪製失敗。", "error");
       }
     })();
     return () => { abort.abort(); handle.setRoute?.([]); };
-  }, [routeVisible, mapProvider, visibleMapData, mountedMapRegionId, mapMountRevision, dayItems]);
+  }, [routeVisible, mapProvider, visibleMapData, mountedMapRegionId, mapMountRevision, routeStopsKey, setNotice]);
 
   function selectTrip(trip: Trip) {
+    if (batchProgress) return;
+    setBatchTransportOpen(false);
     if (
       hasOpenDraft &&
       !window.confirm("目前有未儲存的變更，切換行程後會遺失。要繼續嗎？")
@@ -837,7 +839,6 @@ function ItineraryModule({
     setEditingItemId(undefined);
     setExpandedPlaceNotes(new Set());
     setError("");
-    setNotice("");
   }
 
   function startCreateTrip() {
@@ -855,7 +856,6 @@ function ItineraryModule({
     setAddingItem(false);
     setEditingItemId(undefined);
     setError("");
-    setNotice("");
   }
 
   function startEditTrip() {
@@ -866,7 +866,6 @@ function ItineraryModule({
     setAddingItem(false);
     setEditingItemId(undefined);
     setError("");
-    setNotice("");
   }
 
   function cancelTripEdit() {
@@ -880,7 +879,6 @@ function ItineraryModule({
     event.preventDefault();
     setSaving(true);
     setError("");
-    setNotice("");
     const input: NewTrip = {
       name: tripDraft.name.trim(),
       regionId: tripDraft.regionId,
@@ -948,7 +946,6 @@ function ItineraryModule({
     const routeMapSummary = deleteRouteMapCheck;
     setSaving(true);
     setError("");
-    setNotice("");
     try {
       await itineraryController.deleteTrip(deletingTrip.id);
       setDeleteTripDialogOpen(false);
@@ -980,7 +977,6 @@ function ItineraryModule({
     setEditingItemId(undefined);
     setEditingTrip(false);
     setError("");
-    setNotice("");
   }
 
   function cancelItemEdit() {
@@ -1004,7 +1000,6 @@ function ItineraryModule({
     }
     setSaving(true);
     setError("");
-    setNotice("");
     const changes = {
       placeId: itemDraft.placeId,
       date: itemDraft.date,
@@ -1065,7 +1060,6 @@ function ItineraryModule({
     if (!window.confirm(`確定要從行程中移除「${placeName}」嗎？`)) return;
     setSaving(true);
     setError("");
-    setNotice("");
     try {
       await itineraryController.deleteItem(item.id);
       setItems(await itineraryController.listItems(item.tripId));
@@ -1096,7 +1090,6 @@ function ItineraryModule({
     itineraryController.beginEdit(item.tripId);
     setCalculatingItemId(item.id);
     setError("");
-    setNotice("");
     try {
       const estimate = await itineraryController.calculateTravelDuration(
         item.id,
@@ -1113,6 +1106,47 @@ function ItineraryModule({
     }
   }
 
+  const travelSummary = dayTravelSummary(dayItems);
+
+  function closeDayActions() {
+    if (dayActionsRef.current) {
+      dayActionsRef.current.open = false;
+      dayActionsRef.current.querySelector("summary")?.focus();
+    }
+  }
+
+  async function runDayOperation(transport?: string) {
+    if (!selectedTripId || !canEditItems || interactionBusy || itemFormVisible || hasPendingDayReorder) return;
+    const jobs = dayItems.slice(1).filter(item => transport === undefined || item.transport !== transport);
+    if (transport !== undefined && !availableTransportOptions.some(option => option.value === transport)) return;
+    closeDayActions();
+    itineraryController.beginEdit(selectedTripId);
+    setError("");
+    setBatchProgress({ done: 0, total: jobs.length });
+    try {
+      const result = await runDayJobs(jobs, async item => {
+        if (transport !== undefined) return itineraryController.updateItem(item.id, { transport });
+        const estimate = await itineraryController.calculateTravelDuration(item.id);
+        setItems(current => current.map(row => row.id === item.id ? {
+          ...row, travelDurationMinutes: estimate.durationMinutes, travelDistanceMeters: estimate.distanceMeters,
+        } : row));
+      },
+        // Shared document writes must use the latest revision, one at a time.
+        transport !== undefined || sharedTripIds.includes(selectedTripId) ? 1 : 3,
+        done => setBatchProgress({ done, total: jobs.length }));
+      setItems(await itineraryController.listItems(selectedTripId));
+      const action = transport === undefined ? "計算路程" : "修改交通方式";
+      setNotice(`${action}完成：成功 ${result.succeeded} 段${result.failures.length ? `，失敗 ${result.failures.length} 段` : ""}。`);
+      if (result.failures.length) setError(result.failures.map(({ job, message }) =>
+        `${places.find(place => place.id === job.placeId)?.name ?? "地點"}：${message}`).join("；"));
+      setBatchTransportOpen(false);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "批次操作失敗。");
+    } finally {
+      setBatchProgress(undefined);
+    }
+  }
+
   function reorderDayCards(orderedIds: string[]) {
     if (!canEditItems || interactionBusy || itemFormVisible) return;
     setDayOrderDraftIds(orderedIds);
@@ -1123,7 +1157,6 @@ function ItineraryModule({
     if (!selectedTripId || !hasPendingDayReorder) return;
     setSaving(true);
     setError("");
-    setNotice("");
 
     try {
       await itineraryController.reorderItems(
@@ -1143,11 +1176,12 @@ function ItineraryModule({
 
   function cancelDayReorder() {
     setDayOrderDraftIds(undefined);
-    setNotice("");
     setError("");
   }
 
   function changeSelectedDate(date: string) {
+    if (batchProgress) return;
+    setBatchTransportOpen(false);
     if (
       hasPendingDayReorder &&
       date !== selectedDate &&
@@ -1160,13 +1194,18 @@ function ItineraryModule({
     setAddingItem(false);
     setEditingItemId(undefined);
     setError("");
-    setNotice("");
   }
 
   const activeItemId = editingItemId;
   const itemFormVisible = addingItem || activeItemId !== undefined;
   const interactionBusy =
-    saving || calculatingItemId !== undefined || refreshingSharedTrip;
+    saving || calculatingItemId !== undefined || batchProgress !== undefined || refreshingSharedTrip;
+
+  useEffect(() => {
+    if (!error || workspaceLoadFailed || itemFormVisible || editingTrip || deleteTripDialogOpen) return;
+    setNotice(error, "error");
+    setError("");
+  }, [error, workspaceLoadFailed, itemFormVisible, editingTrip, deleteTripDialogOpen, setNotice]);
 
   async function refreshSharedTrip() {
     if (
@@ -1181,7 +1220,6 @@ function ItineraryModule({
       return;
     setRefreshingSharedTrip(true);
     setError("");
-    setNotice("");
     try {
       await onRefreshSharedTrips();
       setWorkspaceReloadKey((value) => value + 1);
@@ -1201,11 +1239,189 @@ function ItineraryModule({
       mainClassName="itinerary-main"
       sidebarToggleTarget={sidebarToggleTarget}
     >
+      {!itemFormVisible && <ToastStack toasts={toasts} dismiss={dismissToast} />}
       {sharedNavigation}
       {publicationOperation && selectedTrip && selectedRegion && (
         <PublicationDialog operation={publicationOperation} trip={selectedTrip} regionName={selectedRegion.name}
           published={publicationTarget} onClose={() => setPublicationOperation(undefined)}
           onSuccess={(message) => { setPublicationOperation(undefined); setNotice(message); }} />
+      )}
+      {itemFormVisible && selectedTrip && (
+        <ItemEditorDialog label={addingItem ? "新增每日項目" : "編輯每日項目"} busy={saving} onClose={cancelItemEdit}>
+          <ToastStack toasts={toasts} dismiss={dismissToast} />
+          <form
+            className="itinerary-item-form"
+            onSubmit={(event) => void handleItemSubmit(event)}
+          >
+            <div className="itinerary-form-title">
+              <strong>{addingItem ? "將地點加入行程" : "編輯每日項目"}</strong>
+              <div className="itinerary-editor-actions">
+                <button type="submit" className="itinerary-primary" disabled={saving || !itemDraft.placeId}>
+                  {saving ? (addingItem ? "加入中…" : "儲存中…") : addingItem ? "加入" : "儲存"}
+                </button>
+                <button type="button" className="itinerary-secondary" onClick={cancelItemEdit} disabled={saving}>取消</button>
+              </div>
+            </div>
+            <div className="itinerary-item-editor-body">
+              {error && <div className="itinerary-feedback itinerary-error" role="alert">{error}</div>}
+              {tripPlaces.length ? (
+                <>
+                  <div className="itinerary-field-grid">
+                    <div className="itinerary-field itinerary-place-field itinerary-field-wide">
+                      <label htmlFor="itinerary-place-search">
+                        地點 <b>*</b>
+                      </label>
+                      <div className="itinerary-place-picker">
+                        <div className="itinerary-place-picker-row">
+                          <button
+                            key={editingItemId ?? "new-item"}
+                            ref={placePickerInputRef}
+                            id="itinerary-place-search"
+                            type="button"
+                            className="itinerary-place-select-trigger"
+                            aria-label="選擇地點"
+                            aria-haspopup="dialog"
+                            disabled={saving}
+                            autoFocus
+                            data-dialog-autofocus
+                            onClick={() => setPlacePickerOpen(true)}
+                          >
+                            <span>
+                              {tripPlaces.find(
+                                (place) => place.id === itemDraft.placeId,
+                              )?.name ?? "搜尋或選擇地點"}
+                            </span>
+                            <span aria-hidden="true">⌄</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <label className="itinerary-field">
+                      <span>
+                        日期 <b>*</b>
+                      </span>
+                      <input
+                        type="date"
+                        min={selectedTrip.startDate}
+                        max={selectedTrip.endDate}
+                        value={itemDraft.date}
+                        onChange={(event) =>
+                          setItemDraft({
+                            ...itemDraft,
+                            date: event.target.value,
+                          })
+                        }
+                        required
+                        disabled={saving}
+                      />
+                    </label>
+                    <label className="itinerary-field">
+                      <span>預計抵達時間</span>
+                      <input
+                        type="time"
+                        value={itemDraft.arrivalTime}
+                        onChange={(event) =>
+                          setItemDraft({
+                            ...itemDraft,
+                            arrivalTime: event.target.value,
+                          })
+                        }
+                        disabled={saving}
+                      />
+                      <small className="itinerary-arrival-reference">
+                        參考：{referenceArrival
+                          ? `${referenceArrival.time}${referenceArrival.dayOffset ? `（+${referenceArrival.dayOffset} 天）` : ""}`
+                          : previousDraftItem?.arrivalTime ? "請先計算路程" : "上一站未填時間"}
+                      </small>
+                    </label>
+                    <label className="itinerary-field">
+                      <span>停留時間（分鐘）</span>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={itemDraft.durationMinutes}
+                        onChange={(event) =>
+                          setItemDraft({
+                            ...itemDraft,
+                            durationMinutes: event.target.value,
+                          })
+                        }
+                        placeholder="例如：90"
+                        disabled={saving}
+                      />
+                    </label>
+                    <label className="itinerary-field">
+                      <span>交通</span>
+                      <select
+                        value={itemDraft.transport}
+                        onChange={(event) =>
+                          setItemDraft({
+                            ...itemDraft,
+                            transport: event.target.value,
+                          })
+                        }
+                        disabled={interactionBusy}
+                      >
+                        <option value="">選擇前往方式</option>
+                        {mapProvider !== 'google' && itemDraft.transport &&
+                          !availableTransportOptions.some(option => option.value === itemDraft.transport) && (
+                            <option value={itemDraft.transport} disabled hidden>
+                              請重新選擇交通方式
+                            </option>
+                          )}
+                        {itemDraft.transport &&
+                          mapProvider === 'google' &&
+                          !transportOptions.some(
+                            (option) =>
+                              option.value === itemDraft.transport,
+                          ) && (
+                            <option value={itemDraft.transport}>
+                              舊資料：{itemDraft.transport}
+                            </option>
+                          )}
+                        {availableTransportOptions.map((option) => (
+                          <option value={option.value} key={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <small>上一站到這一站</small>
+                    </label>
+                    <label className="itinerary-field itinerary-field-wide">
+                      <span>備註</span>
+                      <textarea
+                        rows={2}
+                        value={itemDraft.note}
+                        onChange={(event) =>
+                          setItemDraft({
+                            ...itemDraft,
+                            note: event.target.value,
+                          })
+                        }
+                        maxLength={1000}
+                        placeholder="預約資訊、想做的事…"
+                        disabled={saving}
+                      />
+                    </label>
+                  </div>
+
+                </>
+              ) : (
+                <div className="itinerary-no-places">
+                  <p>目前沒有歸入「{selectedRegion?.name}」的地點。</p>
+                  <a
+                    href={`${routes.places}?create=1`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {mapProvider === 'osm' ? '前往地點模組新增地點。' : '前往地點模組新增地點並設定所屬區域。'}
+                  </a>
+                </div>
+              )}
+            </div>
+          </form>
+        </ItemEditorDialog>
       )}
       {placePickerOpen && itemFormVisible && (
         <SearchableSelectDialog
@@ -1394,7 +1610,7 @@ function ItineraryModule({
             </details>
           </div>}
         </section>
-        {error && !deleteTripDialogOpen && (
+        {error && (workspaceLoadFailed || editingTrip) && !deleteTripDialogOpen && !itemFormVisible && (
           <div className="itinerary-feedback itinerary-error" role="alert">
             {error}
             {workspaceLoadFailed && (
@@ -1414,11 +1630,7 @@ function ItineraryModule({
             )}
           </div>
         )}
-        {notice && (
-          <div className="itinerary-feedback itinerary-success" role="status">
-            {notice}
-          </div>
-        )}
+
 
         <section
           ref={workspaceRef}
@@ -1434,19 +1646,6 @@ function ItineraryModule({
           tabIndex={focusMode ? -1 : undefined}
         >
           <aside className="itinerary-plan-card">
-            {focusMode && error && !deleteTripDialogOpen && (
-              <div className="itinerary-feedback itinerary-error" role="alert">
-                {error}
-              </div>
-            )}
-            {focusMode && notice && (
-              <div
-                className="itinerary-feedback itinerary-success"
-                role="status"
-              >
-                {notice}
-              </div>
-            )}
             {editingTrip ? (
               <form
                 className="itinerary-trip-form"
@@ -1650,6 +1849,7 @@ function ItineraryModule({
                       key={date}
                       className={date === selectedDate ? "selected" : ""}
                       aria-pressed={date === selectedDate}
+                      disabled={batchProgress !== undefined}
                       onClick={() => changeSelectedDate(date)}
                     >
                       <small>
@@ -1664,219 +1864,9 @@ function ItineraryModule({
                   ))}
                 </div>
 
-                {itemFormVisible && (
-                  <form
-                    className="itinerary-item-form"
-                    onSubmit={(event) => void handleItemSubmit(event)}
-                  >
-                    <div className="itinerary-form-title">
-                      <strong>
-                        {addingItem ? "將地點加入行程" : "編輯每日項目"}
-                      </strong>
-                      <button
-                        type="button"
-                        aria-label="關閉"
-                        onClick={cancelItemEdit}
-                      >
-                        ×
-                      </button>
-                    </div>
-                    {tripPlaces.length ? (
-                      <>
-                        <div className="itinerary-field-grid">
-                          <div className="itinerary-field itinerary-place-field">
-                            <label htmlFor="itinerary-place-search">
-                              地點 <b>*</b>
-                            </label>
-                            <div className="itinerary-place-picker">
-                              <div className="itinerary-place-picker-row">
-                                <button
-                                  key={editingItemId ?? "new-item"}
-                                  ref={placePickerInputRef}
-                                  id="itinerary-place-search"
-                                  type="button"
-                                  className="itinerary-place-select-trigger"
-                                  aria-label="選擇地點"
-                                  aria-haspopup="dialog"
-                                  disabled={saving}
-                                  autoFocus
-                                  onClick={() => setPlacePickerOpen(true)}
-                                >
-                                  <span>
-                                    {tripPlaces.find(
-                                      (place) => place.id === itemDraft.placeId,
-                                    )?.name ?? "搜尋或選擇地點"}
-                                  </span>
-                                  <span aria-hidden="true">⌄</span>
-                                </button>
-                              </div>
-                            </div>
-                          </div>
-                          <label className="itinerary-field">
-                            <span>
-                              日期 <b>*</b>
-                            </span>
-                            <input
-                              type="date"
-                              min={selectedTrip.startDate}
-                              max={selectedTrip.endDate}
-                              value={itemDraft.date}
-                              onChange={(event) =>
-                                setItemDraft({
-                                  ...itemDraft,
-                                  date: event.target.value,
-                                })
-                              }
-                              required
-                              disabled={saving}
-                            />
-                          </label>
-                          <label className="itinerary-field">
-                            <span>預計抵達時間</span>
-                            <input
-                              type="time"
-                              value={itemDraft.arrivalTime}
-                              onChange={(event) =>
-                                setItemDraft({
-                                  ...itemDraft,
-                                  arrivalTime: event.target.value,
-                                })
-                              }
-                              disabled={saving}
-                            />
-                          </label>
-                          <label className="itinerary-field">
-                            <span>參考抵達時間</span>
-                            <input
-                              type="text"
-                              value={
-                                referenceArrival
-                                  ? `${referenceArrival.time}${referenceArrival.dayOffset ? `（翌日 +${referenceArrival.dayOffset} 天）` : ""}`
-                                  : ""
-                              }
-                              placeholder={
-                                previousDraftItem?.arrivalTime
-                                  ? "請先計算路程時間"
-                                  : "上一站尚未填寫預計抵達時間"
-                              }
-                              readOnly
-                              aria-readonly="true"
-                            />
-                            <small>
-                              依上一站時間與停留時長估算。
-                            </small>
-                          </label>
-                          <label className="itinerary-field">
-                            <span>停留時間（分鐘）</span>
-                            <input
-                              type="number"
-                              min="1"
-                              step="1"
-                              value={itemDraft.durationMinutes}
-                              onChange={(event) =>
-                                setItemDraft({
-                                  ...itemDraft,
-                                  durationMinutes: event.target.value,
-                                })
-                              }
-                              placeholder="例如：90"
-                              disabled={saving}
-                            />
-                          </label>
-                          <label className="itinerary-field itinerary-field-wide">
-                            <span>交通</span>
-                            <select
-                              value={itemDraft.transport}
-                              onChange={(event) =>
-                                setItemDraft({
-                                  ...itemDraft,
-                                  transport: event.target.value,
-                                })
-                              }
-                              disabled={interactionBusy}
-                            >
-                              <option value="">選擇前往方式</option>
-                              {mapProvider !== 'google' && itemDraft.transport &&
-                                !availableTransportOptions.some(option => option.value === itemDraft.transport) && (
-                                  <option value={itemDraft.transport} disabled hidden>
-                                    請重新選擇交通方式
-                                  </option>
-                                )}
-                              {itemDraft.transport &&
-                                mapProvider === 'google' &&
-                                !transportOptions.some(
-                                  (option) =>
-                                    option.value === itemDraft.transport,
-                                ) && (
-                                  <option value={itemDraft.transport}>
-                                    舊資料：{itemDraft.transport}
-                                  </option>
-                                )}
-                              {availableTransportOptions.map((option) => (
-                                <option value={option.value} key={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
-                            <small>
-                              此方式用於計算「上一站到這一站」的參考時間與距離。
-                            </small>
-                          </label>
-                          <label className="itinerary-field itinerary-field-wide">
-                            <span>備註</span>
-                            <textarea
-                              rows={3}
-                              value={itemDraft.note}
-                              onChange={(event) =>
-                                setItemDraft({
-                                  ...itemDraft,
-                                  note: event.target.value,
-                                })
-                              }
-                              maxLength={1000}
-                              placeholder="預約資訊、想做的事…"
-                              disabled={saving}
-                            />
-                          </label>
-                        </div>
-                        <div className="itinerary-form-actions">
-                          <button
-                            type="button"
-                            className="itinerary-secondary"
-                            disabled={saving}
-                            onClick={cancelItemEdit}
-                          >
-                            取消
-                          </button>
-                          <button
-                            type="submit"
-                            className="itinerary-primary"
-                            disabled={saving || !itemDraft.placeId}
-                          >
-                            {saving
-                              ? "儲存中…"
-                              : addingItem
-                                ? "加入行程"
-                                : "儲存項目"}
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <div className="itinerary-no-places">
-                        <p>目前沒有歸入「{selectedRegion?.name}」的地點。</p>
-                        <a
-                          href={`${routes.places}?create=1`}
-                          target="_blank"
-                          rel="noreferrer"
-                        >
-                          {mapProvider === 'osm' ? '前往地點模組新增地點。' : '前往地點模組新增地點並設定所屬區域。'}
-                        </a>
-                      </div>
-                    )}
-                  </form>
-                )}
 
-                {!itemFormVisible && (
+
+                {(
                   <>
                     <div className="itinerary-items-heading">
                       <div>
@@ -1904,18 +1894,38 @@ function ItineraryModule({
                             </button>
                           </>
                         )}
-                        <button
-                          type="button"
-                          className="itinerary-add-button"
-                          disabled={
-                            interactionBusy || itemFormVisible || !canEditItems
-                          }
-                          onClick={startAddItem}
-                        >
-                          ＋地點
-                        </button>
+                        {!readonly && <details className="itinerary-action-menu" ref={dayActionsRef}>
+                          <summary className="itinerary-secondary">操作
+                            <span className="itinerary-map-operations-chevron" aria-hidden="true" />
+                          </summary>
+                          <div className="itinerary-dropdown itinerary-action-options">
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems}
+                              onClick={() => { closeDayActions(); setBatchTransportOpen(false); startAddItem(); }}>新增地點</button>
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || dayItems.length < 2}
+                              onClick={() => { closeDayActions(); setBatchTransport(availableTransportOptions[0]?.value ?? ""); setBatchTransportOpen(true); }}>批次修改交通方式</button>
+                            <button type="button" disabled={interactionBusy || itemFormVisible || !canEditItems || hasPendingDayReorder || dayItems.length < 2 || !mapProvider}
+                              onClick={() => void runDayOperation()}>計算所有路程</button>
+                          </div>
+                        </details>}
                       </div>
                     </div>
+                    {(travelSummary.calculated > 0 || batchProgress) && <div className="itinerary-day-travel-summary" role="status">
+                      {travelSummary.label}
+                      {travelSummary.calculated < travelSummary.total && <small>（已計算 {travelSummary.calculated}/{travelSummary.total} 段）</small>}
+                      {batchProgress && <small>處理中 {batchProgress.done}/{batchProgress.total} 段…</small>}
+                    </div>}
+                    {batchTransportOpen && <form className="itinerary-batch-transport" onSubmit={event => { event.preventDefault(); void runDayOperation(batchTransport); }}>
+                      <label>當日交通方式
+                        <select value={batchTransport} disabled={interactionBusy} onChange={event => setBatchTransport(event.target.value)}>
+                          {availableTransportOptions.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+                        </select>
+                      </label>
+                      <small>套用至上一站到下一站的所有路段，變更後需重新計算路程。</small>
+                      <div>
+                        <button className="itinerary-secondary" type="button" disabled={interactionBusy} onClick={() => setBatchTransportOpen(false)}>取消</button>
+                        <button className="itinerary-primary" type="submit" disabled={interactionBusy || !batchTransport}>套用</button>
+                      </div>
+                    </form>}
                     <div className="itinerary-items-scroll">
                       {dayItems.length ? (
                         <ItinerarySortableList
@@ -2206,6 +2216,13 @@ function ItineraryModule({
                       }}
                     >{routeVisible ? '隱藏路程軌跡' : '路程軌跡'}</button>}
 
+                    <button type="button"
+                      disabled={!visibleMapData || Boolean(visibleMapError) || mountedMapRegionId !== selectedRegionId || !googleMapMarkers.some(marker => marker.sequence !== undefined)}
+                      onClick={() => {
+                        if (mapToolsRef.current) { mapToolsRef.current.open = false; mapToolsRef.current.querySelector("summary")?.focus(); }
+                        setMapCollapsed(false);
+                        mapHandleRef.current?.setMarkers(googleMapMarkers, { fitBounds: true, fitMarkerIds: googleMapMarkers.filter(marker => marker.sequence !== undefined).map(marker => marker.id) });
+                      }}>當日全程</button>
                     <button
                       type="button"
                       title="將地圖調整為顯示全部標記"
@@ -2298,7 +2315,6 @@ function ItineraryModule({
               </span>
             </div>
             <div id={mapBodyId} className="itinerary-map-body" hidden={mapCollapsed}>
-            {routeVisible && mapProvider === 'osm' && routeStatus && <p role="status">{routeStatus}</p>}
             <div className="itinerary-map-canvas">
               <div className="itinerary-google-map" ref={mapContainerRef} />
               {!selectedRegion ? (

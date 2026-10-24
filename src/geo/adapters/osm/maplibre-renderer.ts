@@ -30,6 +30,7 @@ export interface MapLibreSdk {
   Map: new (options: {
     container: HTMLElement; center: [number, number]; zoom: number; maxZoom: number
     style: object | string; minZoom: number; pitchWithRotate: boolean; dragRotate: boolean
+    attributionControl: { compact: boolean; customAttribution: string }
   }) => MapLibreMap
   Marker: new (options: { element: HTMLElement }) => MapLibreMarker
   NavigationControl: new (options: { showCompass: boolean }) => unknown
@@ -83,6 +84,7 @@ export function createMapLibreRenderer(config: {
           container, center: [options.center.longitude, options.center.latitude],
           zoom: Math.min(options.zoom, options.maxZoom ?? 22), maxZoom: options.maxZoom ?? 22, style: config.style,
           minZoom: 5, pitchWithRotate: false, dragRotate: false,
+          attributionControl: { compact: true, customAttribution: '<a href="https://maplibre.org/" target="_blank" rel="noopener noreferrer">MapLibre</a>' },
         })
         const currentMap = map
         const fit = (bounds: Bounds, duration = 650, allMarkers = false) => {
@@ -119,6 +121,8 @@ export function createMapLibreRenderer(config: {
           else if (currentMap.loaded()) load()
         })
         throwIfAborted(options.signal)
+        // Start collapsed once; keep the SDK toggle intact so attribution remains accessible.
+        container.querySelector<HTMLElement>('.maplibregl-ctrl-attrib.maplibregl-compact-show .maplibregl-ctrl-attrib-button')?.click()
         ready = true
         return {
           setMarkers(next) {

@@ -7,6 +7,7 @@ import type { GoogleMapHandle, GoogleMapMarkerData, GoogleMapPosition, GoogleMap
 import './map.css'
 import '../modules/place/google-map.css'
 import { throwIfAborted, withAbort } from './errors'
+import { markerBounds } from './map-validation'
 
 export function osmAssetBaseUrl(): string {
   const base = import.meta.env.VITE_OSM_ASSET_BASE_URL?.trim()
@@ -62,7 +63,16 @@ export async function mountWorkspaceMap(
         color: marker.color ?? (marker.sequence === undefined ? '#6d91ad' : '#648a74'),
         selected: marker.enlarged,
       })))
-      if (fit?.fitBounds && next.length) handle.fitMarkers()
+      if (fit?.fitBounds && next.length) {
+        if (fit.fitMarkerIds) {
+          const ids = new Set(fit.fitMarkerIds)
+          const bounds = markerBounds(next.filter(marker => ids.has(marker.id)).map(marker => ({
+            id: marker.id, name: marker.title,
+            coordinate: { latitude: marker.position.lat, longitude: marker.position.lng },
+          })))
+          if (bounds) handle.fitBounds(bounds)
+        } else handle.fitMarkers()
+      }
     },
     setRoute: lines => handle.setRoute?.(lines),
     resetView: () => handle.fitBounds(definition.bounds),

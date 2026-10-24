@@ -160,3 +160,20 @@ it('ignores place-detail responses after autocomplete is destroyed', async () =>
   expect(selected).not.toHaveBeenCalled()
   expect(autocomplete.remove).toHaveBeenCalledTimes(1)
 })
+
+it('fits the day subset without hiding other markers, and ignores an empty subset', async () => {
+  const { mountGoogleMap } = await import('./google-places.service')
+  const map = await mountGoogleMap(document.createElement('div'), { center: { lat: 25, lng: 121 }, zoom: 12 })
+  const points = [
+    { id: 'today', title: 'Today', position: { lat: 25, lng: 121 }, sequence: 1 },
+    { id: 'other', title: 'Other', position: { lat: 35, lng: 140 } },
+  ]
+  map.setMarkers(points, { fitBounds: true, fitMarkerIds: ['today'] })
+  expect(extend.mock.calls).toEqual([[points[0].position]])
+  expect(markers).toHaveLength(2)
+  expect(markers.every(marker => marker.map !== null)).toBe(true)
+  fitBounds.mockClear()
+  map.setMarkers(points, { fitBounds: true, fitMarkerIds: [] })
+  expect(fitBounds).not.toHaveBeenCalled()
+  map.destroy()
+})

@@ -104,3 +104,24 @@ it('rejects invalid asset protocols before loading a renderer', async () => {
   }, vi.fn())).rejects.toThrow('HTTP')
   expect(mocks.createRenderer).not.toHaveBeenCalled()
 })
+
+it('fits only the selected day pins while retaining unscheduled markers and click targets', async () => {
+  const handle = await mountWorkspaceMap('osm', document.createElement('div'), {
+    center: { lat: 26, lng: 127 }, zoom: 10,
+  }, vi.fn())
+  const onClick = vi.fn()
+  const markers: GoogleMapMarkerData[] = [
+    { id: 'day-1', title: '第一站', position: { lat: 26.1, lng: 127.1 }, sequence: 1, onClick },
+    { id: 'day-2', title: '第二站', position: { lat: 26.2, lng: 127.2 }, sequence: 2 },
+    { id: 'other', title: '其他收藏', position: { lat: 40, lng: 140 } },
+  ]
+  handle.setMarkers(markers, { fitBounds: true, fitMarkerIds: ['day-1', 'day-2'] })
+  expect(mocks.setMarkers.mock.lastCall?.[0]).toHaveLength(3)
+  expect(mocks.fitBounds).toHaveBeenCalledExactlyOnceWith({ north: 26.2, south: 26.1, east: 127.2, west: 127.1 })
+  expect(mocks.fitMarkers).not.toHaveBeenCalled()
+  mocks.mount.mock.calls[0][1].events.onSelect('day-1')
+  expect(onClick).toHaveBeenCalledOnce()
+  mocks.fitBounds.mockClear()
+  handle.setMarkers(markers, { fitBounds: true, fitMarkerIds: [] })
+  expect(mocks.fitBounds).not.toHaveBeenCalled()
+})
