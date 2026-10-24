@@ -1,7 +1,7 @@
 import type { OsmDatasetId } from '../../geo/osm-datasets'
 import { useEffect, useId, useRef, useState } from 'react'
 import type { Place } from '../../database'
-import { SearchableSelect } from '../../common/SearchableSelect'
+import { SelectionSearchPicker } from '../../common/SelectionSearchPicker'
 import type { RouteCalculatorController } from './route-calculator.controller'
 import type { RouteEndpoint, RouteMapPlace } from './route-calculator.service'
 import { markerKey } from './route-calculator.service'
@@ -208,10 +208,9 @@ export function RouteEndpointField({
             </div>
             {dialogSource === 'saved' ? (
               <div className="route-saved-choices">
-                <SearchableSelect
-                  inputId={`${id}-saved`}
+                <SelectionSearchPicker
+                  autoFocus
                   label={`${label}：已存地點`}
-                  placeholder="搜尋或選擇地點"
                   options={options}
                   value={
                     selectedPlace
@@ -222,8 +221,6 @@ export function RouteEndpointField({
                   }
                   onChange={selectSavedChoice}
                   disabled={disabled}
-                  autoFocus
-                  ariaRequired
                 />
                 {!places.length && !uniqueAddedMarkers.length && (
                   <p className="route-field-hint">目前沒有可選地點，可切換{provider === 'osm' ? '新地點搜尋' : ' Google 搜尋'}直接選擇。</p>
