@@ -1,4 +1,4 @@
-"""Disk-backed Taiwan name search; keep the 700k-place catalog out of the HTTP process."""
+"""Disk-backed large-dataset name search; keep catalogs out of the HTTP process."""
 import hashlib
 import json
 import os
@@ -9,7 +9,7 @@ from threading import RLock
 import uuid
 from search import normalize
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 
 def iter_places(path, metadata):
@@ -67,9 +67,20 @@ def ensure_search_index(path):
           create table places(id integer primary key,source_id text,name text,data text);
           create table names(place_id integer,value text);
           create table metadata(key text primary key,value text);''')
+        previous_stamp=json.dumps([1,str(path),stat.st_size,stat.st_mtime_ns])
+        previous=folder/f'{path.stem}-{hashlib.sha256(previous_stamp.encode()).hexdigest()[:20]}.sqlite'
+        reused=False
+        if previous.is_file():
+            with sqlite3.connect(previous.as_uri()+'?mode=ro&immutable=1',uri=True) as source:
+                if dict(source.execute('select key,value from metadata')).get('source')==previous_stamp:
+                    source.backup(database)
+                    reused=True
+        if reused:
+            database.execute('update metadata set value=? where key=?',(stamp,'source'))
         metadata, count = {}, 0
-        for place in iter_places(path, metadata):
-            # Taiwan has no curated Okinawa aliases; match the existing Taiwan response exactly.
+        for place in (() if reused else iter_places(path, metadata)):
+
+            # Large datasets have no curated Okinawa aliases; preserve the existing response contract.
             values = [place['name'],place.get('english',''),*place.get('names',{}).values()]
             names = list(dict.fromkeys(normalize(value) for value in values if value))
             place['aliases'], place['aliasSource'] = [], None
@@ -77,8 +88,10 @@ def ensure_search_index(path):
                 (place['id'],place['name'],json.dumps(place,ensure_ascii=False,separators=(',',':'))))
             database.executemany('insert into names values(?,?)', [(cursor.lastrowid,value) for value in names])
             count += 1
-        database.executemany('insert into metadata values(?,?)',
-            [('source',stamp),('timestamp',metadata.get('dataTimestamp','unknown')),('count',str(count))])
+        if not reused:
+            database.executemany('insert into metadata values(?,?)',
+                [('source',stamp),('timestamp',metadata.get('dataTimestamp','unknown')),('count',str(count))])
+        database.execute('create index places_display on places(id,name,source_id)')
         database.commit()
         database.close()
         if path.stat().st_mtime_ns != stat.st_mtime_ns:
@@ -113,8 +126,12 @@ class DiskPlaceSearch:
               from names where instr(value,:term)>0
             ), ranked_names as (
               select *,row_number() over(partition by place_id order by score,namelen) position from matched
-            ), best as (select * from ranked_names where position=1)
-            select p.data,count(*) over() from best b join places p on p.id=b.place_id
-            order by b.score,b.namelen,p.name,p.source_id limit 30''',{'term':term}).fetchall()
+            ), best as (select * from ranked_names where position=1), selected as (
+              select b.place_id,b.score,b.namelen,p.name,p.source_id,count(*) over() total
+              from best b join places p indexed by places_display on p.id=b.place_id
+              order by b.score,b.namelen,p.name,p.source_id limit 30
+            )
+            select p.data,s.total from selected s join places p on p.id=s.place_id
+            order by s.score,s.namelen,s.name,s.source_id''',{'term':term}).fetchall()
         return {'results':[{key:value for key,value in json.loads(row[0]).items() if not key.startswith('_')} for row in rows],
                 'total':rows[0][1] if rows else 0,'suggestion':None,'dataTimestamp':self.timestamp}

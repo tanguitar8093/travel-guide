@@ -1,17 +1,64 @@
 """Read prebuilt MBTiles; keep one snapshot open until the server restarts."""
 import hashlib
 import json
+import os
+from pathlib import Path
+import re
+import uuid
 import sqlite3
 import threading
 
 
+def _fingerprint(path):
+    stat = path.stat()
+    return [str(path.resolve()), stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns]
+
+
+def _version_cache(path, fingerprint):
+    key = hashlib.sha256(json.dumps(fingerprint).encode()).hexdigest()[:20]
+    return path.parent / '.tiles-cache' / f'{path.stem}-{key}.json'
+
+
+def cache_tile_version(path, digest, fingerprint=None):
+    """Record a build-time digest; failed cache writes never block read-only maps."""
+    path = Path(path).resolve()
+    fingerprint = fingerprint or _fingerprint(path)
+    target = _version_cache(path, fingerprint)
+    temporary = target.with_suffix(f'.{os.getpid()}.{uuid.uuid4().hex}.download')
+    try:
+        target.parent.mkdir(exist_ok=True)
+        temporary.write_text(json.dumps({'source':fingerprint,'sha256':digest})+'\n')
+        temporary.replace(target)
+    except OSError:
+        pass
+    finally:
+        try:temporary.unlink(missing_ok=True)
+        except OSError:pass
+
+
+def tile_version(path):
+    path = Path(path).resolve()
+    fingerprint = _fingerprint(path)
+    try:
+        cached = json.loads(_version_cache(path, fingerprint).read_text())
+        if cached.get('source') == fingerprint and re.fullmatch('[0-9a-f]{64}', cached.get('sha256','')):
+            return cached['sha256']
+    except (OSError, ValueError, TypeError, AttributeError):
+        pass
+    with path.open('rb') as source:
+        hasher = hashlib.sha256()
+        for chunk in iter(lambda:source.read(1024*1024),b''):
+            hasher.update(chunk)
+        digest = hasher.hexdigest()
+    if _fingerprint(path) != fingerprint:
+        raise ValueError('圖磚更新中，請完成更新後重啟地圖服務。')
+    cache_tile_version(path,digest,fingerprint)
+    return digest
+
+
 class VectorTiles:
     def __init__(self, path):
-        with path.open('rb') as source:
-            digest = hashlib.sha256()
-            for chunk in iter(lambda: source.read(1024 * 1024), b''):
-                digest.update(chunk)
-        self.version = digest.hexdigest()
+        self.version = tile_version(path)
         self.lock = threading.Lock()
         self.database = sqlite3.connect(
             path.as_uri() + '?mode=ro&immutable=1', uri=True,

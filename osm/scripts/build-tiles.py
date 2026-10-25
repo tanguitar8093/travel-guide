@@ -7,12 +7,15 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import sys
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
+from tiles import cache_tile_version
 
 ROOT = Path(__file__).resolve().parents[1]
 MAIN_ROADS = {'motorway', 'trunk', 'primary', 'secondary'}
 
 
-def build(dataset='okinawa'):
+def build(dataset='okinawa', layers=None):
     executable = shutil.which('tippecanoe')
     if executable is None:
         raise SystemExit('Missing tippecanoe. Install it first: sudo apt-get install tippecanoe (Ubuntu 24.04) or brew install tippecanoe.')
@@ -22,13 +25,18 @@ def build(dataset='okinawa'):
     with tempfile.TemporaryDirectory(prefix='atlas-tiles-', dir=destination.parent) as directory:
         temporary = Path(directory)
         coast = temporary / 'coastline.geojson'
-        with coast.open('w') as output:
-            for feature in json.loads((ROOT / f'data/{dataset}-land.geojson').read_text())['features']:
-                for ring in feature['geometry']['coordinates']:
-                    output.write(json.dumps({
-                        'type': 'Feature', 'properties': {},
-                        'geometry': {'type': 'LineString', 'coordinates': ring}
-                    }, separators=(',', ':')) + '\n')
+        if layers:
+            coast = Path(layers) / f'{dataset}-coastline.geojsonl'
+        else:
+            with coast.open('w') as output:
+                for feature in json.loads((ROOT / f'data/{dataset}-land.geojson').read_text())['features']:
+                    for ring in feature['geometry']['coordinates']:
+                        output.write(json.dumps({
+                            'type': 'Feature', 'properties': {},
+                            'geometry': {'type': 'LineString', 'coordinates': ring}
+                        }, separators=(',', ':')) + '\n')
+        def layer(name):
+            return Path(layers) / f'{dataset}-{name}.geojsonl' if layers else ROOT / f'data/{dataset}-{name}.geojson'
         output = temporary / f'{dataset}.mbtiles'
         environment = dict(os.environ, TIPPECANOE_MAX_THREADS='2')
         subprocess.run([
@@ -39,20 +47,25 @@ def build(dataset='okinawa'):
             '--include=class', f'--name={dataset}',
             '--attribution=© OpenStreetMap contributors · ODbL',
             '--feature-filter=' + json.dumps({
-                'roads': ['any', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS)]]
+                'roads': (['any', ['>=', '$zoom', 12], ['all', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link'})]], ['in', 'class', *sorted(MAIN_ROADS)]] if dataset == 'japan' else ['any', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS)]])
             }),
-            '-L', f'land:{ROOT / f"data/{dataset}-land.geojson"}',
-            '-L', f'water:{ROOT / f"data/{dataset}-water.geojson"}',
+            '-L', f'land:{layer("land")}',
+            '-L', f'water:{layer("water")}',
             '-L', f'coastline:{coast}',
-            '-L', f'roads:{ROOT / f"data/{dataset}-roads.geojson"}',
+            '-L', f'roads:{layer("roads")}',
         ], check=True, env=environment)
-        digest = hashlib.sha256(output.read_bytes()).hexdigest()
+        with output.open('rb') as stream:
+            digest = hashlib.file_digest(stream,'sha256').hexdigest()
         output.replace(destination)
+        cache_tile_version(destination,digest)
     print(f'Built {destination.name}: {destination.stat().st_size:,} bytes; SHA256 {digest}')
     print('Restart the map server to publish the new tile version.')
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", choices=("okinawa","taiwan"), default="okinawa")
-    build(parser.parse_args().dataset)
+    parser.add_argument("--dataset", choices=("okinawa","taiwan","japan"), default="okinawa")
+    parser.add_argument('--layers',type=Path,help='Streamed GeoJSONL layer directory (required for Japan)')
+    args=parser.parse_args()
+    if args.dataset=='japan' and not args.layers:parser.error('Japan requires --layers from prepare-display-stream.py')
+    build(args.dataset,args.layers)

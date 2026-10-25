@@ -194,8 +194,8 @@ function PlaceModule() {
         includeDescendants,
       }),
     ]);
-    const visiblePlaces = placesForMapProvider(workspace.places, provider);
-    const visibleResults = placesForMapProvider(nextFilteredPlaces, provider);
+    const visiblePlaces = placesForMapProvider(workspace.places, provider, workspace.regions);
+    const visibleResults = placesForMapProvider(nextFilteredPlaces, provider, workspace.regions);
     setPlaces(visiblePlaces);
     setLabels(workspace.labels);
     setRegions(workspace.regions);
@@ -219,8 +219,8 @@ function PlaceModule() {
     ])
       .then(([workspace, results]) => {
         if (!active) return;
-        const visiblePlaces = placesForMapProvider(workspace.places, provider);
-        const visibleResults = placesForMapProvider(results, provider);
+        const visiblePlaces = placesForMapProvider(workspace.places, provider, workspace.regions);
+        const visibleResults = placesForMapProvider(results, provider, workspace.regions);
         setPlaces(visiblePlaces);
         setLabels(workspace.labels);
         setRegions(workspace.regions);
@@ -242,7 +242,7 @@ function PlaceModule() {
           setCreating(true);
           setEditing(true);
           setSelectedPlaceId(undefined);
-          setDraft(emptyDraft);
+          setDraft({ ...emptyDraft, regionIds: defaultRegionIds(workspace.regions, provider) });
           const url = new URL(window.location.href);
           url.searchParams.delete("create");
           window.history.replaceState(
@@ -432,7 +432,7 @@ function PlaceModule() {
       })
       .then((results) => {
         if (!active) return;
-        const visibleResults = placesForMapProvider(results, provider);
+        const visibleResults = placesForMapProvider(results, provider, regions);
         setFilteredPlaces(visibleResults);
         if (
           !creating &&
@@ -478,7 +478,7 @@ function PlaceModule() {
   }
 
   function startCreate() {
-    if (saving) return;
+    if (saving || loading) return;
     bulk.exit();
     setCreating(true);
     setEditing(true);
@@ -650,6 +650,7 @@ function PlaceModule() {
             className="primary-button"
             type="button"
             onClick={startCreate}
+            disabled={loading || saving}
           >
             <span aria-hidden="true">＋</span>
             地點
@@ -1422,6 +1423,7 @@ function PlaceModule() {
                     className="primary-button"
                     type="button"
                     onClick={startCreate}
+                    disabled={loading || saving}
                   >
                     ＋地點
                   </button>

@@ -46,3 +46,27 @@ with tempfile.TemporaryDirectory() as temporary:
 print('PASS: compact geometry, direction, transport and small-island coverage')
 
 print('PASS: mode switches without graph rebuild, 64-bit IDs, and disconnected routes rejected before search')
+
+# Simulate slow disk pages: a three-second search can complete for Japan,
+# while Taiwan/Okinawa retain their original two-second deadline.
+from unittest.mock import patch
+with tempfile.TemporaryDirectory() as temporary:
+    path=Path(temporary)/'budget.sqlite'
+    with sqlite3.connect(path) as db:
+        db.executescript('''create table nodes(id integer primary key,lon real,lat real);
+          create table edges(a integer,b integer,meters real,car_seconds real,car_direction integer,walk_seconds real,walk_direction integer,bike_seconds real,bike_direction integer,geometry blob);
+          create table metadata(key text,value text); insert into metadata values('timestamp','budget');''')
+    for dataset in ('taiwan','okinawa','japan'):
+        router=CompactRouter(path,dataset)
+        router.nodes={i:(139.76+i*.000001,35.68) for i in range(132)}
+        graph={i:[(i+1,1,1)] for i in range(131)};graph[131]=[]
+        router.graph=lambda mode:graph
+        router.snap=lambda coordinate,graph,expanded:[(0,0 if coordinate[0]==139.76 else 131)]
+        router.path_geometry=lambda path,mode:[router.nodes[node] for node in path]
+        with patch('routing.time.monotonic',side_effect=[0]+[3]*20):
+            try:result=router.leg((139.76,35.68),(139.77,35.68),'car')
+            except ValueError as error:
+                assert dataset!='japan' and '搜尋範圍過大' in str(error)
+            else:assert dataset=='japan' and result['distance']>0
+        router.connection.close();router.index.close()
+print('PASS: Japan tolerates slow pages; Taiwan/Okinawa retain their search deadline')

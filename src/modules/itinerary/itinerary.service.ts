@@ -24,6 +24,7 @@ import type { GoogleRouteEstimate } from '../place/google-places.service'
 import { isGoogleTravelMode } from '../../common/route-estimate'
 import { ItineraryMapService } from './itinerary-map.service'
 import { getMapProvider } from '../../geo/provider-preference'
+import { regionOsmDataset } from '../../geo/osm-datasets'
 import { routeOsmLocations } from '../../geo/osm-service'
 import { sameStoredLocation, validateStoredLocation } from '../../database/location.validation'
 
@@ -125,7 +126,11 @@ export class ItineraryService {
       }
       validateStoredLocation(originPlace.location)
       validateStoredLocation(destinationPlace.location)
-      estimate = await routeOsmLocations(originPlace.location.coordinate, destinationPlace.location.coordinate, travelMode)
+      const trip = await trips.getById(item.tripId)
+      if (!trip) throw new EntityNotFoundError('Trip', item.tripId)
+      const region = await regions.getById(trip.regionId)
+      if (!region) throw new EntityNotFoundError('Region', trip.regionId)
+      estimate = await routeOsmLocations(originPlace.location.coordinate, destinationPlace.location.coordinate, travelMode, undefined, false, regionOsmDataset(region))
     } else {
       estimate = await getGoogleRouteEstimate(originPlace.googlePlaceId!, destinationPlace.googlePlaceId!, travelMode)
     }

@@ -1,9 +1,14 @@
 """Disk search must match existing Taiwan names, ranking and response fields."""
 import json
+import hashlib
+import shutil
+import sqlite3
+from unittest.mock import patch
 from pathlib import Path
 import sys
 import tempfile
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import disk_search as module
 from disk_search import DiskPlaceSearch, ensure_search_index
 from search import PlaceSearch
 
@@ -29,6 +34,20 @@ with tempfile.TemporaryDirectory() as folder:
     first = ensure_search_index(path)
     assert ensure_search_index(path) == first
     actual.connection.close()
+    stamp=json.dumps([1,str(path.resolve()),path.stat().st_size,path.stat().st_mtime_ns])
+    previous=first.parent/f'{path.stem}-{hashlib.sha256(stamp.encode()).hexdigest()[:20]}.sqlite'
+    shutil.copyfile(first,previous)
+    with sqlite3.connect(previous) as db:
+        db.execute('drop index places_display')
+        db.execute('update metadata set value=? where key=?',(stamp,'source'))
+    before=hashlib.sha256(previous.read_bytes()).hexdigest()
+    first.unlink()
+    with patch.object(module,'iter_places',side_effect=AssertionError('Version upgrade must not reparse catalog')):
+        upgraded=DiskPlaceSearch(path)
+        for query in ['台中','海洋','Aquarium','第1']:
+            assert upgraded.search(query)==expected.search(query),query
+        upgraded.connection.close()
+    assert hashlib.sha256(previous.read_bytes()).hexdigest()==before,'Live legacy cache was modified'
     data['places'] = data['places'][:1]
     path.write_text(json.dumps(data,ensure_ascii=False),encoding='utf-8')
     assert ensure_search_index(path) != first

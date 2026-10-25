@@ -1,5 +1,8 @@
 """Exercise XYZ/TMS conversion, versioned caching and HTTP encodings."""
 import gzip
+import hashlib
+import shutil
+from unittest.mock import patch
 import json
 from pathlib import Path
 import sqlite3
@@ -12,6 +15,7 @@ from urllib.request import Request, urlopen
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import server
+import tiles as tile_module
 from tiles import VectorTiles
 
 
@@ -155,6 +159,53 @@ class TileTests(unittest.TestCase):
         finally:
             newer.close()
 
+
+
+class TileVersionCacheTests(unittest.TestCase):
+    def copy_fixture(self, name):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        path = Path(folder.name) / name
+        with sqlite3.connect(path) as db:
+            db.executescript('create table metadata(name text,value text);create table tiles(zoom_level integer,tile_column integer,tile_row integer,tile_data blob);')
+            db.executemany('insert into metadata values(?,?)',[
+                ('format','pbf'),('minzoom','5'),('maxzoom','14'),('bounds','122,20,154,46'),
+                ('json',json.dumps({'vector_layers':[{'id':v} for v in ('land','water','coastline','roads')]}))])
+            db.execute('insert into tiles values(5,1,1,?)',(gzip.compress(b'fixture'),))
+        return path
+
+    def test_cached_version_does_not_reread_mbtiles(self):
+        path=self.copy_fixture('cached.mbtiles')
+        first=VectorTiles(path);version=first.version;first.close()
+        original=Path.open
+        def guarded(file,*args,**kwargs):
+            if file==path:raise AssertionError('Cached load reread the complete MBTiles')
+            return original(file,*args,**kwargs)
+        with patch.object(Path,'open',guarded):
+            second=VectorTiles(path)
+            self.assertEqual(second.version,version)
+            second.close()
+
+    def test_same_size_content_changes_invalidate_version(self):
+        path=self.copy_fixture('changed.mbtiles')
+        before=VectorTiles(path);version=before.version;before.close();size=path.stat().st_size
+        with sqlite3.connect(path) as db:db.execute('update tiles set tile_data=?',(gzip.compress(b'updated'),))
+        self.assertEqual(path.stat().st_size,size)
+        after=VectorTiles(path)
+        self.assertNotEqual(after.version,version)
+        self.assertEqual(after.version,hashlib.sha256(path.read_bytes()).hexdigest())
+        after.close()
+
+    def test_read_only_cache_falls_back_without_breaking_maps(self):
+        path=self.copy_fixture('readonly.mbtiles')
+        original=Path.mkdir
+        def denied(folder,*args,**kwargs):
+            if folder.name=='.tiles-cache':raise PermissionError('Read-only data')
+            return original(folder,*args,**kwargs)
+        with patch.object(Path,'mkdir',denied):
+            tiles=VectorTiles(path)
+            self.assertEqual(tiles.version,hashlib.sha256(path.read_bytes()).hexdigest())
+            tiles.close()
 
 if __name__ == '__main__':
     unittest.main()

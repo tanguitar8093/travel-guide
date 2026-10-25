@@ -17,6 +17,8 @@ def distance(a, b):
 
 
 def allowed(tags, mode):
+    if tags.get('route') in {'ferry','train','railway'}:
+        return False
     road = tags.get('highway')
     if road not in {'motorway','motorway_link','trunk','trunk_link','primary','primary_link','secondary','secondary_link','tertiary','tertiary_link','unclassified','residential','living_street','service','track','path','footway','pedestrian','steps','cycleway'}:
         return False
@@ -55,6 +57,8 @@ def speed(tags, mode):
 
 
 class Router:
+    search_seconds = 2
+
     def __init__(self, data, dataset='okinawa'):
         self.dataset = dataset
         definition(dataset)
@@ -122,7 +126,7 @@ class Router:
 
     @lru_cache(maxsize=128)
     def cached_leg(self, start, end, mode, expanded=False):
-        return self.search_leg(start, end, mode, expanded, time.monotonic() + 2)
+        return self.search_leg(start, end, mode, expanded, time.monotonic() + self.search_seconds)
 
     def search_leg(self, start, end, mode, expanded, deadline):
         graph = self.graph(mode)

@@ -275,7 +275,7 @@ it('converges offline system-region creation on two devices and retries previous
   await firstStore.prepareLocal();await secondStore.prepareLocal()
   const cloud=adapter(admin)
   try {
-    for(const dataset of ['okinawa','taiwan'] as const){
+    for(const dataset of ['okinawa','taiwan','japan'] as const){
       const id=await accountOsmRegionId(admin,dataset)
       for(const store of [firstStore,secondStore])await store.mutateDatabase('regions.prepareOsm',async db=>{
         await db.regions.add({...osmRegion(dataset),id})
@@ -294,4 +294,36 @@ it('converges offline system-region creation on two devices and retries previous
       expect(await secondStorage.regions.get(id)).toEqual({...osmRegion(dataset),id})
     }
   }finally{await firstStorage.delete();await secondStorage.delete()}
+})
+
+it('preserves Japan dataset through sync, public apply, shared editing and backup replacement', async () => {
+  const regionId=crypto.randomUUID(),placeId=crypto.randomUUID(),tripId=crypto.randomUUID()
+  const japanLocation={source:'user',kind:'user-picked',coordinate:{latitude:35.6812,longitude:139.7671}}
+  await asUser(member,async()=>{
+    await sql.query(`insert into public.regions(id,name,map_provider,osm_dataset,center,center_metadata,zoom)
+      values($1,'日本','osm','japan',$2,$3,7)`,[regionId,{latitude:35.6812,longitude:139.7671},{source:'user',kind:'approximate-center'}])
+    await rpc('app_save_place',[placeId,{name:'東京',location:japanLocation,regionIds:[regionId],labelIds:[]},true])
+    await sql.query(`insert into public.trips(id,region_id,name,start_date,end_date) values($1,$2,'Japan trip','2026-10-24','2026-10-24')`,[tripId,regionId])
+    await sql.query(`insert into public.itinerary_items(id,trip_id,place_id,date,sort_order) values($1,$2,$3,'2026-10-24',0)`,[crypto.randomUUID(),tripId,placeId])
+  })
+  const snapshot=await asUser(member,()=>rpc<PublicSnapshot>('app_public_itinerary',['source',{sourceTripId:tripId}]))
+  expect(snapshot.region.osmDataset).toBe('japan')
+  const publicId=crypto.randomUUID()
+  await asUser(member,()=>rpc('app_public_itinerary',['publish',{id:publicId,sourceTripId:tripId,operationId:crypto.randomUUID(),baseVersion:null,snapshot}]))
+  const copy=await asUser(other,()=>rpc<{regionId:string}>('app_public_itinerary',['apply',{id:publicId,operationId:crypto.randomUUID()}]))
+  expect((await sql.query<{osm_dataset:string}>('select osm_dataset from public.regions where id=$1',[copy.regionId])).rows[0].osm_dataset).toBe('japan')
+  await asUser(member,()=>rpc('app_shared_trip',['enable',tripId,{}]))
+  const sharedRows=await asUser(member,()=>rpc<SharedTripSnapshot[]>('app_shared_trip',['snapshot',null,{}]))
+  const shared=parseSharedTripSnapshot(sharedRows.find(row=>row.id===tripId))
+  expect(shared.document?.region.osmDataset).toBe('japan')
+  await expect(asUser(member,()=>rpc('app_shared_trip',['save',tripId,{operationId:crypto.randomUUID(),baseVersion:shared.version,
+    places:shared.document!.places.map(place=>({...place,location:{...location,coordinate:{latitude:25.03,longitude:121.56}}})),items:shared.document!.items}]))).rejects.toThrow('圖資範圍')
+  const cloud=await adapter(other).snapshot()
+  const data={regions:[],places:[],labels:[],trips:[],itineraryItems:[],routeMaps:[],routeMapPlaces:[]} as Record<string,object[]>
+  for (const row of cloud.records) if(row.record)data[row.entity].push(row.record)
+  const backup=new BackupRepository().validateImport({format:'travel-planner-backup',version:3,exportedAt:new Date().toISOString(),data})
+  const preview=await asUser(other,()=>rpc<{token:string}>('app_backup_preview_replace',[backup]))
+  await asUser(other,()=>rpc('app_backup_apply_replace',[backup,preview.token]))
+  const restored=await adapter(other).snapshot()
+  expect(restored.records.some(row=>row.entity==='regions' && row.record && 'osmDataset' in row.record && row.record.osmDataset==='japan')).toBe(true)
 })

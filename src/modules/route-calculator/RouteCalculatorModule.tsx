@@ -1,6 +1,6 @@
 import { regionsForMapProvider } from '../../geo/region-provider'
 import { getOsmDataset } from '../../geo/osm-dataset-preference'
-import { isInsideOsmCoverage, datasetForCoordinate } from '../../geo/osm-datasets'
+import { isInsideOsmCoverage } from '../../geo/osm-datasets'
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -59,7 +59,7 @@ export default function RouteCalculatorModule() {
   const [mapSaveError, setMapSaveError] = useState("");
   const [mapSelectionError, setMapSelectionError] = useState("");
   const [personal, setPersonal] = useState<RouteMapPlace[]>([]);
-  const dataset = tripData?.osmDataset ?? (personal[0]?.location ? datasetForCoordinate(personal[0].location.coordinate) : undefined) ?? getOsmDataset();
+  const dataset = tripData?.osmDataset ?? getOsmDataset();
   const places = useMemo(() => provider === 'osm' ? placeRecords.filter(place => !place.googlePlaceId && place.location && isInsideOsmCoverage(place.location.coordinate, dataset)) : placesForMapProvider(placeRecords, provider), [placeRecords, provider, dataset]);
   const [hidden, setHidden] = useState<string[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -715,6 +715,7 @@ export default function RouteCalculatorModule() {
         destination,
         transport,
         provider,
+        dataset,
       });
       if (generation.current === current) setResult(next);
     } catch (cause) {

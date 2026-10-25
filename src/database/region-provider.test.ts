@@ -202,3 +202,20 @@ describe('provider-specific regions', () => {
     expect(await database.places.count()).toBe(3)
   })
 })
+
+it('allows independent Japan and Okinawa copies, and still rejects duplicates within Japan',async()=>{
+  const {osmRegion}=await import('../geo/osm-datasets')
+  const database=new TravelDatabase(crypto.randomUUID())
+  try{
+    await database.open()
+    const regionRepository=new RegionRepository(database),placeRepository=new PlaceRepository(database)
+    const jp=await regionRepository.create(osmRegion('japan'))
+    const ok=await regionRepository.create({...osmRegion('okinawa'),name:'沖繩複本'})
+    const input={name:'那霸',location:{source:'user' as const,kind:'user-picked' as const,coordinate:{latitude:26.2124,longitude:127.6809}},labelIds:[]}
+    const first=await placeRepository.create({...input,regionIds:[ok]})
+    const second=await placeRepository.create({...input,regionIds:[jp]})
+    expect(first).not.toBe(second)
+    await expect(placeRepository.create({...input,name:'日本附近重複',regionIds:[jp]})).rejects.toThrow('50 公尺')
+    expect(await database.places.count()).toBe(2)
+  }finally{database.close();await database.delete()}
+})

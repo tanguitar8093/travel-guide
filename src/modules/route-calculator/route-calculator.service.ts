@@ -1,9 +1,12 @@
+import { placesForMapProvider } from '../../geo/place-provider'
+import { regionsForMapProvider } from '../../geo/region-provider'
 import { getOsmDataset } from '../../geo/osm-dataset-preference'
-import { datasetForCoordinate, type OsmDatasetId } from '../../geo/osm-datasets'
+import { datasetForCoordinate, isInsideOsmCoverage, regionOsmDataset, type OsmDatasetId } from '../../geo/osm-datasets'
 import {
   EntityNotFoundError,
   ValidationError,
   places,
+  regions,
   trips,
   itineraryItems,
   routeMaps,
@@ -74,6 +77,7 @@ export interface RouteCalculationInput {
   destination: RouteEndpoint
   transport: string
   provider?: GeoProvider
+  dataset?: OsmDatasetId
 }
 
 export interface RouteCalculationResult extends GoogleRouteEstimate {
@@ -114,8 +118,11 @@ export class RouteCalculatorService {
     this.estimateOsmRoute = estimateOsmRoute
   }
 
-  listTrips() {
-    return this.tripRepository.list()
+  async listTrips() {
+    const records = await this.tripRepository.list()
+    if (getMapProvider() !== 'osm') return records
+    const ids = new Set(regionsForMapProvider(await regions.list(), 'osm').map(region => region.id))
+    return records.filter(trip => ids.has(trip.regionId))
   }
 
   async getRouteMap(id: string): Promise<RouteMapRecord> {
@@ -138,14 +145,15 @@ export class RouteCalculatorService {
     } else {
       for (const existing of (await this.routeMapRepository.list()).filter(map => !map.tripId)) {
         if (getMapProvider() !== 'osm') return existing
+        if ((getOsmDataset() === 'japan') !== (existing.name === '日本 路程試算')) continue
         const markers = await this.routeMapPlaceRepository.findByRouteMapId(existing.id)
-        if (!markers.length || markers.every(marker => marker.location && datasetForCoordinate(marker.location.coordinate) === getOsmDataset())) return existing
+        if (!markers.length || markers.every(marker => marker.location && isInsideOsmCoverage(marker.location.coordinate, getOsmDataset()))) return existing
       }
     }
     const trip = tripId ? (await this.tripRepository.list()).find((record) => record.id === tripId) : undefined
     if (tripId && !trip) throw new EntityNotFoundError('Trip', tripId)
     const id = await this.routeMapRepository.create({
-      name: trip ? `${trip.name} 路程試算` : '路程試算',
+      name: trip ? `${trip.name} 路程試算` : getMapProvider() === 'osm' && getOsmDataset() === 'japan' ? '日本 路程試算' : '路程試算',
       ...(tripId ? { tripId } : {}),
       transport: 'DRIVING',
     })
@@ -260,12 +268,16 @@ export class RouteCalculatorService {
       }
     }
     await Promise.all(Array.from({ length: Math.min(3, placeIds.length) }, work))
-    const osmDataset = provider === 'osm' ? markers.flatMap(marker => marker.location ? [datasetForCoordinate(marker.location.coordinate)] : []).find(Boolean) : undefined
+    const trip = shared?.trip ?? (await this.tripRepository.list()).find(record => record.id === tripId)
+    const region = shared?.region ?? (trip ? await regions.getById(trip.regionId) : undefined)
+    const osmDataset = provider === 'osm' && region ? regionOsmDataset(region) : provider === 'osm' ? markers.flatMap(marker => marker.location ? [datasetForCoordinate(marker.location.coordinate)] : []).find(Boolean) : undefined
     return { dates, markers, unavailable, ...(osmDataset ? { osmDataset } : {}) }
   }
 
-  listPlaces() {
-    return this.placeRepository.list()
+  async listPlaces() {
+    const records = await this.placeRepository.list()
+    if (getMapProvider() !== 'osm') return records
+    return placesForMapProvider(records, 'osm', await regions.list())
   }
 
   isGooglePlacesConfigured() {
@@ -329,7 +341,7 @@ export class RouteCalculatorService {
     }
     if (provider === 'osm') {
       if (!origin.location || !destination.location) throw new ValidationError('OSM 路線需要地圖座標；Google 地點不會傳送至 OSM。')
-      const estimate = await this.estimateOsmRoute(origin.location.coordinate, destination.location.coordinate, input.transport)
+      const estimate = await this.estimateOsmRoute(origin.location.coordinate, destination.location.coordinate, input.transport, undefined, false, input.dataset)
       return { ...estimate, origin, destination, transport: input.transport, provider }
     }
     if (!origin.googlePlaceId || !destination.googlePlaceId) throw new ValidationError('Google 路線需要 Google 地點；請切換 OSM 或重新選擇。')

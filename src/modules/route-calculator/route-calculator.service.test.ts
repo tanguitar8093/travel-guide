@@ -5,7 +5,7 @@ import type { StoredLocation } from '../../geo/contracts'
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), getById: vi.fn(), details: vi.fn(), estimate: vi.fn(),
-  trips: vi.fn(), items: vi.fn(),
+  regions: vi.fn(), region: vi.fn(), trips: vi.fn(), items: vi.fn(),
   routeMapCreate: vi.fn(), routeMapUpdate: vi.fn(), routeMapGet: vi.fn(), routeMapList: vi.fn(), routeMapFindByTrip: vi.fn(),
   routeMapPlaceCreate: vi.fn(), routeMapPlaceDelete: vi.fn(), routeMapPlaceFind: vi.fn(),
   sharedTrips: vi.fn(),
@@ -19,6 +19,7 @@ vi.mock('../../database', async () => ({
   ...await import('../../database/errors'),
   places: { list: mocks.list, getById: mocks.getById },
   trips: { list: mocks.trips },
+  regions: { list: mocks.regions, getById: mocks.region },
   itineraryItems: { findByTripId: mocks.items },
   routeMaps: {
     create: mocks.routeMapCreate, update: mocks.routeMapUpdate, getById: mocks.routeMapGet,
@@ -58,6 +59,8 @@ beforeEach(() => {
   mocks.estimate.mockResolvedValue({ durationMinutes: 12, distanceMeters: 800 })
   mocks.items.mockResolvedValue([])
   mocks.trips.mockResolvedValue([])
+  mocks.regions.mockResolvedValue([])
+  mocks.region.mockResolvedValue(undefined)
   mocks.routeMapCreate.mockResolvedValue('map-id')
   mocks.routeMapUpdate.mockResolvedValue(undefined)
   mocks.routeMapGet.mockResolvedValue({ id: 'map-id', name: 'Map', transport: 'DRIVING' })
@@ -90,7 +93,7 @@ it('routes OSM and user-defined endpoints without requesting Google details or r
     destination: { name: '海邊停車場', location: userLocation },
   })
   expect(result.origin.googlePlaceId).toBeUndefined()
-  expect(mocks.osmEstimate).toHaveBeenCalledExactlyOnceWith(osmLocation.coordinate, userLocation.coordinate, 'WALKING')
+  expect(mocks.osmEstimate).toHaveBeenCalledExactlyOnceWith(osmLocation.coordinate, userLocation.coordinate, 'WALKING', undefined, false, undefined)
   expect(mocks.details).not.toHaveBeenCalled()
   expect(mocks.estimate).not.toHaveBeenCalled()
 })

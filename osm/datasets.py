@@ -18,7 +18,9 @@ def inside(point, dataset='okinawa'):
     ):
         return False
     x, y = point
-    for ring in definition(dataset)['coverage']:
+    for bounds, ring in coverage_rings(dataset):
+        if not (bounds[0] <= x <= bounds[2] and bounds[1] <= y <= bounds[3]):
+            continue
         hit = False
         for (a, b), (c, d) in zip(ring, ring[1:] + ring[:1]):
             cross = (x-a)*(d-b)-(y-b)*(c-a)
@@ -29,3 +31,11 @@ def inside(point, dataset='okinawa'):
         if hit:
             return True
     return False
+
+
+from functools import lru_cache
+@lru_cache(maxsize=None)
+def coverage_rings(dataset):
+    return [(
+        (min(p[0] for p in ring), min(p[1] for p in ring), max(p[0] for p in ring), max(p[1] for p in ring)), ring
+    ) for ring in definition(dataset)['coverage']]

@@ -828,7 +828,7 @@ function ItineraryModule({
       try {
         const routeItems: Pick<ItineraryItem, "placeId" | "transport">[] = JSON.parse(routeStopsKey);
         const result = await buildDayRouteGeometry(routeItems, visibleMapData.markers, abort.signal,
-          (from, to, transport, signal) => routeOsmLocations(from, to, transport, signal, true));
+          (from, to, transport, signal) => routeOsmLocations(from, to, transport, signal, true, visibleMapData.osmDataset));
         if (abort.signal.aborted) return;
         handle.setRoute?.(result.lines);
         setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製交通軌跡。"

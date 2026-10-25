@@ -28,7 +28,7 @@ def download(url, destination):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--dataset',choices=('okinawa','taiwan'),default='okinawa')
+    parser.add_argument('--dataset',choices=('okinawa','taiwan','japan'),default='okinawa')
     parser.add_argument('--pbf',help='Use an already downloaded regional PBF')
     args = parser.parse_args()
     python = ROOT/'.venv/bin/python'
@@ -37,16 +37,22 @@ def main():
     subprocess.run([str(python),'-m','pip','install','-r',str(ROOT/'requirements-build.txt')],check=True)
     pbf = Path(args.pbf).resolve() if args.pbf else ROOT/'data'/f'{args.dataset}.osm.pbf'
     if not args.pbf:
-        source = 'asia/taiwan' if args.dataset=='taiwan' else 'asia/japan/kyushu'
+        source = {'taiwan':'asia/taiwan','okinawa':'asia/japan/kyushu','japan':'asia/japan'}[args.dataset]
         url = f'https://download.geofabrik.de/{source}-latest.osm.pbf'
         download(url,pbf)
         # Check a complete download before spending time on extraction.
         with urlopen(url+'.md5',timeout=60) as response:
             expected = response.read().decode().split()[0]
+        checksum = hashlib.md5()
         with pbf.open('rb') as stream:
-            actual = hashlib.file_digest(stream,'md5').hexdigest()
+            for chunk in iter(lambda: stream.read(1024*1024), b''):
+                checksum.update(chunk)
+        actual = checksum.hexdigest()
         if expected != actual:
             raise SystemExit('PBF checksum mismatch. Remove the local PBF and retry (the upstream latest file may have rotated).')
+    if args.dataset == 'japan':
+        subprocess.run([str(python),str(ROOT/'scripts/prepare-japan.py'),str(pbf)],check=True)
+        return
     for script in ('prepare-dataset.py','extract-places.py','build-routing.py'):
         subprocess.run([str(python),str(ROOT/'scripts'/script),str(pbf),'--dataset',args.dataset],check=True)
     if args.dataset == 'taiwan':

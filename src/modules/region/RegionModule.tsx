@@ -392,7 +392,7 @@ function RegionModule() {
         <section className="region-heading">
           <div className="workspace-page-heading-title">
             <h1>區域</h1>
-            <p>{readonly ? '選擇沖繩或台灣作為目前區域；新增地點與行程會使用此區域，地點座標必須在該區圖資範圍內。' : '建立行程使用的區域，也可將收藏地點歸入相同區域。'}</p>
+            <p>{readonly ? '選擇沖繩、台灣或日本作為目前區域；新增地點與行程會使用此區域，地點座標必須在該區圖資範圍內。' : '建立行程使用的區域，也可將收藏地點歸入相同區域。'}</p>
           </div>
           {!readonly && <button
             type="button"

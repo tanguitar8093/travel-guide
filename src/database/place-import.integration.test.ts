@@ -75,3 +75,17 @@ it('imports Taiwan into its own stable region and rejects cross-region/cloud byp
   const snapshot=await asUser(first,async()=>(await sql.query<{data:{records:{record?:{osmDataset?:string};entity:string}[]}}>('select public.app_sync_snapshot() as data')).rows[0].data)
   expect(JSON.stringify(snapshot)).toContain('"osmDataset":"taiwan"')
 })
+
+
+it('imports Japan with a distinct stable region while preserving Okinawa priority',async()=>{
+  const japan=await create(first,crypto.randomUUID(),'東京テスト',35.6812,139.7671)
+  expect(japan.status).toBe('created')
+  expect(japan.regionId).toBe(await accountOsmRegionId(first,'japan'))
+  const region=(await sql.query<{osm_dataset:string;name:string;zoom:number}>('select osm_dataset,name,zoom from public.regions where id=$1',[japan.regionId])).rows[0]
+  expect(region).toMatchObject({osm_dataset:'japan',name:'日本'})
+  expect(Number(region.zoom)).toBe(5)
+  const okinawa=await create(first,crypto.randomUUID(),'沖縄優先テスト',26.6,128.05)
+  expect(okinawa.regionId).toBe(await accountOsmRegionId(first,'okinawa'))
+  await expect(create(first,crypto.randomUUID(),'Seoul',37.5665,126.978)).rejects.toThrow('圖資範圍')
+  await expect(create(first,crypto.randomUUID(),'Sea',30,140)).rejects.toThrow('圖資範圍')
+})

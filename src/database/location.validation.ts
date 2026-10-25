@@ -1,12 +1,17 @@
 import type { Coordinate, LocationMetadata, StoredLocation } from '../geo/contracts'
 import { ValidationError } from './errors'
-import type { Place } from './models'
+import { regionOsmDataset } from '../geo/osm-datasets'
+import type { Place, Region } from './models'
 import { placeDuplicateReason, type NamedLocation, type PlaceDuplicateReason } from '../geo/place-duplicate'
 
-export function findDuplicatePlace(places: readonly Place[], candidate: NamedLocation, excludeId?: string): { place: Place; reason: PlaceDuplicateReason } | undefined {
+export function findDuplicatePlace(places: readonly Place[], candidate: NamedLocation & { regionIds?: readonly string[] }, excludeId?: string, regions?: readonly Region[]): { place: Place; reason: PlaceDuplicateReason } | undefined {
   if (!candidate.location) return undefined
+  const datasets = (ids: readonly string[] | undefined) => new Set(regions?.filter(region => ids?.includes(region.id) && region.mapProvider === 'osm').map(region => regionOsmDataset(region)))
+  const candidateDatasets = datasets(candidate.regionIds)
   for (const place of places) {
     if (place.id === excludeId) continue
+    const savedDatasets = datasets(place.regionIds)
+    if (candidateDatasets.size && savedDatasets.size && ![...candidateDatasets].some(id => savedDatasets.has(id))) continue
     const reason = placeDuplicateReason(candidate, place)
     if (reason) return { place, reason }
   }

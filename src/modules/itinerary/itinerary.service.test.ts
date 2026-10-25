@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from 'vitest'
 import type { ItineraryItem, Place } from '../../database/models'
 
 const mocks = vi.hoisted(() => ({
+  getTrip: vi.fn(), getRegion: vi.fn(),
   getItem: vi.fn(),
   listItems: vi.fn(),
   updateItem: vi.fn(),
@@ -24,8 +25,8 @@ vi.mock('../../database', async () => ({
     update: mocks.updateItem,
   },
   places: { getById: mocks.getPlace },
-  regions: {},
-  trips: {},
+  regions: { getById: mocks.getRegion },
+  trips: { getById: mocks.getTrip },
   routeMaps: { findByTripId: mocks.findRouteMap },
   routeMapPlaces: { findByRouteMapId: mocks.findRouteMapPlaces },
 }))
@@ -43,6 +44,8 @@ const place = (id: string): Place => ({ id, name: id, googlePlaceId: `google-${i
 beforeEach(() => {
   vi.resetAllMocks()
   mocks.provider = 'google'
+  mocks.getTrip.mockResolvedValue({id:'trip',regionId:'region'})
+  mocks.getRegion.mockResolvedValue({id:'region',mapProvider:'osm'})
   mocks.getItem.mockResolvedValue(second)
   mocks.listItems.mockResolvedValue([first, second])
   mocks.getPlace.mockImplementation(async (id: string) => place(id))
@@ -121,4 +124,14 @@ it('reports whether deleting a trip will also remove a route map and its added p
   })
   expect(mocks.findRouteMap).toHaveBeenCalledExactlyOnceWith('trip')
   expect(mocks.findRouteMapPlaces).toHaveBeenCalledExactlyOnceWith('map')
+})
+
+
+it('uses the saved Japan region even for an itinerary entirely inside Okinawa',async()=>{
+  mocks.provider='osm'
+  mocks.getRegion.mockResolvedValue({id:'region',mapProvider:'osm',osmDataset:'japan'})
+  mocks.getPlace.mockImplementation(async(id:string)=>({...place(id),googlePlaceId:undefined,location:{source:'user',kind:'user-picked',coordinate:{latitude:id==='a'?26.2:26.3,longitude:127.6}}}))
+  mocks.osmEstimate.mockResolvedValue({durationMinutes:12,distanceMeters:2500})
+  await new ItineraryService().calculateTravelDuration(second.id)
+  expect(mocks.osmEstimate).toHaveBeenCalledWith({latitude:26.2,longitude:127.6},{latitude:26.3,longitude:127.6},'DRIVING',undefined,false,'japan')
 })

@@ -51,7 +51,7 @@ def dataset_search(identifier, state):
             places=state.get('places')
             if places is None or not places.is_file():
                 raise ValueError(f"{definition(identifier)['name']}地點資料尚未安裝，請執行 npm run osm:setup -- --dataset {identifier}。")
-            state['search'] = DiskPlaceSearch(places) if identifier == 'taiwan' else PlaceSearch(json.loads(places.read_text()), identifier)
+            state['search'] = DiskPlaceSearch(places) if identifier != 'okinawa' else PlaceSearch(json.loads(places.read_text()), identifier)
         return state['search']
 
 def dataset_router(identifier, state):
@@ -213,7 +213,7 @@ class Handler(BaseHTTPRequestHandler):
                 self.log_error('Search index unavailable: %s',error)
                 return self.json({'error':'地點搜尋索引無法讀取，請重新準備圖資並重啟地圖服務。'},503)
         if path=='/api/health':
-            return self.json({'ok':True,'dataset':'Okinawa OSM' if self.dataset == 'okinawa' else 'Taiwan OSM', 'datasetId':self.dataset, 'serviceVersion':2,'supportedDatasets':list(DEFINITIONS), 'bounds':definition(self.dataset)['bounds'], 'ready':bool(TILES and (SEARCH or (self.state.get('places') and self.state['places'].is_file())) and (self.state['compact'].is_file() or (self.dataset=='okinawa' and self.state['roads'].is_file()))), 'placeCount':(SEARCH.entry_count if isinstance(SEARCH,DiskPlaceSearch) else len(SEARCH.entries)) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
+            return self.json({'ok':True,'dataset':{'okinawa':'Okinawa OSM','taiwan':'Taiwan OSM','japan':'Japan OSM'}[self.dataset], 'datasetId':self.dataset, 'serviceVersion':2,'supportedDatasets':list(DEFINITIONS), 'bounds':definition(self.dataset)['bounds'], 'ready':bool(TILES and (SEARCH or (self.state.get('places') and self.state['places'].is_file())) and (self.state['compact'].is_file() or (self.dataset=='okinawa' and self.state['roads'].is_file()))), 'placeCount':(SEARCH.entry_count if isinstance(SEARCH,DiskPlaceSearch) else len(SEARCH.entries)) if SEARCH else 0,'placeDataTimestamp':SEARCH.timestamp if SEARCH else None})
         files = {'/': ('public/index.html', 'text/html; charset=utf-8')}
         for name in ('maplibre-gl.mjs', 'maplibre-gl-worker.mjs', 'maplibre-gl-shared.mjs', 'maplibre-gl.css'):
             for prefix in ('/vendor/', '/osm-vendor/'):
@@ -266,11 +266,16 @@ class Handler(BaseHTTPRequestHandler):
 if __name__=='__main__':
     # Prepare disposable indexes once, outside request handling. The short-lived
     # builder process releases its working memory before the HTTP service starts.
+    for identifier in DEFINITIONS:
+        tile_path = ROOT / 'data' / f'{identifier}.mbtiles'
+        if not tile_path.is_file():continue
+        subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-tile-index.py'), str(tile_path)], check=True)
     for routing_path in sorted((ROOT / 'data').glob('*-routing.sqlite')):
         subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-routing-index.py'), str(routing_path)], check=True)
-    search_path = ROOT / 'data/taiwan-places.json'
-    if search_path.is_file():
-        subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-search-index.py'), str(search_path)], check=True)
+    for identifier in DEFINITIONS:
+        search_path = ROOT / f'data/{identifier}-places.json'
+        if identifier != 'okinawa' and search_path.is_file():
+            subprocess.run([sys.executable, '-B', str(ROOT / 'scripts/prepare-search-index.py'), str(search_path)], check=True)
     port=int(os.environ.get('PORT',3000))
     tiles_path = ROOT / 'data/okinawa.mbtiles'
     if tiles_path.is_file():

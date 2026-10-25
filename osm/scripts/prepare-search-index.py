@@ -1,4 +1,4 @@
-"""Prepare the Taiwan search cache with bounded memory, before serving requests."""
+"""Prepare a disk search cache with bounded memory, before serving requests."""
 import argparse
 from pathlib import Path
 import sys

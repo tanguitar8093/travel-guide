@@ -12,3 +12,9 @@ data/atlas-tiles-*/
 # Disposable routing spatial/connectivity indexes
 data/.routing-cache/
 data/.search-cache/
+
+# Japan artifacts and bounded-memory build workspaces (reproducible via osm:setup).
+data/japan*
+data/.places-build-*/
+data/.routing-build-*/
+data/.tiles-cache/

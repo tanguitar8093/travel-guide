@@ -11,10 +11,13 @@ from shapely import intersects_xy, prepare
 
 _COVERAGE = {}
 def dataset_inside(point, dataset):
+    from shapely import Point, STRtree
     if dataset not in _COVERAGE:
-        _COVERAGE[dataset] = MultiPolygon([Polygon(ring) for ring in definition(dataset)["coverage"]])
-        prepare(_COVERAGE[dataset])
-    return bool(intersects_xy(_COVERAGE[dataset],point[0],point[1]))
+        polygons = [Polygon(ring) for ring in definition(dataset)["coverage"]]
+        prepare(polygons)
+        _COVERAGE[dataset] = STRtree(polygons)
+    tree = _COVERAGE[dataset]
+    return any(bool(intersects_xy(tree.geometries[index],point[0],point[1])) for index in tree.query(Point(*point)))
 
 ROOT = Path(__file__).resolve().parents[1]
 BOUNDS = (127.58,25.98,128.36,26.9)

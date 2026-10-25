@@ -197,7 +197,7 @@ it('automatically persists an admin label, place and itinerary item in productio
   const osmMarkerId = await routeMapPlaces.create({ routeMapId: osmMapId, name: 'OSM marker', location })
   await routeMaps.update(osmMapId, { destination: { kind: 'route-map-place', routeMapPlaceId: osmMarkerId } })
   expect((await places.getById(osmPlaceId))?.location).toEqual(location)
-  expect(await store.listTasks()).toHaveLength(6)
+  expect(await store.listTasks()).toHaveLength(7)
   expect(rpc).not.toHaveBeenCalled()
   expect((await sql.query('select id from public.places where id=$1', [osmPlaceId])).rows).toEqual([])
   await vi.advanceTimersByTimeAsync(2000)

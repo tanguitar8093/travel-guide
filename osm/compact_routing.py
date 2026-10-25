@@ -62,6 +62,8 @@ class DiskGraph:
 class CompactRouter(Router):
     def __init__(self, path, dataset):
         self.dataset = dataset
+        # Nationwide disk reads need more cold-page time; state/work caps stay fixed.
+        self.search_seconds = 8 if dataset == 'japan' else 2
         path = Path(path).resolve()
         index_path = ensure_routing_index(path)
         self.connection = sqlite3.connect(path.as_uri()+'?mode=ro&immutable=1', uri=True, check_same_thread=False)

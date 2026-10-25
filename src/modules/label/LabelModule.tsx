@@ -1,7 +1,8 @@
 import { placesForMapProvider } from "../../geo/place-provider";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import type { Label, Place } from "../../database";
+import { regions as regionRepository } from "../../database";
+import type { Label, Place, Region } from "../../database";
 import { WorkspaceLayout } from "../../common/WorkspaceLayout";
 import { labelController } from "./label.controller";
 import type { LabelTreeNode } from "./label.service";
@@ -60,6 +61,7 @@ function LabelModule() {
   const [bulkColorResult, setBulkColorResult] = useState<BulkOperationResult>();
   const bulkColorRunning = useRef(false);
   const [tree, setTree] = useState<LabelTreeNode[]>([]);
+  const [regionRecords, setRegionRecords] = useState<Region[]>([]);
   const [allPlaceRecords, setAllPlaces] = useState<Place[]>([]);
   const [selectedId, setSelectedId] = useState<string>();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -133,9 +135,10 @@ function LabelModule() {
   useEffect(() => {
     if (reloadBlocked) return;
     let active = true;
-    Promise.all([labelController.listTree(), labelController.listPlaces()])
-      .then(([nextTree, places]) => {
+    Promise.all([labelController.listTree(), labelController.listPlaces(), regionRepository.list()])
+      .then(([nextTree, places, regions]) => {
         if (!active) return;
+        setRegionRecords(regions);
         const labels = flattenTree(nextTree);
         const firstLabel =
           labels.find((label) => label.id === selectedIdRef.current) ?? labels[0];
@@ -187,8 +190,8 @@ function LabelModule() {
     };
   }, [selectedId, includeDescendants, tree]);
 
-  const allPlaces = useMemo(() => placesForMapProvider(allPlaceRecords, provider), [allPlaceRecords, provider]);
-  const matchingPlaces = useMemo(() => placesForMapProvider(matchingPlaceRecords, provider), [matchingPlaceRecords, provider]);
+  const allPlaces = useMemo(() => placesForMapProvider(allPlaceRecords, provider, regionRecords), [allPlaceRecords, provider, regionRecords]);
+  const matchingPlaces = useMemo(() => placesForMapProvider(matchingPlaceRecords, provider, regionRecords), [matchingPlaceRecords, provider, regionRecords]);
   const displayedPlaces = selectedId ? matchingPlaces : [];
   const filteredPreviewPlaces = displayedPlaces.filter((place) => {
     const query = previewSearch.trim().toLocaleLowerCase();

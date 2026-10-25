@@ -24,11 +24,29 @@ function insideRing(longitude: number, latitude: number, ring: number[][]): bool
   }
   return inside
 }
+// Build a small spatial grid once; point checks inspect only nearby island rings.
+const coverageGrids = new Map<OsmDatasetId, Map<string, number[][][]>>()
+function coverageCandidates(dataset: OsmDatasetId, longitude: number, latitude: number): number[][][] {
+  let grid = coverageGrids.get(dataset)
+  if (!grid) {
+    grid = new Map()
+    for (const ring of definitions[dataset].coverage) {
+      let west = Infinity, south = Infinity, east = -Infinity, north = -Infinity
+      for (const [x, y] of ring) { west = Math.min(west, x); east = Math.max(east, x); south = Math.min(south, y); north = Math.max(north, y) }
+      for (let x = Math.floor(west); x <= Math.floor(east); x++) for (let y = Math.floor(south); y <= Math.floor(north); y++) {
+        const key = `${x},${y}`, candidates = grid.get(key) ?? []
+        candidates.push(ring); grid.set(key, candidates)
+      }
+    }
+    coverageGrids.set(dataset, grid)
+  }
+  return grid.get(`${Math.floor(longitude)},${Math.floor(latitude)}`) ?? []
+}
 export function isInsideOsmCoverage(value: unknown, dataset: OsmDatasetId): value is Coordinate {
   if (!value || typeof value !== 'object' || !('latitude' in value) || !('longitude' in value) ||
     typeof value.latitude !== 'number' || typeof value.longitude !== 'number' ||
     !Number.isFinite(value.latitude) || !Number.isFinite(value.longitude)) return false
-  return definitions[dataset].coverage.some(ring => insideRing(value.longitude as number, value.latitude as number, ring))
+  return coverageCandidates(dataset, value.longitude, value.latitude).some(ring => insideRing(value.longitude as number, value.latitude as number, ring))
 }
 export function datasetForCoordinate(coordinate: Coordinate): OsmDatasetId | undefined {
   return osmDatasetIds.find(id => isInsideOsmCoverage(coordinate, id))
@@ -44,5 +62,5 @@ export function osmRegion(dataset: OsmDatasetId): Omit<Region, 'id'> {
   }
 }
 export function localOsmRegionId(dataset: OsmDatasetId): string {
-  return dataset === 'okinawa' ? '00000000-0000-4000-8000-000000000001' : '00000000-0000-4000-8000-000000000002'
+  return { okinawa: '00000000-0000-4000-8000-000000000001', taiwan: '00000000-0000-4000-8000-000000000002', japan: '00000000-0000-4000-8000-000000000003' }[dataset]
 }

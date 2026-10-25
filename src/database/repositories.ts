@@ -131,7 +131,7 @@ export class PlaceRepository {
           .filter((region): region is Region => region !== undefined)
         validatePlaceRegionProviders(input, linkedRegions)
         if (input.location) {
-          const duplicate = findDuplicatePlace(await this.database.places.toArray(), input)
+          const duplicate = findDuplicatePlace(await this.database.places.toArray(), input, undefined, await this.database.regions.toArray())
           if (duplicate) throw new ValidationError(placeDuplicateMessage(duplicate.place.name, duplicate.reason))
         }
         await this.database.places.add({ ...input, id })
@@ -159,7 +159,7 @@ export class PlaceRepository {
         if (next.location && (current.name !== next.name || !current.location ||
             current.location.coordinate.latitude !== next.location.coordinate.latitude ||
             current.location.coordinate.longitude !== next.location.coordinate.longitude)) {
-          const duplicate = findDuplicatePlace(await this.database.places.toArray(), next, id)
+          const duplicate = findDuplicatePlace(await this.database.places.toArray(), next, id, await this.database.regions.toArray())
           if (duplicate) throw new ValidationError(placeDuplicateMessage(duplicate.place.name, duplicate.reason))
         }
         await this.database.places.put(next)

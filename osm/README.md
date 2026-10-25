@@ -1,6 +1,6 @@
 # Travel bundled OSM
 
-Runtime code, Okinawa map data, MapLibre 6.15.0 browser assets, and maintenance scripts live in this directory. No sibling maps checkout or its node_modules is required. Original source files remain untouched; copy-manifest.json records their checksums before integration edits.
+Runtime code, multi-region OSM data, MapLibre 6.15.0 browser assets, and maintenance scripts live in this directory. No sibling maps checkout or its node_modules is required. Original source files remain untouched; copy-manifest.json records their checksums before integration edits.
 
 ## Run from the Travel root
 
@@ -22,7 +22,7 @@ From the Travel root: `docker compose -f osm/compose.yaml up --build -d`. This c
 
 ## Data and licensing
 
-Six supplied Okinawa runtime/PoC data files total approximately 125.4 MiB. Keep osm/data when copying or packaging this repository; Vite dist alone is insufficient. The regional kyushu.osm.pbf source, Zurich tiles, demo screenshots and demo fonts are not runtime dependencies and were not copied. A future setup may download the regional PBF; .gitignore excludes that rebuild input. The bundled runtime data and vendor files are not ignored.
+Six supplied Okinawa runtime/PoC data files total approximately 125.4 MiB. Keep osm/data when copying or packaging this repository; Vite dist alone is insufficient. The regional kyushu.osm.pbf source, Zurich tiles, demo screenshots and demo fonts are not runtime dependencies and were not copied. A future setup may download the regional PBF; .gitignore excludes that rebuild input. The original bundled Okinawa runtime data and vendor files are tracked. Generated Taiwan/Japan artifacts and disposable indexes are ignored; package them separately when deploying.
 
 MapLibre's license is preserved in vendor/maplibre-gl/LICENSE.txt; version.json records its pinned source version. These prebuilt vendor files are committed assets, so there is no dependency on a sibling npm installation. Update all four assets, license and version metadata together when upgrading.
 
@@ -100,3 +100,30 @@ checksum manifest. The input extent is used without production coverage clipping
 these intermediate layers are not a selectable Japan dataset. Run experiments
 outside `osm/data`, with measured memory, disk and time limits. See the
 [Japan feasibility and experiment log](../docs/system/osm-japan-feasibility.md).
+
+### 日本全國（正式整合）
+
+切換「區域 → OSM → 日本」使用全國底圖、磁碟地點搜尋與汽車／步行／單車路由。沖繩既有資料身分保留；日本行程內的沖繩地點仍使用日本資料。只有座標的快速匯入維持沖繩優先。不加入輪渡／鐵路。目前城市／小島的 27 組三模式案例通過；東京–橫濱及東京–大阪仍會達到搜尋上限，**不能當作可靠的一次長途導航**，需要縮短或分段。日本搜尋上限為每段約 8 秒，節點／狀態上限不增加；台灣／沖繩維持原預算。
+
+重建需要原生 `osmium`（osmium-tool）、`tippecanoe`、Python venv，並預留至少 20 GiB 工作磁碟：
+
+```bash
+npm run osm:setup -- --dataset japan
+# 或使用已下載的日本 PBF
+npm run osm:setup -- --dataset japan --pbf /path/to/japan.osm.pbf
+```
+
+日本流程使用 `prepare-japan.py`：原生篩選 → 串流底圖 → SQLite 地點中間資料 → 外部排序道路引用 → SQLite 路網／搜尋索引 → MBTiles。**不會走舊的全國 Counter／flex_mem 建置路徑。** 工作資料在 `osm/data/japan-build/`，正式產物為 `japan.mbtiles`、`japan-places.json`、`japan-routing.sqlite`、`japan-manifest.json`；索引為可重建的隱藏 cache。重建時不可同時更新正在服務中的圖資，應停止服務後執行，完成再啟動。保留工作目錄可重試相同 PBF；換新 PBF 時使用新的工作目錄或先移走舊 `japan-build/`，避免沿用舊篩選檔。
+
+coverage 來源、資源實測、限制及執行決策集中見 [日本全國整合紀錄](../docs/system/osm-japan-rollout.md)。更換 coverage 請用 `build-japan-coverage.py` 並同步產生新的資料庫 migration；不重寫既有 migration。
+
+日本驗收工具（使用既有 admin 測試帳號登入，測試地點／行程只寫獨立瀏覽器 IndexedDB，結束恢復帳號原區域偏好）：
+
+```bash
+# 先啟動獨立 Vite，例如 npm run dev -- --port 4180
+JAPAN_FULL_CHECK=1 node --env-file=.env.local --env-file=.env.e2e.local scripts/check-japan-app.mjs
+```
+
+需 `.env.e2e.local` 的 `E2E_A_EMAIL`／`E2E_A_PASSWORD`；工具不輸出憑證，封鎖雲端資料 mutation。完整版須三份日本資產及索引全部準備完成，包含真實名稱搜尋、行程路線繪製、三種路由模式及路程試算 UI。結果預設在 `/tmp/travel-japan-app/`；這是目前工作區的手動驗收工具，並非在缺圖資環境會通過的假測試。
+
+圖磚內容版本會在建置／啟動前準備 `.tiles-cache`，避免第一次日本請求重新掃描整份 MBTiles；該目錄同樣可刪除重建。來源檔案大小、mtime 或 ctime 變更會使版本快取失效。不要只複製 Vite dist 而遺漏 OSM 資產。

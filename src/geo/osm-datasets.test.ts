@@ -40,3 +40,20 @@ describe('OSM dataset coverage and ownership', () => {
     expect(dispatchEvent).toHaveBeenCalledOnce()
   })
 })
+
+it.each([
+  ['東京',35.6812,139.7671],['大阪',34.7025,135.4959],['札幌',43.0687,141.3508],
+  ['福岡',33.5902,130.4017],['松山',33.8392,132.7657],['那霸',26.2124,127.6809],
+  ['石垣',24.3448,124.1572],['宮古',24.8055,125.2811],['父島',27.094,142.194],
+])('accepts Japan island coverage: %s',(_name,latitude,longitude)=>{
+  expect(isInsideOsmCoverage({latitude,longitude},'japan')).toBe(true)
+})
+it('keeps Okinawa auto detection and all three local identities distinct',async()=>{
+  const {localOsmRegionId}=await import('./osm-datasets')
+  expect(new Set(['okinawa','taiwan','japan'].map(id=>localOsmRegionId(id as 'okinawa'|'taiwan'|'japan'))).size).toBe(3)
+  expect(datasetForCoordinate({latitude:26.4,longitude:127.9})).toBe('okinawa')
+  expect(datasetForCoordinate({latitude:35.6812,longitude:139.7671})).toBe('japan')
+  for(const coordinate of [{latitude:25.03,longitude:121.56},{latitude:37.5665,longitude:126.978},{latitude:30,longitude:140}]){
+    expect(isInsideOsmCoverage(coordinate,'japan')).toBe(false)
+  }
+})
