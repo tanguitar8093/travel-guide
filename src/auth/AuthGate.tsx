@@ -3,10 +3,12 @@ import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
 import { TourGuideAnimation } from "../common/TourGuideAnimation";
 import { TaiwanLoginScene } from "./TaiwanLoginScene";
+import { JapanLoginScene } from "./JapanLoginScene";
 import { useOsmDataset } from "../geo/osm-dataset-preference";
 import { OkinawaLoginScene } from "./OkinawaLoginScene";
 import okinawaLoginSoundUrl from "../../media/okiniwa-login.wav";
 import taiwanLoginSoundUrl from "../../media/taiwan-login.mp3";
+import japanLoginSoundUrl from "../../media/japan-login.mp3";
 import "./AuthGate.css";
 
 interface AuthGateProps {
@@ -27,7 +29,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     clearError,
   } = useAuth();
   const dataset = useOsmDataset();
-  const loginSoundUrl = dataset === "taiwan" ? taiwanLoginSoundUrl : okinawaLoginSoundUrl;
+  const loginSoundUrl = dataset === "japan" ? japanLoginSoundUrl : dataset === "taiwan" ? taiwanLoginSoundUrl : okinawaLoginSoundUrl;
   const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeSound, setWelcomeSound] = useState<
@@ -181,15 +183,15 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
 
   const visibleError = formErrorMessage ?? authErrorMessage;
   const welcomePending = status !== "unauthenticated" && Boolean(loginWelcomeRequired);
-  const showingOkinawaWelcome = status !== "unauthenticated" && (
+  const showingWelcome = status !== "unauthenticated" && (
     welcomeSound === "playing" || (welcomeSound === "finished" && status === "loading")
   );
   // Keep the existing login card until playback starts. Never insert a flag/loading
-  // detour between the Google window and the synchronized Okinawa welcome.
-  const preparingWelcome = welcomePending && !showingOkinawaWelcome;
+  // detour between the Google window and the synchronized destination welcome.
+  const preparingWelcome = welcomePending && !showingWelcome;
 
-  if ((status === "loading" && !preparingWelcome) || showingOkinawaWelcome || (!preparingWelcome && pending && status === "authenticated" && hasWorkspaceAccess)) {
-    return <AuthLoadingPanel welcome={showingOkinawaWelcome} ready={status === "authenticated"} />;
+  if ((status === "loading" && !preparingWelcome) || showingWelcome || (!preparingWelcome && pending && status === "authenticated" && hasWorkspaceAccess)) {
+    return <AuthLoadingPanel welcome={showingWelcome} ready={status === "authenticated"} />;
   }
 
   if (!preparingWelcome && status === "authenticated" && hasWorkspaceAccess) {
@@ -253,6 +255,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
 export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中" }: { welcome?: boolean; ready?: boolean; message?: string }) {
   const dataset = useOsmDataset();
   const taiwan = dataset === "taiwan";
+  const japan = dataset === "japan";
   return (
       <div className="auth-shell">
         <section
@@ -265,16 +268,16 @@ export function AuthLoadingPanel({ welcome = false, ready = false, message = "�
             <div className="auth-island-heading">
               <p className="auth-eyebrow">旅圖 · TripMap</p>
               <p className="auth-island-destination">
-                <span>{taiwan ? "台灣" : "沖繩"}</span>
+                <span>{japan ? "日本" : taiwan ? "台灣" : "沖繩"}</span>
                 <span className="auth-island-separator">·</span>
-                <span className="auth-island-english" lang="en">{taiwan ? "Taiwan" : "Okinawa"}</span>
+                <span className="auth-island-english" lang="en">{japan ? "Japan" : taiwan ? "Taiwan" : "Okinawa"}</span>
               </p>
             </div>
           ) : (
             <p className="auth-eyebrow">旅圖 · TripMap</p>
           )}
           {welcome ? (
-            taiwan ? <TaiwanLoginScene /> : <OkinawaLoginScene />
+            japan ? <JapanLoginScene /> : taiwan ? <TaiwanLoginScene /> : <OkinawaLoginScene />
           ) : (
             <TourGuideAnimation />
           )}

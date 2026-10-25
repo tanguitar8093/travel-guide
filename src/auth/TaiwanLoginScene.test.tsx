@@ -23,3 +23,18 @@ it('keeps Okinawa welcome and regular loading behavior', () => {
   expect(html).toContain('tour-guide')
   expect(html).not.toContain('taiwan-login-scene')
 })
+
+it('uses the Japan geisha welcome for Japan and keeps ordinary loading unchanged', () => {
+  preference.dataset = 'japan'
+  const html = renderToStaticMarkup(<AuthLoadingPanel welcome ready />)
+  expect(html).toContain('Japan')
+  expect(html).toContain('日本可愛藝妓')
+  expect(html).toContain('摺扇掩嘴')
+  expect(html).toContain('japan-fan')
+  expect(html).toContain('準備出發')
+  expect(html).not.toContain('okinawa-login-scene')
+  expect(html).not.toContain('taiwan-login-scene')
+  const loading = renderToStaticMarkup(<AuthLoadingPanel />)
+  expect(loading).toContain('tour-guide')
+  expect(loading).not.toContain('japan-login-scene')
+})
