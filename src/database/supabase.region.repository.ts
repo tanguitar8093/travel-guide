@@ -72,7 +72,7 @@ function toSupabaseRegionInput(input: NewRegion) {
 
 function mapSupabaseError(error: { code?: string; message: string }, fallback: string): Error {
   if (error.code === '23503') {
-    return new EntityInUseError('Region', fallback, '仍有地點或行程使用此區域。')
+    return new EntityInUseError('Region', fallback, '仍有地點或行程使用此地圖。')
   }
 
   if (error.code === '42501') {

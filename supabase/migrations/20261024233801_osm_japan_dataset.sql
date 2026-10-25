@@ -159,7 +159,7 @@ begin
       '{"source":"user","kind":"approximate-center"}',case dataset when 'taiwan' then 7 when 'japan' then 5 else 8 end,case when dataset<>'okinawa' then dataset else null end)
     on conflict(id) do nothing;
   if not exists(select 1 from public.regions where id=region_id and owner_uid=uid and map_provider='osm') then
-    raise exception '預設沖繩區域無法使用，請先在 TripMap 確認區域設定。' using errcode='22023';
+    raise exception '預設沖繩地圖無法使用，請先在 TripMap 確認地圖設定。' using errcode='22023';
   end if;
   record_body := jsonb_strip_nulls(jsonb_build_object('name',clean_name,'location',new_location,
     'mapsUrl',p_source_url,'regionIds',jsonb_build_array(region_id),'labelIds','[]'::jsonb));

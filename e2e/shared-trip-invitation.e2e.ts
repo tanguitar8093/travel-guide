@@ -319,10 +319,10 @@ test("單視窗：B 新增地點並退出，A 查看雲端結果後以混合模�
       .click();
     await expect(page.getByLabel("行程名稱")).toBeVisible();
     await page.getByLabel("行程名稱").fill(tripName);
-    const region = page.getByLabel("所屬區域");
-    await expect(region, "A 需要至少一個既有區域。").toBeVisible();
+    const region = page.getByLabel("所屬地圖");
+    await expect(region, "A 需要至少一個既有地圖。").toBeVisible();
     const first = region.locator("option:not([disabled])").first();
-    await expect(first, "A 需要至少一個既有區域。").toHaveCount(1);
+    await expect(first, "A 需要至少一個既有地圖。").toHaveCount(1);
     const regionId = await first.getAttribute("value");
     if (!regionId) throw new Error("A has no selectable region.");
     await region.selectOption(regionId);
@@ -342,7 +342,7 @@ test("單視窗：B 新增地點並退出，A 查看雲端結果後以混合模�
       .getByRole("listbox", { name: "地點", exact: true })
       .getByRole("option")
       .first();
-    await expect(first, "行程所屬區域需要至少一個可選地點。").toBeVisible();
+    await expect(first, "行程所屬地圖需要至少一個可選地點。").toBeVisible();
     placeName = (await first.locator("span").first().innerText()).trim();
     scenario.placeName = placeName;
     expect(placeName).not.toBe("");

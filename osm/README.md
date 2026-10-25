@@ -131,7 +131,7 @@ outside `osm/data`, with measured memory, disk and time limits. See the
 
 ### 日本全國（正式整合）
 
-切換「區域 → OSM → 日本」使用全國底圖、磁碟地點搜尋與汽車／步行／單車路由。既有沖繩身分與座標快速匯入的沖繩優先政策保留，不加入輪渡／鐵路。台灣／日本 SQLite 共用跨區策略：精確搜尋達限後，使用有界道路估算，標示未保證最快／最短；不按地名特例或任意 200km 硬拒絕。台灣約 209km、東京–橫濱／靜岡等已實測，詳 C7。每階段仍限 5 萬展開／10 萬 states，整筆多路段搜尋共用 22 秒；資源不足回可重試 503，不再誤稱距離過大或快取 30 秒。沖繩原圖沿用 C6 的 4 秒／50 萬界限及連通接路修正。
+切換「地圖 → OSM → 日本」使用全國底圖、磁碟地點搜尋與汽車／步行／單車路由。既有沖繩身分與座標快速匯入的沖繩優先政策保留，不加入輪渡／鐵路。台灣／日本 SQLite 共用跨區策略：精確搜尋達限後，使用有界道路估算，標示未保證最快／最短；不按地名特例或任意 200km 硬拒絕。台灣約 209km、東京–橫濱／靜岡等已實測，詳 C7。每階段仍限 5 萬展開／10 萬 states，整筆多路段搜尋共用 22 秒；資源不足回可重試 503，不再誤稱距離過大或快取 30 秒。沖繩原圖沿用 C6 的 4 秒／50 萬界限及連通接路修正。
 
 重建需要原生 `osmium`（osmium-tool）、`tippecanoe`、Python venv，並預留至少 20 GiB 工作磁碟：
 
@@ -145,7 +145,7 @@ npm run osm:setup -- --dataset japan --pbf /path/to/japan.osm.pbf
 
 coverage 來源、資源實測、限制及執行決策集中見 [日本全國整合紀錄](../docs/system/osm-japan-rollout.md)。更換 coverage 請用 `build-japan-coverage.py` 並同步產生新的資料庫 migration；不重寫既有 migration。
 
-日本驗收工具（使用既有 admin 測試帳號登入，測試地點／行程只寫獨立瀏覽器 IndexedDB，結束恢復帳號原區域偏好）：
+日本驗收工具（使用既有 admin 測試帳號登入，測試地點／行程只寫獨立瀏覽器 IndexedDB，結束恢復帳號原地圖偏好）：
 
 ```bash
 # 先啟動獨立 Vite，例如 npm run dev -- --port 4180

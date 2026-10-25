@@ -6,7 +6,7 @@ import { validateRouteEndpoint } from './route-endpoint'
 import { BackupRepository } from './backup.repository'
 
 it.each([
-  ['Region', '區域'],
+  ['Region', '地圖'],
   ['Place', '地點'],
   ['Label', '標籤'],
   ['Parent label', '上層標籤'],
@@ -31,7 +31,7 @@ it.each([
   [() => validateCoordinatePair(26, 181), '經度必須介於 -180 與 180。'],
   [() => validateStoredLocation(null), '已儲存的位置必須是物件。'],
   [() => validatePlace({ name: '', regionIds: [], labelIds: [] }), '地點名稱不可空白。'],
-  [() => validateRegion({ name: '區域', zoom: 10 }), '請為區域選取 Google Maps 地點。'],
+  [() => validateRegion({ name: '地圖', zoom: 10 }), '請為地圖選取 Google Maps 地點。'],
   [() => validateTrip({ name: '行程', regionId: 'region', startDate: 'invalid', endDate: '2026-10-23' }),
     '行程開始日期必須是有效日期，格式為 YYYY-MM-DD。'],
   [() => validateRouteMap({ name: '地圖', transport: 'invalid' }), '試算地圖的交通方式無效。'],

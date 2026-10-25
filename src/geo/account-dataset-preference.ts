@@ -26,7 +26,7 @@ function report(error?: string) {
 async function userRequest(userId: string, dataset?: OsmDatasetId) {
   const { data, error } = await supabase.auth.getSession()
   if (error) throw error
-  if (data.session?.user.id !== userId) throw new Error('帳號已切換，已停止同步原帳號的區域設定。')
+  if (data.session?.user.id !== userId) throw new Error('帳號已切換，已停止同步原帳號的地圖設定。')
   const apiUrl = import.meta.env.VITE_SUPABASE_URL
   const apiKey = import.meta.env.VITE_SUPABASE_ANON_KEY
   if (!apiUrl || !apiKey) throw new Error('缺少 Supabase 設定。')
@@ -40,11 +40,11 @@ async function userRequest(userId: string, dataset?: OsmDatasetId) {
     signal: AbortSignal.timeout(10000),
     ...(dataset === undefined ? {} : { body: JSON.stringify({ data: { [metadataKey]: dataset } }) }),
   })
-  if (!response.ok) throw new Error('區域設定尚未同步至帳號，連線恢復後會自動重試。')
+  if (!response.ok) throw new Error('地圖設定尚未同步至帳號，連線恢復後會自動重試。')
   const user = await response.json() as { id?: string; user_metadata?: Record<string, unknown> }
-  if (user.id !== userId) throw new Error('區域設定回應的帳號不符。')
+  if (user.id !== userId) throw new Error('地圖設定回應的帳號不符。')
   const value = user.user_metadata?.[metadataKey]
-  if (value !== undefined && value !== null && !isOsmDatasetId(value)) throw new Error('帳號的區域設定無效，請重新選擇區域。')
+  if (value !== undefined && value !== null && !isOsmDatasetId(value)) throw new Error('帳號的地圖設定無效，請重新選擇地圖。')
   return isOsmDatasetId(value) ? value : undefined
 }
 

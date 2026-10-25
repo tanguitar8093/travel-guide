@@ -47,7 +47,10 @@ function RoutedApp() {
 function App() {
   const mode = useDatabaseMode()
   const dataset = useOsmDataset()
-  return <RoutedApp key={`${mode}:${dataset ?? 'invalid'}`} />
+  const pathname = usePathname().replace(/\/+$/, '') || '/'
+  // The map picker updates in place; other workspaces reload for their dataset.
+  const workspaceKey = pathname === routes.regions ? mode : `${mode}:${dataset ?? 'invalid'}`
+  return <RoutedApp key={workspaceKey} />
 }
 
 export default App

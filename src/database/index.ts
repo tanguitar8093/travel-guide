@@ -204,7 +204,7 @@ export async function prepareMapWorkspace(): Promise<void> {
       const id = await accountOsmRegionId(store.getWorkspaceOwnerId(), dataset)
       if (await store.read(repositories => repositories.regions.getById(id))) continue
       await runHybridTask(active => {
-        if (active !== store) throw new Error('帳號已切換，未建立預設區域。')
+        if (active !== store) throw new Error('帳號已切換，未建立預設地圖。')
         return active.mutateDatabase('regions.prepareOsm', async storage => {
           if (!await storage.regions.get(id)) await storage.regions.add({ ...definition, id })
         })

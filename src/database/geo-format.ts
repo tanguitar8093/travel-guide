@@ -12,9 +12,9 @@ function validateGeoFields(value: object): void {
   if ('location' in value && value.location !== undefined) validateStoredLocation(value.location)
   if ('centerMetadata' in value && value.centerMetadata !== undefined) validateLocationMetadata(value.centerMetadata)
   if ('mapProvider' in value && value.mapProvider !== undefined && value.mapProvider !== 'google' && value.mapProvider !== 'osm') {
-    throw new ValidationError('區域的地圖供應商無效。')
+    throw new ValidationError('地圖的供應商無效。')
   }
-  if ('osmDataset' in value && value.osmDataset !== undefined && !isOsmDatasetId(value.osmDataset)) throw new ValidationError('區域的 OSM 圖資設定無效。')
+  if ('osmDataset' in value && value.osmDataset !== undefined && !isOsmDatasetId(value.osmDataset)) throw new ValidationError('地圖的 OSM 圖資設定無效。')
   if ('origin' in value && value.origin !== undefined) validateRouteEndpoint(value.origin)
   if ('destination' in value && value.destination !== undefined) validateRouteEndpoint(value.destination)
 }

@@ -5,11 +5,11 @@ export const osmDatasetChangeEvent = 'travel-planner:osm-dataset-change'
 export function getOsmDataset(): OsmDatasetId {
   const stored = typeof window === 'undefined' ? null : window.localStorage?.getItem(key) ?? null
   if (stored === null) return 'okinawa'
-  if (!isOsmDatasetId(stored)) throw new Error('OSM 區域設定無效，請到區域頁面重新選擇。')
+  if (!isOsmDatasetId(stored)) throw new Error('OSM 地圖設定無效，請到地圖頁面重新選擇。')
   return stored
 }
 export function setOsmDataset(dataset: OsmDatasetId, source: 'local' | 'cloud' = 'local'): void {
-  if (!isOsmDatasetId(dataset)) throw new Error('不支援此 OSM 區域。')
+  if (!isOsmDatasetId(dataset)) throw new Error('不支援此 OSM 地圖。')
   window.localStorage.setItem(key, dataset)
   window.dispatchEvent(new CustomEvent(osmDatasetChangeEvent, { detail: { source } }))
 }

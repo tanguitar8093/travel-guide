@@ -72,12 +72,12 @@ function requireIds(ids: string[], field: string): void {
 export function validateRegion(
   region: Omit<Region, 'id' | 'center' | 'centerMetadata'> & { center?: unknown; centerMetadata?: unknown },
 ): void {
-  requireText(region.name, '區域名稱')
+  requireText(region.name, '地圖名稱')
   if (region.mapProvider !== undefined && !['google', 'osm'].includes(region.mapProvider)) {
-    throw new ValidationError('區域的地圖供應商無效。')
+    throw new ValidationError('地圖的供應商無效。')
   }
   if (region.osmDataset !== undefined && (region.mapProvider !== 'osm' || !isOsmDatasetId(region.osmDataset))) {
-    throw new ValidationError('區域的 OSM 圖資設定無效。')
+    throw new ValidationError('地圖的 OSM 圖資設定無效。')
   }
   if (region.googlePlaceId !== undefined) {
     requireText(region.googlePlaceId, 'Google 地點識別碼')
@@ -85,31 +85,31 @@ export function validateRegion(
   if (region.center !== undefined) {
     if (typeof region.center !== 'object' || region.center === null || Array.isArray(region.center) ||
         !('latitude' in region.center) || !('longitude' in region.center)) {
-      throw new ValidationError('區域中心必須包含緯度與經度。')
+      throw new ValidationError('地圖中心必須包含緯度與經度。')
     }
     validateCoordinatePair(region.center.latitude, region.center.longitude)
   } else if (region.googlePlaceId === undefined) {
-    throw new ValidationError('請為區域選取 Google Maps 地點。')
+    throw new ValidationError('請為地圖選取 Google Maps 地點。')
   }
 
   if (region.centerMetadata !== undefined) {
     validateLocationMetadata(region.centerMetadata)
     if (region.center === undefined) {
-      throw new ValidationError('設定區域中心的來源資料時，必須同時提供中心座標。')
+      throw new ValidationError('設定地圖中心的來源資料時，必須同時提供中心座標。')
     }
   }
 
   if (region.mapProvider === 'osm') {
     if (region.googlePlaceId !== undefined || !region.center || !region.centerMetadata) {
-      throw new ValidationError('OSM 區域需要已確認來源的中心座標，且不可使用 Google 地點識別碼。')
+      throw new ValidationError('OSM 地圖需要已確認來源的中心座標，且不可使用 Google 地點識別碼。')
     }
     if (!isInsideOsmCoverage(region.center, regionOsmDataset(region))) {
-      throw new ValidationError(`OSM 區域中心超出目前${osmDatasets[regionOsmDataset(region)].name}圖資範圍。`)
+      throw new ValidationError(`OSM 地圖中心超出目前${osmDatasets[regionOsmDataset(region)].name}圖資範圍。`)
     }
   }
 
   if (!Number.isFinite(region.zoom) || region.zoom < 0 || region.zoom > 22) {
-    throw new ValidationError('區域的地圖縮放層級必須介於 0 與 22。')
+    throw new ValidationError('地圖的縮放層級必須介於 0 與 22。')
   }
 }
 
@@ -123,16 +123,16 @@ export function validatePlaceRegionProviders(
       throw new ValidationError('同一地點不可同時使用 Google 與 OSM 位置。')
     }
     if (!place.regionIds.length || linkedRegions.length !== new Set(place.regionIds).size || linkedRegions.some(region => region.mapProvider !== 'osm')) {
-      throw new ValidationError('OSM 地點只能歸屬於 OSM 區域。')
+      throw new ValidationError('OSM 地點只能歸屬於 OSM 地圖。')
     }
     for (const region of linkedRegions) {
       const dataset = regionOsmDataset(region)
       if (!isInsideOsmCoverage(place.location.coordinate, dataset)) {
-        throw new ValidationError(`OSM 地點僅限於所屬區域的${osmDatasets[dataset].name}圖資範圍內。`)
+        throw new ValidationError(`OSM 地點僅限於所屬地圖的${osmDatasets[dataset].name}圖資範圍內。`)
       }
     }
   } else if (place.googlePlaceId && linkedRegions.some(region => region.mapProvider === 'osm')) {
-    throw new ValidationError('Google 地點只能歸屬於 Google 區域。')
+    throw new ValidationError('Google 地點只能歸屬於 Google 地圖。')
   } else if (linkedRegions.some(region => region.mapProvider === 'osm')) {
     throw new ValidationError('請先搜尋並選取地點，或輸入有效的緯度、經度；只有導航網址不能建立 OSM 地點。')
   }
@@ -150,7 +150,7 @@ export function validatePlace(place: Omit<Place, 'id'>): void {
   if (place.googlePlaceId !== undefined) {
     requireText(place.googlePlaceId, 'Google 地點識別碼')
   }
-  requireIds(place.regionIds, '所屬區域')
+  requireIds(place.regionIds, '所屬地圖')
   requireIds(place.labelIds, '地點標籤')
 
   if (place.notes !== undefined && typeof place.notes !== 'string') {
@@ -186,7 +186,7 @@ export function validateLabel(label: Omit<Label, 'id'>): void {
 
 export function validateTrip(trip: Omit<Trip, 'id'>): void {
   requireText(trip.name, '行程名稱')
-  requireText(trip.regionId, '行程區域識別碼')
+  requireText(trip.regionId, '行程地圖識別碼')
   requireDate(trip.startDate, '行程開始日期')
   requireDate(trip.endDate, '行程結束日期')
 

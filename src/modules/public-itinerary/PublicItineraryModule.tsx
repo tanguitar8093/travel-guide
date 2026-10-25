@@ -67,7 +67,7 @@ export function PublicItineraryModule() {
     setBusy(true); setError(''); setNotice('')
     try {
       const copy = await publicItineraryController.apply(id)
-      setNotice(`套用成功！「${copy.name}」已加入行程。區域與地點已複製，並建立分享標籤；可從行程選單自行選取副本。`)
+      setNotice(`套用成功！「${copy.name}」已加入行程。地圖與地點已複製，並建立分享標籤；可從行程選單自行選取副本。`)
     } catch (cause) { setError(sharingErrorMessage(cause)) }
     finally { running.current = false; setBusy(false) }
   }
@@ -86,11 +86,11 @@ export function PublicItineraryModule() {
     {<section className="public-list-card" aria-label="公開行程列表"><div className="public-list-toolbar"><div><h2>探索行程 <span>{rows.length}</span></h2>
       <p>找到喜歡的路線，先預覽再加入你的行程。</p></div><div className="public-list-filters">
       <button type="button" className="itinerary-secondary public-refresh-button" aria-label="重新整理公開行程" title="重新整理" disabled={sync.syncing} onClick={() => void refreshPublicCatalog()}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M20 7v5h-5" /><path d="M20 12a8 8 0 1 0-2.3 5.7M20 7l-2.3-2.3" /></svg></button>
-      <label><span className="public-sr-only">搜尋公開行程</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="搜尋行程名稱或區域" /></label>
-      {<label><span className="public-sr-only">篩選區域</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有區域</option>
+      <label><span className="public-sr-only">搜尋公開行程</span><input type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="搜尋行程名稱或地圖" /></label>
+      {<label><span className="public-sr-only">篩選地圖</span><select value={rows.some(row => row.snapshot.region.name === region) ? region : ''} onChange={event => setRegion(event.target.value)}><option value="">所有地圖</option>
         {[...new Set(rows.map(row => row.snapshot.region.name))].map(name => <option key={name}>{name}</option>)}
       </select></label>}</div></div><div className="public-table-scroll"><table className="public-trip-table"><thead><tr>
-      {['行程名稱','區域','新增日期','預覽','使用行程','管理'].map(name => <th scope="col" key={name}>{name}</th>)}
+      {['行程名稱','地圖','新增日期','預覽','使用行程','管理'].map(name => <th scope="col" key={name}>{name}</th>)}
     </tr></thead><tbody>{filtered.map(row => <tr key={row.id}><td><div className="public-trip-name"><span className="public-trip-symbol">▤</span><div>
       <strong>{row.snapshot.trip.name}</strong><small>{days(row)} 天 · {row.snapshot.places.length} 個地點</small></div></div></td>
       <td><span className="public-region-pill">{row.snapshot.region.name}</span></td><td className="public-created-date">{date(row.createdAt)}
@@ -99,7 +99,7 @@ export function PublicItineraryModule() {
       <td><button type="button" className="itinerary-primary" disabled={busy || !ready} onClick={() => void apply(row.id)} aria-label={`使用行程 ${row.snapshot.trip.name}`}>{busy ? '處理中…' : '使用行程'}</button></td>
       <td>{(row as SharedPublicItinerary).ownerId === user?.id && <button type="button" className="itinerary-delete" disabled={busy || !ready} onClick={() => setWithdrawId(row.id)}>下架</button>}</td>
     </tr>)}</tbody></table></div>{loading ? <p className="public-empty" role="status">正在載入行程…</p> : !filtered.length && <div className="public-empty">
-      <strong>{rows.length ? '找不到符合條件的行程' : '尚無公開行程'}</strong><p>{rows.length ? '試試其他名稱或區域。' : '從行程操作選單發佈你的行程。'}</p>
+      <strong>{rows.length ? '找不到符合條件的行程' : '尚無公開行程'}</strong><p>{rows.length ? '試試其他名稱或地圖。' : '從行程操作選單發佈你的行程。'}</p>
       {rows.length > 0 && <button type="button" className="itinerary-secondary" onClick={() => { setSearch(''); setRegion('') }}>清除篩選</button>}
     </div>}<footer className="public-list-footer">顯示 {filtered.length} 個行程<span>來源刪除後，仍可在這裡下架已發佈版本。</span></footer></section>}
     </div>

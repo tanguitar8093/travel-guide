@@ -1,5 +1,5 @@
 const entityNames: Readonly<Record<string, string>> = {
-  Region: '區域',
+  Region: '地圖',
   Place: '地點',
   Label: '標籤',
   'Parent label': '上層標籤',

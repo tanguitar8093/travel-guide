@@ -133,7 +133,7 @@ describe('durable conflict resolution', () => {
     review.rows = review.rows.map((row) => row.entity === 'regions' && row.id === remote.id ? { ...row, local: null } : row)
     await database.syncConflicts.put(review)
     const before = await store.inspectSyncState()
-    await expect(resolveConflictReview(store, review.token, 'local', adapter, lock)).rejects.toThrow(`使用的區域「${remote.id}」不存在`)
+    await expect(resolveConflictReview(store, review.token, 'local', adapter, lock)).rejects.toThrow(`使用的地圖「${remote.id}」不存在`)
     expect(await store.inspectSyncState()).toEqual(before)
   })
 

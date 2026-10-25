@@ -18,7 +18,7 @@ it('normalizes full OSM identities with provenance, representative point kind an
     dataTimestamp: '2026-10-20', results: [
       { id: 'osm-node-123', name: '入口', coordinates: [127.6, 26.2], address: '那霸' },
       { id: 'osm-way-456', name: '建物', coordinates: [127.7, 26.3] },
-      { id: 'relation/789', name: '區域', coordinates: [127.8, 26.4] },
+      { id: 'relation/789', name: '地圖', coordinates: [127.8, 26.4] },
     ],
   })))
   const candidates = await searchOsmLocations('首里城')

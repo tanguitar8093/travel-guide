@@ -26,7 +26,7 @@ const errors=[]
 page.on('pageerror',e=>errors.push(e.message))
 try{
   await page.goto(base+'/regions')
-  await page.getByRole('heading',{name:'區域',exact:true}).waitFor({timeout:60000})
+  await page.getByRole('heading',{name:'地圖',exact:true}).waitFor({timeout:60000})
   if(hybridOnly){
     const state=await page.evaluate(async()=>{
       const runtimeUrl=performance.getEntriesByType('resource').map(entry=>entry.name).filter(name=>name.includes('/src/database/hybrid.runtime.ts')).at(-1)
@@ -39,7 +39,7 @@ try{
     })
     assert.equal(state.error,undefined);assert.equal(state.pending,0);assert.equal(state.failed,0);assert.equal(state.conflicts,0)
     await page.reload()
-    await page.getByRole('heading',{name:'區域',exact:true}).waitFor({timeout:60000})
+    await page.getByRole('heading',{name:'地圖',exact:true}).waitFor({timeout:60000})
     assert.equal(await page.getByText('資料同步失敗，目前顯示本機資料，本機變更仍保留。',{exact:true}).count(),0)
     console.log('PASS: actual-account hybrid sync, zero pending/failed/conflicting operations, and no stale warning after reload')
     process.exitCode=0

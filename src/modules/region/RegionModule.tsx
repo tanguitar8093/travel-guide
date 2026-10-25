@@ -1,5 +1,5 @@
 import { useDatasetSyncError } from '../../geo/account-dataset-preference'
-import { getOsmDataset, setOsmDataset } from '../../geo/osm-dataset-preference'
+import { getOsmDataset, setOsmDataset, useOsmDataset } from '../../geo/osm-dataset-preference'
 import { regionOsmDataset, osmDatasets } from '../../geo/osm-datasets'
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
@@ -12,7 +12,6 @@ import type { GooglePlaceDetails } from "../place/google-places.service";
 import "./RegionModule.css";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import { useMapProvider } from "../../geo/provider-preference";
-import { googleMapsNavigationUrl } from "../../geo/osm-service";
 import { regionsForMapProvider } from "../../geo/region-provider";
 
 interface RegionDraft {
@@ -41,6 +40,7 @@ function toDraft(region: Region): RegionDraft {
 function RegionModule() {
   const { provider, error: providerError } = useMapProvider();
   const readonly = provider === 'osm';
+  const dataset = useOsmDataset();
   const datasetSyncError = useDatasetSyncError();
   const dataRevision = useHybridDataRevision();
   const [regions, setRegions] = useState<Region[]>([]);
@@ -61,13 +61,12 @@ function RegionModule() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [tripTargets, setTripTargets] = useState<Record<string, string>>({});
   const [googleDetails, setGoogleDetails] = useState<GooglePlaceDetails>();
-  const [googleDetailsForId, setGoogleDetailsForId] = useState<string>();
-  const [googleDetailsErrorForId, setGoogleDetailsErrorForId] =
-    useState<string>();
   const autocompleteContainerRef = useRef<HTMLDivElement>(null);
 
   const providerRegions = regionsForMapProvider(regions, provider, null);
-  const selectedRegion = providerRegions.find((region) => region.id === selectedId);
+  const selectedRegion = providerRegions.find((region) => readonly
+    ? regionOsmDataset(region) === dataset
+    : region.id === selectedId);
   const selectedIdRef = useRef(selectedId);
   selectedIdRef.current = selectedId;
   const reloadBlocked = creating || editing || saving || deleteDialogOpen;
@@ -76,13 +75,6 @@ function RegionModule() {
   const linkedTrips =
     selectedRegion && trips.filter((trip) => trip.regionId === selectedRegion.id);
   const selectedGooglePlaceId = selectedRegion?.googlePlaceId;
-  const visibleGoogleDetails =
-    googleDetailsForId === selectedGooglePlaceId ? googleDetails : undefined;
-  const googleDetailsLoading = Boolean(
-    selectedGooglePlaceId &&
-    googleDetailsForId !== selectedGooglePlaceId &&
-    googleDetailsErrorForId !== selectedGooglePlaceId,
-  );
 
   async function refresh(preferredId = selectedId) {
     const workspace = await regionController.loadWorkspace();
@@ -152,7 +144,7 @@ function RegionModule() {
       .catch((cause: unknown) => {
         if (active)
           setError(
-            cause instanceof Error ? cause.message : "載入區域資料失敗。",
+            cause instanceof Error ? cause.message : "載入地圖資料失敗。",
           );
       })
       .finally(() => {
@@ -176,8 +168,6 @@ function RegionModule() {
         (details, query) => {
           if (!active) return;
           setGoogleDetails(details);
-          setGoogleDetailsForId(details.id);
-          setGoogleDetailsErrorForId(undefined);
           setDraft((current) => ({
             ...current,
             name: current.name || query,
@@ -223,17 +213,14 @@ function RegionModule() {
       .then((details) => {
         if (active) {
           setGoogleDetails(details);
-          setGoogleDetailsForId(selectedGooglePlaceId);
-          setGoogleDetailsErrorForId(undefined);
         }
       })
       .catch((cause: unknown) => {
         if (active) {
-          setGoogleDetailsErrorForId(selectedGooglePlaceId);
           setError(
             cause instanceof Error
               ? cause.message
-              : "讀取 Google 區域資料失敗。",
+              : "讀取 Google 地圖資料失敗。",
           );
         }
       });
@@ -247,8 +234,6 @@ function RegionModule() {
     setSelectedId(undefined);
     setDraft(emptyDraft);
     setGoogleDetails(undefined);
-    setGoogleDetailsForId(undefined);
-    setGoogleDetailsErrorForId(undefined);
     setCreating(true);
     setEditing(true);
     setError("");
@@ -262,8 +247,6 @@ function RegionModule() {
     setCreating(false);
     setEditing(false);
     setGoogleDetails(undefined);
-    setGoogleDetailsForId(undefined);
-    setGoogleDetailsErrorForId(undefined);
     setError("");
     setNotice("");
   }
@@ -274,8 +257,6 @@ function RegionModule() {
     setError("");
     setDraft(selectedRegion ? toDraft(selectedRegion) : emptyDraft);
     setGoogleDetails(undefined);
-    setGoogleDetailsForId(undefined);
-    setGoogleDetailsErrorForId(undefined);
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -301,9 +282,9 @@ function RegionModule() {
       await refresh(id);
       setCreating(false);
       setEditing(false);
-      setNotice(creating ? "區域已建立。" : "區域變更已儲存。");
+      setNotice(creating ? "地圖已建立。" : "地圖變更已儲存。");
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "儲存區域失敗。");
+      setError(cause instanceof Error ? cause.message : "儲存地圖失敗。");
     } finally {
       setSaving(false);
     }
@@ -328,9 +309,9 @@ function RegionModule() {
         regionIds: place.regionIds.filter((id) => id !== selectedRegion.id),
       });
       await refresh(selectedRegion.id);
-      setNotice(`已從「${place.name}」移除此區域。`);
+      setNotice(`已從「${place.name}」移除此地圖。`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "解除地點區域關聯失敗。");
+      setError(cause instanceof Error ? cause.message : "解除地點地圖關聯失敗。");
     } finally {
       setSaving(false);
     }
@@ -350,9 +331,9 @@ function RegionModule() {
         delete next[trip.id];
         return next;
       });
-      setNotice(`已將行程「${trip.name}」改派至「${regions.find((region) => region.id === regionId)?.name ?? "其他區域"}」。`);
+      setNotice(`已將行程「${trip.name}」改派至「${regions.find((region) => region.id === regionId)?.name ?? "其他地圖"}」。`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "重新指派行程區域失敗。");
+      setError(cause instanceof Error ? cause.message : "重新指派行程地圖失敗。");
     } finally {
       setSaving(false);
     }
@@ -372,11 +353,9 @@ function RegionModule() {
       setSelectedId(undefined);
       setDraft(emptyDraft);
       setGoogleDetails(undefined);
-      setGoogleDetailsForId(undefined);
-      setGoogleDetailsErrorForId(undefined);
-      setNotice(`區域「${selectedRegion.name}」已刪除。`);
+      setNotice(`地圖「${selectedRegion.name}」已刪除。`);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "刪除區域失敗。");
+      setError(cause instanceof Error ? cause.message : "刪除地圖失敗。");
     } finally {
       setSaving(false);
     }
@@ -391,15 +370,15 @@ function RegionModule() {
       <div className="region-content">
         <section className="region-heading">
           <div className="workspace-page-heading-title">
-            <h1>區域</h1>
-            <p>{readonly ? '選擇沖繩、台灣或日本作為目前區域；新增地點與行程會使用此區域，地點座標必須在該區圖資範圍內。' : '建立行程使用的區域，也可將收藏地點歸入相同區域。'}</p>
+            <h1>地圖</h1>
+            <p>{readonly ? '新增地點與行程會使用此地圖，規劃的行程地點需在此地圖範圍內。' : '建立行程使用的地圖，也可將收藏地點歸入相同地圖。'}</p>
           </div>
           {!readonly && <button
             type="button"
             className="region-primary"
             onClick={startCreate}
           >
-            ＋ 新增區域
+            ＋ 新增地圖
           </button>}
         </section>
         {(error || providerError) && !deleteDialogOpen && (
@@ -416,7 +395,7 @@ function RegionModule() {
         <section className="region-workspace">
           <aside className="region-list-card">
             <div className="region-card-heading">
-              <strong>已建立區域</strong>
+              <strong>旅行範圍</strong>
               <span>{providerRegions.length}</span>
             </div>
             {loading ? (
@@ -426,7 +405,8 @@ function RegionModule() {
                 <button
                   type="button"
                   key={region.id}
-                  className={`region-list-item${selectedId === region.id && !creating ? " selected" : ""}`}
+                  className={`region-list-item${selectedRegion?.id === region.id && !creating ? " selected" : ""}`}
+                  aria-pressed={selectedRegion?.id === region.id && !creating}
                   onClick={() => selectRegion(region)}
                 >
                   <span className="region-list-icon">◎</span>
@@ -440,7 +420,7 @@ function RegionModule() {
                 </button>
               ))
             ) : (
-              <p className="region-empty">{readonly ? '預設區域尚未載入，請重新整理頁面。' : '目前還沒有 Google 地圖區域。'}</p>
+              <p className="region-empty">{readonly ? '預設地圖尚未載入，請重新整理頁面。' : '目前還沒有 Google 地圖。'}</p>
             )}
           </aside>
 
@@ -452,13 +432,13 @@ function RegionModule() {
               >
                 <div className="region-detail-heading">
                   <div>
-                    <span>{creating ? "建立目的地區域" : "編輯區域"}</span>
-                    <h2>{creating ? "新增區域" : draft.name}</h2>
+                    <span>{creating ? "建立目的地地圖" : "編輯地圖"}</span>
+                    <h2>{creating ? "新增地圖" : draft.name}</h2>
                   </div>
                 </div>
                 <div className="region-google-search">
                   <div className="region-search-label">
-                    用 Google 地圖選擇區域中心 <b>*</b>
+                    搜尋 Google Maps 地點以設定地圖中心 <b>*</b>
                   </div>
                   {provider === 'google' && regionController.isGooglePlacesConfigured() ? (
                     <div
@@ -490,7 +470,7 @@ function RegionModule() {
                 </div>
                 <label className="region-field region-field-wide">
                   <span>
-                    區域名稱 <b>*</b>
+                    地圖名稱 <b>*</b>
                   </span>
                   <input
                     id="region-user-name"
@@ -524,7 +504,7 @@ function RegionModule() {
                         !provider || (!draft.googlePlaceId && !draft.center)
                       }
                     >
-                      {saving ? "儲存中…" : creating ? "建立區域" : "儲存變更"}
+                      {saving ? "儲存中…" : creating ? "建立地圖" : "儲存變更"}
                     </button>
                   </div>
                 </div>
@@ -533,7 +513,7 @@ function RegionModule() {
               <div className="region-detail">
                 <div className="region-detail-heading">
                   <div>
-                    <span>{readonly ? `目前區域 · ${osmDatasets[regionOsmDataset(selectedRegion)].name}` : '區域詳細資料'}</span>
+                    <span>{readonly ? `目前地圖 · ${osmDatasets[regionOsmDataset(selectedRegion)].name}` : '地圖詳細資料'}</span>
                     <h2>{selectedRegion.name}</h2>
                   </div>
                   {!readonly && <div className="region-detail-actions">
@@ -551,85 +531,46 @@ function RegionModule() {
                       disabled={saving}
                       onClick={() => handleDelete(selectedRegion)}
                     >
-                      刪除區域
+                      刪除地圖
                     </button>
                   </div>}
                 </div>
-                {provider === 'osm' && selectedRegion.centerMetadata && selectedRegion.center ? (
-                  <section className="region-legacy-location">
-                    <span>地圖座標：{selectedRegion.center.latitude}, {selectedRegion.center.longitude}</span>
-                    <a className="region-map-link" href={googleMapsNavigationUrl(selectedRegion.center)} target="_blank" rel="noreferrer">
-                      導航 ↗
-                    </a>
-                  </section>
-                ) : provider === 'osm' ? (
-                  <p className="region-legacy-location">
-                    區域的地圖座標尚未載入，請重新整理頁面。
-                  </p>
-                ) : selectedRegion.googlePlaceId ? (
-                  <section className="region-google-summary">
-                    <div className="region-google-attribution">
-                      Google Maps 地點 <span>Powered by Google Maps</span>
-                    </div>
-                    {googleDetailsLoading ? (
-                      <p>正在向 Google 讀取區域資訊…</p>
-                    ) : visibleGoogleDetails ? (
-                      <>
-                        {visibleGoogleDetails.displayName && (
-                          <strong>{visibleGoogleDetails.displayName}</strong>
-                        )}
-                        {visibleGoogleDetails.formattedAddress && (
-                          <p>{visibleGoogleDetails.formattedAddress}</p>
-                        )}
-                      </>
-                    ) : (
-                      <p>
-                        暫時無法載入即時地點資訊；Google place_id 仍已保存。
-                      </p>
-                    )}
-                    <a
-                      className="region-map-link"
-                      href={
-                        visibleGoogleDetails?.googleMapsUri ??
-                        `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedRegion.name)}&query_place_id=${encodeURIComponent(selectedRegion.googlePlaceId)}`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      導航 ↗
-                    </a>
-                  </section>
-                ) : (
-                  <p className="region-legacy-location">
-                    此區域沿用舊版手動設定的位置。編輯時可搜尋 Google Maps
-                    更新位置。
-                  </p>
-                )}
                 <dl className="region-details-grid">
-                  <div>
+                  <div className="region-stat">
+                    <svg className="region-stat-icon region-stat-trips" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                      <rect x="6" y="11" width="28" height="24" rx="7" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" />
+                      <path d="M14 11V8a3 3 0 0 1 3-3h6a3 3 0 0 1 3 3v3M13 18v10m14-10v10" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                      <path d="m17 22 2 2 4-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
                     <dt>所屬行程</dt>
                     <dd>{usage.trips.get(selectedRegion.id) ?? 0} 個</dd>
                   </div>
-                  <div>
+                  <div className="region-stat">
+                    <svg className="region-stat-icon region-stat-places" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                      <path d="M33 17c0 10-13 19-13 19S7 27 7 17a13 13 0 1 1 26 0Z" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                      <path d="M20 23s-7-4-7-8a4 4 0 0 1 7-2 4 4 0 0 1 7 2c0 4-7 8-7 8Z" fill="currentColor" />
+                    </svg>
                     <dt>收藏地點</dt>
                     <dd>{usage.places.get(selectedRegion.id) ?? 0} 個</dd>
                   </div>
                 </dl>
-                <p className="region-help">
-                  {readonly ? '新增行程與地點時會自動使用此區域。' : '行程建立時需選擇一個區域。若要將地點加入此區域，請到地點模組編輯地點的「所屬區域」。'}
-                </p>
+              </div>
+            ) : loading ? (
+              <div className="region-empty-detail" role="status" aria-live="polite">
+                <span aria-hidden="true">◎</span>
+                <p>正在載入地圖…</p>
               </div>
             ) : (
               <div className="region-empty-detail">
                 <span>◎</span>
-                <h2>{readonly ? '預設區域尚未載入' : '先建立旅行區域'}</h2>
-                <p>{readonly ? '請重新整理頁面以載入預設區域。' : '區域可以代表城市、地區或一次旅行的目的地範圍。'}</p>
+                <h2>{readonly ? '預設地圖尚未載入' : '先建立旅行地圖'}</h2>
+                <p>{readonly ? '請重新整理頁面以載入預設地圖。' : '地圖可以代表城市、地區或一次旅行的目的地範圍。'}</p>
                 {!readonly && <button
                   type="button"
                   className="region-primary"
                   onClick={startCreate}
                 >
-                  ＋ 新增區域
+                  ＋ 新增地圖
                 </button>}
               </div>
             )}
@@ -653,7 +594,7 @@ function RegionModule() {
           >
             <header className="region-delete-dialog-heading">
               <div>
-                <span>刪除區域前，先處理關聯資料</span>
+                <span>刪除地圖前，先處理關聯資料</span>
                 <h2 id="region-delete-title">{selectedRegion.name}</h2>
               </div>
               <button
@@ -667,7 +608,7 @@ function RegionModule() {
               </button>
             </header>
             <p className="region-delete-intro">
-              移除地點關聯不會刪除地點或標籤。行程必須保留區域，請改派至其他區域。
+              移除地點關聯不會刪除地點或標籤。行程必須保留地圖，請改派至其他地圖。
             </p>
             {error && (
               <div className="region-feedback region-error" role="alert">
@@ -698,13 +639,13 @@ function RegionModule() {
                         disabled={saving}
                         onClick={() => void handleRemovePlaceRegion(place)}
                       >
-                        {saving ? "處理中…" : "從此區域移除"}
+                        {saving ? "處理中…" : "從此地圖移除"}
                       </button>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <p className="region-linked-empty">沒有地點使用此區域。</p>
+                <p className="region-linked-empty">沒有地點使用此地圖。</p>
               )}
             </section>
             <section className="region-linked-section" aria-labelledby="linked-trips-title">
@@ -724,7 +665,7 @@ function RegionModule() {
                       </div>
                       <div className="region-reassign-controls">
                         <select
-                          aria-label={`將行程「${trip.name}」改派至其他區域`}
+                          aria-label={`將行程「${trip.name}」改派至其他地圖`}
                           value={tripTargets[trip.id] ?? ""}
                           onChange={(event) =>
                             setTripTargets((current) => ({
@@ -734,7 +675,7 @@ function RegionModule() {
                           }
                           disabled={saving}
                         >
-                          <option value="">選擇其他區域…</option>
+                          <option value="">選擇其他地圖…</option>
                           {providerRegions
                             .filter((region) => region.id !== selectedRegion.id)
                             .map((region) => (
@@ -756,13 +697,13 @@ function RegionModule() {
                   ))}
                 </ul>
               ) : (
-                <p className="region-linked-empty">沒有行程使用此區域。</p>
+                <p className="region-linked-empty">沒有行程使用此地圖。</p>
               )}
               {Boolean(linkedTrips?.length) &&
                 providerRegions.filter((region) => region.id !== selectedRegion.id)
                   .length === 0 && (
                   <p className="region-no-alternative">
-                    目前沒有其他區域可供改派。請先關閉此視窗並建立另一個區域。
+                    目前沒有其他地圖可供改派。請先關閉此視窗並建立另一張地圖。
                   </p>
                 )}
             </section>
@@ -770,7 +711,7 @@ function RegionModule() {
               <span>
                 {linkedPlaces?.length || linkedTrips?.length
                   ? "處理完所有關聯後即可刪除。"
-                  : "此區域已沒有關聯資料，可以安全刪除。"}
+                  : "此地圖已沒有關聯資料，可以安全刪除。"}
               </span>
               <div>
                 <button
@@ -787,7 +728,7 @@ function RegionModule() {
                   disabled={saving || Boolean(linkedPlaces?.length || linkedTrips?.length)}
                   onClick={() => void confirmDeleteRegion()}
                 >
-                  {saving ? "處理中…" : "刪除區域"}
+                  {saving ? "處理中…" : "刪除地圖"}
                 </button>
               </div>
             </footer>

@@ -48,7 +48,7 @@ export class ItineraryMapService {
       places.findByRegionId(regionId),
     ]);
     if (!region) {
-      throw new Error(`區域 "${regionId}" 不存在，無法載入行程地圖。`);
+      throw new Error(`地圖 "${regionId}" 不存在，無法載入行程地圖。`);
     }
     return this.loadRecords(region, regionPlaces, provider);
   }
@@ -71,18 +71,18 @@ export class ItineraryMapService {
         if (!center) {
           throw cause instanceof Error
             ? cause
-            : new Error(`讀取區域「${region.name}」的位置失敗。`);
+            : new Error(`讀取地圖「${region.name}」的位置失敗。`);
         }
         regionWarning =
           cause instanceof Error
-            ? `無法更新區域「${region.name}」的位置：${cause.message}`
-            : `無法更新區域「${region.name}」的位置。`;
+            ? `無法更新地圖「${region.name}」的位置：${cause.message}`
+            : `無法更新地圖「${region.name}」的位置。`;
       }
     }
 
     if (!center) {
       throw new Error(
-        `區域「${region.name}」沒有可用的地圖中心，請到區域重新選擇 Google Maps 地點。`,
+        `地圖「${region.name}」沒有可用的地圖中心，請到地圖重新選擇 Google Maps 地點。`,
       );
     }
 
@@ -115,7 +115,7 @@ export class ItineraryMapService {
       validateStoredLocation({ ...region.centerMetadata, coordinate: region.center });
       center = { lat: region.center.latitude, lng: region.center.longitude };
     } else {
-      regionWarning = `區域「${region.name}」尚無已確認來源的位置；先顯示${definition.name}圖資範圍，不會查詢 Google 或自動補座標。`;
+      regionWarning = `地圖「${region.name}」尚無已確認來源的位置；先顯示${definition.name}圖資範圍，不會查詢 Google 或自動補座標。`;
     }
     const markers: GoogleMapMarkerData[] = [];
     const unlocatedPlaces: UnlocatedMapPlace[] = [];

@@ -31,5 +31,5 @@ it('keeps Google and unset-provider paths independent of invalid OSM settings',(
   const records=[{id:'google',name:'Google',googlePlaceId:'google-id',regionIds:[],labelIds:[]}] as Place[]
   expect(placesForMapProvider(records,'google')).toEqual(records)
   expect(placesForMapProvider(records,undefined)).toEqual([])
-  expect(()=>placesForMapProvider(records,'osm')).toThrow('OSM 區域設定無效')
+  expect(()=>placesForMapProvider(records,'osm')).toThrow('OSM 地圖設定無效')
 })

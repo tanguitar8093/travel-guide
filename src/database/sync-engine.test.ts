@@ -277,7 +277,7 @@ describe('manual hybrid sync', () => {
     const cursor = (await store.getSyncMetadata()).cursor
     const adapter = cloud()
     adapter.pull.mockImplementationOnce(async () => ({ protocolVersion: 1, cursor: '1', hasMore: false, changes: [{ entity: 'places', id: 'place', version: 'v1', record: { id: 'place', name: 'Invalid', googlePlaceId: 'google', regionIds: ['missing'], labelIds: [] }, sequence: '1' }] }))
-    await expect(syncHybridManually(store, adapter, lock)).rejects.toThrow('使用的區域「missing」不存在')
+    await expect(syncHybridManually(store, adapter, lock)).rejects.toThrow('使用的地圖「missing」不存在')
     expect((await store.getSyncMetadata()).cursor).toBe(cursor)
     expect(await database.places.count()).toBe(0)
   })

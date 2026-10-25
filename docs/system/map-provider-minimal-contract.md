@@ -50,7 +50,7 @@
 | `mount` | 非同步建立；成功才回 handle；失敗拒絕並清理部分資源 |
 | `setMarkers` | 整批替換；id 為 consumer 提供的唯一實體 key；不得隱性 fit 或寫資料 |
 | `focus` | 聚焦明確座標，可指定 zoom |
-| `fitBounds` | 調整明確範圍，不變更資料所屬區域 |
+| `fitBounds` | 調整明確範圍，不變更資料所屬地圖 |
 | `fitMarkers` | 針對當前標記；空集合維持視野 |
 | `destroy` | 可重複呼叫；釋放 markers、事件、observer 與 renderer 資源；之後 handle 操作不再修改畫面 |
 | `onSelect` | 只回 marker ID，不執行新增行程或儲存 |

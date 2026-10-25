@@ -498,7 +498,7 @@ RLS 不應被當作所有表權限的替代品，也不應在沒有驗證前宣�
 | --- | --- |
 | 關聯表時間欄位 | `place_labels.created_at`、`place_regions.created_at` 未存在；先確認是否需要，不為外觀一致而強行回填 |
 | UUID 預設 | trips／labels／places／itinerary_items 的 id 沒有基準中的資料庫預設；目前前端會傳 UUID，仍需評估其他寫入入口 |
-| 區域縮放 | 線上 `regions.zoom` 是 numeric，基準是 integer；前端讀取會轉 number，變更型別前需檢查資料 |
+| 地圖縮放 | 線上 `regions.zoom` 是 numeric，基準是 integer；前端讀取會轉 number，變更型別前需檢查資料 |
 | 地圖來源限制 | places／regions 的空白來源驗證比基準寬，places 缺少 `places_maps_url_check` |
 | 舊中心座標 | regions 的 center 只檢查 object，沒有基準中的鍵與經緯度範圍限制 |
 | 等價／額外限制 | 名稱／顏色非空檢查有不同寫法，另有 trips／places 限制；逐項分辨等價與真正行為差異 |

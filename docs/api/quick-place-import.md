@@ -52,8 +52,8 @@ Content-Type: application/json
 
 ## 儲存與同步
 
-- 原子建立名稱、`source: user / kind: user-picked` 座標及所屬沖繩區域關聯。
-- 自動沿用／建立與網站相同的帳號專屬預設沖繩區域，無 Google Place ID，OSM 模式可見。
+- 原子建立名稱、`source: user / kind: user-picked` 座標及所屬沖繩地圖關聯。
+- 自動沿用／建立與網站相同的帳號專屬預設沖繩地圖，無 Google Place ID，OSM 模式可見。
 - 新地點無預設標籤。
 - 既有同步 trigger 會記錄版本；混合模式依既有自動／手動同步讀回本機。純本機模式不會自動取得雲端新增資料。
 - 去重與新增使用現有同步／地點寫入鎖順序，避免併發點擊建立重複地點。

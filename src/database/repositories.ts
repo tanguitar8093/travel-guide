@@ -92,7 +92,7 @@ export class RegionRepository {
           throw new EntityInUseError(
             'Region',
             id,
-            '仍有地點或行程使用此區域。',
+            '仍有地點或行程使用此地圖。',
           )
         }
         await this.database.regions.delete(id)
@@ -300,7 +300,7 @@ export class TripRepository {
         if (nextRegion.mapProvider === 'osm' && next.regionId !== current.regionId) {
           for (const item of items) {
             const place = await this.database.places.get(item.placeId)
-            if (place?.location && !place.regionIds.includes(next.regionId)) throw new ValidationError('行程內仍有其他區域的地點，無法切換區域。')
+            if (place?.location && !place.regionIds.includes(next.regionId)) throw new ValidationError('行程內仍有其他地圖的地點，無法切換地圖。')
           }
         }
         await this.database.trips.put(next)
@@ -502,7 +502,7 @@ export class ItineraryItemRepository {
     const placeRecord = required(place, 'Place', item.placeId)
     const region = await this.database.regions.get(tripRecord.regionId)
     if (region?.mapProvider === 'osm' && !placeRecord.regionIds.includes(tripRecord.regionId)) {
-      throw new ValidationError('此地點不屬於行程區域，請選擇相同區域的地點。')
+      throw new ValidationError('此地點不屬於行程地圖，請選擇相同地圖的地點。')
     }
 
     if (item.date < tripRecord.startDate || item.date > tripRecord.endDate) {

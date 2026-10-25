@@ -25,7 +25,7 @@
 | `src/geo/contracts.ts` | 座標、標記、搜尋、路線、錯誤及能力契約 | 不 import database、React、Google 或 MapLibre |
 | `src/geo/create-geo-services.ts` | 組合 renderer、search、routing；集中注入 | 不以全域 mutable singleton 切換 provider |
 | `src/geo/input-classifier.ts` | 最後的額外功能：分類座標、長網址／短網址 | 不在核心批次新增；名稱搜尋先用共用接面 |
-| `src/geo/adapters/osm/okinawa-dataset.ts` | 覆蓋、預設中心、zoom、版本與圖層需求 | 區域資料配置與 provider 分開 |
+| `src/geo/adapters/osm/okinawa-dataset.ts` | 覆蓋、預設中心、zoom、版本與圖層需求 | 地圖資料配置與 provider 分開 |
 | `src/geo/adapters/osm/maplibre-renderer.ts` | map 生命週期、markers、focus、fit、圖釘選取 | 點圖新增最後再加；不儲存地點、不處理行程排序 |
 | `src/geo/adapters/osm/okinawa-style.ts` | 移植 maps 四圖層 style，補 TS 型別 | 只參考底圖 style，不搬原 UI CSS／版面 |
 | `src/geo/adapters/osm/local-map-client.ts` | 先 health／TileJSON，再 search／route；URL 解析最後加入 | 檢查 unknown 回應與錯誤；有取消與逾時 |

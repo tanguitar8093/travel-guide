@@ -30,7 +30,7 @@ const navigationItems: {
   icon: string;
   path: string;
 }[] = [
-  { id: "regions", label: "區域", icon: "◎", path: routes.regions },
+  { id: "regions", label: "地圖", icon: "◎", path: routes.regions },
   { id: "places", label: "地點", icon: "⌖", path: routes.places },
   { id: "labels", label: "標籤", icon: "◈", path: routes.labels },
   { id: "itinerary", label: "行程", icon: "▤", path: routes.itinerary },

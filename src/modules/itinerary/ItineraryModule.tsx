@@ -754,7 +754,7 @@ function ItineraryModule({
           setMapDataRegionId(regionId);
           setMapErrorRegionId(regionId);
           setMapError(
-            cause instanceof Error ? cause.message : "載入區域地圖資料失敗。",
+            cause instanceof Error ? cause.message : "載入地圖資料失敗。",
           );
         }
       });
@@ -1530,7 +1530,7 @@ function ItineraryModule({
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {mapProvider === 'osm' ? '前往地點模組新增地點。' : '前往地點模組新增地點並設定所屬區域。'}
+                    {mapProvider === 'osm' ? '前往地點模組新增地點。' : '前往地點模組新增地點並設定所屬地圖。'}
                   </a>
                 </div>
               )}
@@ -1869,7 +1869,7 @@ function ItineraryModule({
                     </label>
                     <label className="itinerary-field itinerary-field-wide">
                       <span>
-                        所屬區域 <b>*</b>
+                        所屬地圖 <b>*</b>
                       </span>
                       <select
                         value={tripDraft.regionId}
@@ -1883,7 +1883,7 @@ function ItineraryModule({
                         disabled={saving}
                       >
                         <option value="" disabled>
-                          選擇區域
+                          選擇地圖
                         </option>
                         {providerRegions.map((region) => (
                           <option value={region.id} key={region.id}>
@@ -1953,11 +1953,11 @@ function ItineraryModule({
                   </>
                 ) : (
                   <div className="itinerary-no-regions">
-                    <strong>建立行程前，需要先有一個區域。</strong>
+                    <strong>建立行程前，需要先有一張地圖。</strong>
                     <p>
                       {mapProvider === 'osm'
-                        ? "OSM 使用預設區域；若區域尚未載入，請重新整理頁面。"
-                        : "區域可代表城市或旅行目的地；建立後即可選擇它來建立行程。"}
+                        ? "OSM 使用預設地圖；若地圖尚未載入，請重新整理頁面。"
+                        : "地圖可代表城市或旅行目的地；建立後即可選擇它來建立行程。"}
                     </p>
                     <div className="itinerary-no-regions-actions">
                       {mapProvider !== 'osm' && (
@@ -1965,7 +1965,7 @@ function ItineraryModule({
                           className="itinerary-primary itinerary-link-button"
                           to={routes.regions}
                         >
-                          前往區域
+                          前往地圖
                         </RouterLink>
                       )}
                       <button
@@ -2337,7 +2337,7 @@ function ItineraryModule({
                           <div className="itinerary-day-empty">
                             <span>⌖</span>
                             <strong>這一天還沒有安排</strong>
-                            <p>從已收藏且屬於此區域的地點中加入第一站。</p>
+                            <p>從已收藏且屬於此地圖的地點中加入第一站。</p>
                             <button
                               type="button"
                               className="itinerary-primary"
@@ -2351,7 +2351,7 @@ function ItineraryModule({
                       )}
                       {!readonly && !tripPlaces.length && !itemFormVisible && (
                         <p className="itinerary-region-hint">
-                          {mapProvider === 'osm' ? '請先到地點模組新增地點。' : <>請先到地點模組，將地點加入「{selectedRegion?.name}」區域。</>}
+                          {mapProvider === 'osm' ? '請先到地點模組新增地點。' : <>請先到地點模組，將地點加入「{selectedRegion?.name}」地圖。</>}
                         </p>
                       )}
                     </div>
@@ -2382,11 +2382,11 @@ function ItineraryModule({
             )}
           </aside>
 
-          <section className="itinerary-map-panel" aria-label="行程區域地圖">
+          <section className="itinerary-map-panel" aria-label="行程地圖">
             <div className="itinerary-map-heading">
               <div>
                 <span>旅行範圍</span>
-                <strong>{selectedRegion?.name ?? "尚未選擇區域"}</strong>
+                <strong>{selectedRegion?.name ?? "尚未選擇地圖"}</strong>
               </div>
               <span className="itinerary-map-actions">
                 {selectedRegion && (
@@ -2443,7 +2443,7 @@ function ItineraryModule({
                         mapHandleRef.current?.resetView();
                       }}
                     >
-                      {mapProvider === 'osm' ? `${selectedRegion?.name ?? '區域'}全景` : '恢復預設'}
+                      {mapProvider === 'osm' ? `${selectedRegion?.name ?? '地圖'}全景` : '恢復預設'}
                     </button>
                     {mapProvider === 'osm' && <button
                       type="button"
@@ -2516,20 +2516,20 @@ function ItineraryModule({
               <div className="itinerary-google-map" ref={mapContainerRef} />
               {!selectedRegion ? (
                 <div className="itinerary-map-overlay">
-                  <strong>先選擇一個行程區域</strong>
-                  <p>地圖會顯示區域範圍及收藏在此區域的地點。</p>
+                  <strong>先選擇一個行程地圖</strong>
+                  <p>地圖會顯示地圖範圍及收藏在此地圖的地點。</p>
                 </div>
               ) : mapLoading ? (
                 <div className="itinerary-map-overlay">
-                  <strong>正在載入區域地圖…</strong>
-                  <p>取得區域範圍與地點位置。</p>
+                  <strong>正在載入地圖…</strong>
+                  <p>取得地圖範圍與地點位置。</p>
                 </div>
               ) : visibleMapError ? (
                 <div className="itinerary-map-overlay itinerary-map-overlay-error">
-                  <strong>無法顯示區域地圖</strong>
+                  <strong>無法顯示地圖</strong>
                   <p>{visibleMapError}</p>
                   <button type="button" className="itinerary-secondary" onClick={() => setMapRetry(value => value + 1)}>重試地圖</button>
-                  {mapProvider !== 'osm' && <RouterLink to={routes.regions}>查看區域</RouterLink>}
+                  {mapProvider !== 'osm' && <RouterLink to={routes.regions}>查看地圖</RouterLink>}
                 </div>
               ) : mountedMapRegionId !== selectedRegion.id ? (
                 <div className="itinerary-map-overlay">
@@ -2579,7 +2579,7 @@ function ItineraryModule({
                 <i className="itinerary-map-legend-dot numbered" /> 當日行程順序
               </span>
               <span>
-                <i className="itinerary-map-legend-dot" /> 區域收藏地點
+                <i className="itinerary-map-legend-dot" /> 地圖收藏地點
               </span>
               <span>{visibleMapData?.markers.length ?? 0} 個已定位</span>
             </div>
@@ -2625,8 +2625,8 @@ function ItineraryModule({
                 刪除後無法復原。此操作會一併刪除此行程的每日安排及備註；
                 {deleteRouteMapCheck?.status === "ready" &&
                 deleteRouteMapCheck.hasRouteMap
-                  ? "關聯的試算地圖與後加標記也會一起刪除；收藏地點、標籤與區域不受影響。"
-                  : "收藏地點、標籤與區域不受影響。"}
+                  ? "關聯的試算地圖與後加標記也會一起刪除；收藏地點、標籤與地圖不受影響。"
+                  : "收藏地點、標籤與地圖不受影響。"}
               </p>
             </div>
             {deleteRouteMapCheck?.status === "loading" && (

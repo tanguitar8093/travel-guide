@@ -34,7 +34,7 @@ export function PublicationDialog({ operation, trip, regionName, published, onCl
       ? '下架後不再出現在公開列表，無法預覽或套用；原始行程與已套用的個人副本都會保留。'
       : operation === 'update'
         ? '以目前內容完整覆蓋公開版本，不做差異比對。保留新增日期，記錄更新日期；已套用的副本不受影響。'
-        : '複製目前區域、行程引用的地點與每日安排。之後編輯或刪除來源，公開內容不會自動改變。'}</p>
+        : '複製目前地圖、行程引用的地點與每日安排。之後編輯或刪除來源，公開內容不會自動改變。'}</p>
     {operation !== 'withdraw' && <p className="sharing-details">保留行程項目備註；私人標籤與地點備註不會公開。</p>}
     {error && <p className="itinerary-feedback itinerary-error" role="alert">{error}</p>}
     <footer className="itinerary-delete-dialog-actions"><button type="button" className="itinerary-secondary" disabled={busy} onClick={onClose}>取消</button>

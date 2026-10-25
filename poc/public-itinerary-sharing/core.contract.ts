@@ -16,7 +16,7 @@ beforeEach(async () => {
   // Repeated reference + unused place + membership in a second region.
   dataset.items.push({ ...dataset.items[0], id: 'repeat-item', date: '2026-11-07', order: 3 })
   dataset.places.push({ ...dataset.places[0], id: 'unused-place', name: '未使用的收藏' })
-  dataset.regions.push({ id: 'other-region', name: '其他私人區域', zoom: 10 })
+  dataset.regions.push({ id: 'other-region', name: '其他私人地圖', zoom: 10 })
   dataset.places[0].regionIds.push('other-region')
   await seedDemoDatabase(db, dataset)
   core = createPublicItineraryCore(db)

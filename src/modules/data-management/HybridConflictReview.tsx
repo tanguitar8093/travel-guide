@@ -3,12 +3,12 @@ import { dataManagementController } from './data-management.controller'
 import type { SyncConflictReview } from '../../database/sync.types'
 import { ConflictRecordValue, ConflictRecordTitle } from './ConflictRecordValue'
 
-const names = { regions: '區域', labels: '標籤', places: '地點', trips: '行程', itineraryItems: '行程項目', routeMaps: '試算地圖', routeMapPlaces: '試算後加地點' }
+const names = { regions: '地圖', labels: '標籤', places: '地點', trips: '行程', itineraryItems: '行程項目', routeMaps: '試算地圖', routeMapPlaces: '試算後加地點' }
 const routeFields: Record<string, string> = {
   routeMapId: '所屬試算地圖', selectedDate: '日期篩選',
   originGooglePlaceId: '出發點 Google 地點 ID', destinationGooglePlaceId: '目的地 Google 地點 ID',
 }
-const fields: Record<string, string> = { name: '名稱', id: '資料 ID', zoom: '地圖縮放', googlePlaceId: 'Google 地點 ID', center: '中心位置', color: '顏色', parentId: '上層標籤', icon: '圖示', mapsUrl: '地圖網址', notes: '備註', regionIds: '關聯區域', labelIds: '關聯標籤', regionId: '行程區域', startDate: '開始日期', endDate: '結束日期', tripId: '所屬行程', placeId: '地點', date: '日期', order: '順序', arrivalTime: '抵達時間', durationMinutes: '停留分鐘', transport: '交通方式', travelDurationMinutes: '交通分鐘', note: '備註' }
+const fields: Record<string, string> = { name: '名稱', id: '資料 ID', zoom: '地圖縮放', googlePlaceId: 'Google 地點 ID', center: '中心位置', color: '顏色', parentId: '上層標籤', icon: '圖示', mapsUrl: '地圖網址', notes: '備註', regionIds: '關聯地圖', labelIds: '關聯標籤', regionId: '行程地圖', startDate: '開始日期', endDate: '結束日期', tripId: '所屬行程', placeId: '地點', date: '日期', order: '順序', arrivalTime: '抵達時間', durationMinutes: '停留分鐘', transport: '交通方式', travelDurationMinutes: '交通分鐘', note: '備註' }
 
 export function HybridConflictReview({ disabled }: { disabled: boolean }) {
   const [review, setReview] = useState<SyncConflictReview>()

@@ -44,7 +44,7 @@ returns void language plpgsql immutable set search_path='' as $$
 begin
   if body ? 'location' and not public.app_osm_contains(dataset,
     (body->'location'->'coordinate'->>'latitude')::numeric,(body->'location'->'coordinate'->>'longitude')::numeric) then
-    raise exception '地點超出所屬區域的圖資範圍 (%)',dataset using errcode='22023';
+    raise exception '地點超出所屬地圖的圖資範圍 (%)',dataset using errcode='22023';
   end if;
 end;
 $$;
@@ -1319,7 +1319,7 @@ begin
       '{"source":"user","kind":"approximate-center"}',8,case when dataset='taiwan' then dataset else null end)
     on conflict(id) do nothing;
   if not exists(select 1 from public.regions where id=region_id and owner_uid=uid and map_provider='osm') then
-    raise exception '預設沖繩區域無法使用，請先在 TripMap 確認區域設定。' using errcode='22023';
+    raise exception '預設沖繩地圖無法使用，請先在 TripMap 確認地圖設定。' using errcode='22023';
   end if;
   record_body := jsonb_strip_nulls(jsonb_build_object('name',clean_name,'location',new_location,
     'mapsUrl',p_source_url,'regionIds',jsonb_build_array(region_id),'labelIds','[]'::jsonb));
@@ -1389,7 +1389,7 @@ begin
       or (tg_table_name='place_regions' and p.id=(row_data->>'place_id')::uuid))
   loop
     if entry.location is null or not exists(select 1 from public.place_regions where place_id=entry.place_id and region_id=entry.region_id) then
-      raise exception '此地點不屬於行程區域。' using errcode='22023';
+      raise exception '此地點不屬於行程地圖。' using errcode='22023';
     end if;
     perform sync_private.validate_place_dataset(jsonb_build_object('location',entry.location),coalesce(entry.osm_dataset,'okinawa'));
   end loop;

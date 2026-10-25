@@ -17,7 +17,7 @@
 | Google SDK | [google-places.service.ts](../../src/modules/place/google-places.service.ts) 共 417 行，集中 loader、搜尋 widget、details、Routes、map／markers | 可作為 Google adapter 的起點；搜尋與地圖目前都先載入 Places |
 | 地點資料 | [models.ts](../../src/database/models.ts) 的 Place 只有名稱、Google ID／網址、筆記與關聯，沒有座標 | 有存地點，但不等於有存可供 OSM 畫圖的座標 |
 | 舊資料升級 | [database.ts](../../src/database/database.ts) version 3 會刪除 Place 的 latitude／longitude；沒有 ID／網址时先將座標或名稱轉成 Google 搜尋網址 | 舊座標可能部分保留在網址；不能假設目前資料庫仍有原欄位 |
-| 區域 | Region 有 optional center；[RegionModule.tsx](../../src/modules/region/RegionModule.tsx) 選 Google 結果後將 draft.center 清空，儲存時優先寫 ID | 既有區域也可能只存 Google ID |
+| 地圖 | Region 有 optional center；[RegionModule.tsx](../../src/modules/region/RegionModule.tsx) 選 Google 結果後將 draft.center 清空，儲存時優先寫 ID | 既有地圖也可能只存 Google ID |
 | 行程地圖 | [itinerary-map.service.ts](../../src/modules/itinerary/itinerary-map.service.ts) 即時查 Google details；只有網址的地點列為無法定位 | 不能直接改底圖就做到本機讀庫畫圖 |
 | 路程試算 | [route-calculator.service.ts](../../src/modules/route-calculator/route-calculator.service.ts) endpoint source 為 saved／google；marker 與起終點用 Google ID | 高耦合，需要改成專案識別與座標 |
 | 已存試算地圖 | RouteMap 存 origin／destination Google ID；RouteMapPlace 存 Google ID，沒有座標 | 額外標記也需轉換，不能只補 Place |
@@ -31,7 +31,7 @@
 
 | 部分 | 沿用判斷 | 必要調整 |
 |---|---|---|
-| Trip、Label、地點與區域／標籤關聯、行程排序 | 高 | 原則上保留既有 UUID、外鍵與操作 |
+| Trip、Label、地點與地圖／標籤關聯、行程排序 | 高 | 原則上保留既有 UUID、外鍵與操作 |
 | Supabase Auth、owner／member 權限、RLS 基礎 | 高 | 更換地圖不需要更換登入系統；新欄位仍在既有權限邊界内 |
 | IndexedDB／Supabase／hybrid facade | 高 | repository 映射與驗證加入位置欄位 |
 | 本機交易、outbox、同步 engine、帳號隔離、receipt | 高 | engine 大致沿用；payload、雲端 RPC、baseline／舊待送任務相容性須檢查 |
@@ -49,7 +49,7 @@
 
 ```mermaid
 flowchart TD
-  UI[地點／區域／行程／試算 UI] --> APP[應用服務]
+  UI[地點／地圖／行程／試算 UI] --> APP[應用服務]
   APP --> GEO[GeoFacade：位置與能力的統一入口]
   APP --> DB[既有資料庫 Facade]
   GEO --> MAP[MapRenderer]
@@ -116,7 +116,7 @@ Dexie 記錄可增加不索引的欄位，單純補位置不一定需要索引�
 
 ## 舊資料轉換
 
-1. 先做唯讀資料盤點：有 center／可確認座標網址／只有 Google ID／只有名稱或網址，各有多少筆；包含私人地點、區域、試算標記、共享及公開 snapshot。
+1. 先做唯讀資料盤點：有 center／可確認座標網址／只有 Google ID／只有名稱或網址，各有多少筆；包含私人地點、地圖、試算標記、共享及公開 snapshot。
 2. 有可靠既存座標者先沿用。Google URL 中 `query=lat,lng` 可作候選；`@lat,lng` 常是視角中心，不能直接當成店家座標。
 3. 只有 Google ID 者無法離線推導座標。優先由本機 OSM 資料或人工選位配對；若採 Google 查詢，另確認資料保存／跨底圖條款、費用與使用者授權範圍。
 4. 名稱搜尋有歧義，不自動以第一筆覆蓋；保存未定位清單與候選，讓使用者確認。

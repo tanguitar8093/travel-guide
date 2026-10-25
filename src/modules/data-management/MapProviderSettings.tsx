@@ -60,7 +60,7 @@ export function MapProviderSettings() {
         {!provider && <option value="" disabled>請重新選擇</option>}
         <option value="google">Google Maps</option><option value="osm">OpenStreetMap</option>
       </select>
-      <p className="provider-description" id="map-provider-description">依此瀏覽器保存。選用 OSM 後，請至「區域」頁面選擇沖繩或台灣。</p>
+      <p className="provider-description" id="map-provider-description">依此瀏覽器保存。選用 OSM 後，請至「地圖」頁面選擇沖繩或台灣。</p>
     </div>
     {(error || readError) && <p className="data-management-feedback data-management-error" role="alert">{error || readError}</p>}
     {notice && <p className="provider-description" role="status">{notice}</p>}
@@ -74,7 +74,7 @@ export function MapProviderSettings() {
     </div>
     <div className="provider-notice" role="note">
       <strong>整合範圍</strong>　OSM 行程地圖不會查 Google 座標；舊 Google-only 地點會列為未定位。
-      地點搜尋／新增與路程試算已支援 OSM；OSM 可在區域頁面切換沖繩或台灣，地點只能加入所屬區域的圖資範圍。混合模式先儲存於本機，再透過既有背景同步上傳位置與路線端點；離線操作會保留在待同步清單。
+      地點搜尋／新增與路程試算已支援 OSM；OSM 可在地圖頁面切換沖繩或台灣，地點只能加入所屬地圖的圖資範圍。混合模式先儲存於本機，再透過既有背景同步上傳位置與路線端點；離線操作會保留在待同步清單。
     </div>
   </section>
 }

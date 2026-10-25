@@ -14,7 +14,7 @@ import { useAuth } from '../../auth/useAuth';
 import { MapProviderSettings } from './MapProviderSettings';
 
 const countLabels = [
-  ["regions", "區域"],
+  ["regions", "地圖"],
   ["places", "地點"],
   ["labels", "標籤"],
   ["trips", "行程"],
@@ -257,7 +257,7 @@ function DataManagementModule() {
 
     if (
       !window.confirm(
-        "即將清空此瀏覽器中的全部資料庫內容。\n\n包括：區域、地點、標籤、行程與每日行程項目。\n\n此操作無法撤銷，請先確認是否已備份。確定要清空嗎？",
+        "即將清空此瀏覽器中的全部資料庫內容。\n\n包括：地圖、地點、標籤、行程與每日行程項目。\n\n此操作無法撤銷，請先確認是否已備份。確定要清空嗎？",
       )
     ) {
       return;
@@ -497,7 +497,7 @@ function DataManagementModule() {
             <div className="data-management-card-icon">↓</div>
             <h2>匯出備份</h2>
             <p>
-              下載包含區域、地點、標籤、行程與每日行程項目的完整 JSON 備份。
+              下載包含地圖、地點、標籤、行程與每日行程項目的完整 JSON 備份。
             </p>
             <button
               type="button"
@@ -568,7 +568,7 @@ function DataManagementModule() {
             <p>
               {databaseMode === "supabase"
                 ? "清空目前登入帳號在雲端的資料。會先預覽並確認後才執行。"
-                : "將此瀏覽器中所有旅行資料一次性刪除，包括區域、地點、標籤、行程與每日行程項目。"}
+                : "將此瀏覽器中所有旅行資料一次性刪除，包括地圖、地點、標籤、行程與每日行程項目。"}
             </p>
             <div className="data-management-actions">
               <button

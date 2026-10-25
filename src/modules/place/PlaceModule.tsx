@@ -643,7 +643,7 @@ function PlaceModule() {
           <div className="workspace-page-heading-title">
             <h1>地點</h1>
             <p>
-              搜尋並收藏想去的地點，套用標籤與區域，規劃行程時即可快速挑選。
+              搜尋並收藏想去的地點，套用標籤與地圖，規劃行程時即可快速挑選。
             </p>
           </div>
           <button
@@ -1128,10 +1128,10 @@ function PlaceModule() {
 
                   {provider !== "osm" && (
                     <fieldset className="place-choice-field">
-                      <legend>所屬區域</legend>
+                      <legend>所屬地圖</legend>
                       {providerRegions.length ? (
                         <SearchableMultiSelect
-                          label="所屬區域"
+                          label="所屬地圖"
                           options={providerRegions.map((region) => ({
                             id: region.id,
                             name: region.name,
@@ -1139,10 +1139,10 @@ function PlaceModule() {
                           selectedIds={draft.regionIds}
                           onToggle={(id) => toggleInDraft("regionIds", id)}
                           disabled={formDisabled}
-                          placeholder="搜尋或選擇區域"
+                          placeholder="搜尋或選擇地圖"
                         />
                       ) : (
-                        <small>目前沒有區域，可先不指定。</small>
+                        <small>目前沒有地圖，可先不指定。</small>
                       )}
                     </fieldset>
                   )}
@@ -1377,7 +1377,7 @@ function PlaceModule() {
                   </section>
                   {provider !== "osm" && (
                     <section className="place-info-section">
-                      <h3>所屬區域</h3>
+                      <h3>所屬地圖</h3>
                       {selectedPlace.regionIds.length ? (
                         <div className="place-info-tags">
                           {regionsForMapProvider(regions, provider)
@@ -1391,7 +1391,7 @@ function PlaceModule() {
                             ))}
                         </div>
                       ) : (
-                        <p className="muted-value">尚未指定區域</p>
+                        <p className="muted-value">尚未指定地圖</p>
                       )}
                     </section>
                   )}

@@ -26,7 +26,7 @@
   帳號／權限驗證與必要本機準備不受此 3 秒期限取代。
   standalone/cloud 不新增同步等待；manual 保留既有登入比對，不自動上傳。
 - 自動同步一輪結束後發布資料 revision，模組重新查詢本機資料，不重掛工作區。
-  區域、地點、標籤、行程在編輯／儲存期間延後重新載入，保留選取與草稿；
+  地圖、地點、標籤、行程在編輯／儲存期間延後重新載入，保留選取與草稿；
   路程試算更新已存地點、行程選項與行程標記，不覆蓋使用中的端點與計算結果。
 - 協作 ACL、啟用及取消是在線 server 操作。
   shared 原行程 UI 是一份 workspace 的共同編輯，不是每個人 clone 後再合併。
@@ -36,7 +36,7 @@
 
 | ID  | 現行成員與責任                                                                                                                                                                                                                          |
 | --- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| N1  | `App`、`usePathname`、routes：依路徑選行程、地點、區域、標籤、資料管理、路程試算。                                                                                                                                                      |
+| N1  | `App`、`usePathname`、routes：依路徑選行程、地點、地圖、標籤、資料管理、路程試算。                                                                                                                                                      |
 | N2  | `AuthProvider`／gateway：session、Email/password sign-in/sign-up/sign-out、role gate、hybrid account activation/deactivation；`AuthGate`、`WorkspaceLayout`、`RouterLink`：工作區外殼。                                                 |
 | N3  | `LabelModule` → `LabelController` → `LabelService`：樹、搜尋、地點關聯與批次操作。                                                                                                                                                      |
 | N4  | `PlaceModule` → controller/service；Google Places adapter：私人 place/region/label 查詢與 Maps/Places 即時解析，不持久化 provider 座標。                                                                                                |

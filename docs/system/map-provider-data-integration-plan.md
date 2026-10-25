@@ -124,16 +124,16 @@ type StoredLocation = LocationMetadata & { coordinate: Coordinate };
 - Google reference 先沿用既有 `googlePlaceId`，由 mapper 轉成中立 runtime reference；本次不為改名全面搬欄位。
 - Google details 的座標／地址／viewport 只在受允許的 Google runtime 使用，不寫入 `StoredLocation`，也不自動拿到 OSM 畫圖。
 - `source: user` 代表真正獨立輸入／選位，不是把 Google 回傳結果按「確認」就換標籤規避來源限制。
-- 區域沿用 `center`，新增 `centerMetadata?: LocationMetadata`，避免另存一份相同位置。舊 center 可標 `legacy-user`，但批次轉換前仍需確認其實際來源。
+- 地圖沿用 `center`，新增 `centerMetadata?: LocationMetadata`，避免另存一份相同位置。舊 center 可標 `legacy-user`，但批次轉換前仍需確認其實際來源。
 - `reference.id` 不含 datasetVersion 作為身分；資料更新不應使同一 OSM feature 變成另一個收藏。執行期另驗證正整數 ID，不能只靠 TypeScript template literal。
 
-目前已查閱 [Google Places 政策](https://developers.google.com/maps/documentation/places/web-service/policies)：place ID 有保存例外，但一般 Places content 的儲存及跨非 Google 地圖呈現受限制。正式 Google SDK 路徑、區域條款與 Routes 結果保存仍須實作前核對；本文件不是完整授權或法律判定。
+目前已查閱 [Google Places 政策](https://developers.google.com/maps/documentation/places/web-service/policies)：place ID 有保存例外，但一般 Places content 的儲存及跨非 Google 地圖呈現受限制。正式 Google SDK 路徑、地圖條款與 Routes 結果保存仍須實作前核對；本文件不是完整授權或法律判定。
 
 ### 4.2 實體改動
 
 | 實體 | 建議新增／變更 | 保留不動 |
 |---|---|---|
-| Place | `location?: StoredLocation`；新增可只用有效 location 儲存的路徑 | UUID、使用者名稱、筆記、icon、區域／標籤、mapsUrl、googlePlaceId |
+| Place | `location?: StoredLocation`；新增可只用有效 location 儲存的路徑 | UUID、使用者名稱、筆記、icon、地圖／標籤、mapsUrl、googlePlaceId |
 | Region | `centerMetadata?`；搜尋 OSM 後保存合法 center 及來源；Google-only region 保持未補位置狀態 | center 的既有名稱／格式、zoom、UUID、googlePlaceId |
 | RouteMapPlace | `googlePlaceId` 改 optional；新增 `location?`；新 OSM／使用者地點必須有位置與自行命名 | UUID、routeMapId、舊 Google marker 與名稱 |
 | RouteMap | 新增 `origin?`／`destination?` 中立端點；舊 Google 端點欄位留相容讀取 | UUID、tripId、selectedDate、transport、既有一行程一地圖規則 |
@@ -564,11 +564,11 @@ Vitest 在 Node 20 使用已確認可用的 `NODE_OPTIONS=--experimental-websock
 #### 真實行程資料與渲染
 
 - [ItineraryMapService](../../src/modules/itinerary/itinerary-map.service.ts) 保留原 Google 解析、legacy center fallback 與明確失敗提示。OSM 僅使用通過既有驗證器的 StoredLocation，不查 Google details，不由名稱／地圖網址猜座標。
-- OSM 的 Region.center 需有合法 centerMetadata；沒有已確認來源時顯示沖繩資料集概覽並明確警告，不能宣稱已定位到原區域。Google-only／URL-only／非法位置逐筆列為未定位，不為它們造圖釘。
+- OSM 的 Region.center 需有合法 centerMetadata；沒有已確認來源時顯示沖繩資料集概覽並明確警告，不能宣稱已定位到原地圖。Google-only／URL-only／非法位置逐筆列為未定位，不為它們造圖釘。
 - [workspace-map](../../src/geo/workspace-map.ts) 將正式行程既有 marker／handle 介面接至已完成的 neutral MapLibre renderer。Google 分支仍直接委派原 mountGoogleMap 與原 SDK/key 載入流程，沒有第二套 Google loader。
 - [ItineraryModule](../../src/modules/itinerary/ItineraryModule.tsx) 在原版面掛載 renderer，保留圖釘身分、當日順序、點擊編輯、首次 fit、縮放及全螢幕。OSM marker 尺寸／配色依原設計限縮覆寫，不改其他 geo demo 的視覺。
 - provider 切換立即遮蔽前一 provider 的資料，舊資料請求不回寫，OSM mount 可中止，過期 Google mount 完成後銷毀。載入／圖資失敗有明確提示與重試，不自動 fallback Google。
-- OSM 行程內路線估算明確停用，不偷偷執行 Google Routes；原路程試算頁、搜尋、新增地點、區域編輯尚未切換，設定卡片如實說明。既有記錄可讀；沒有開啟新格式 create/update/import，也沒有新增雲端 migration。
+- OSM 行程內路線估算明確停用，不偷偷執行 Google Routes；原路程試算頁、搜尋、新增地點、地圖編輯尚未切換，設定卡片如實說明。既有記錄可讀；沒有開啟新格式 create/update/import，也沒有新增雲端 migration。
 
 #### 開發與正式圖資
 
@@ -593,9 +593,9 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 
 **未執行 build、lint、瀏覽器或 git 檢查。** 尚未實測正式站的登入後選單、鍵盤焦點、跨分頁／快速切換、實際圖資載入與版面視覺，不能把靜態 markup／mock renderer 測試當作瀏覽器驗證。Google API key 在此環境無法使用，不重試真實 Google API；不連 live Supabase、不部署雲端。前一批 A／B 通過結果也不替代本次 UI 驗證。
 
-### 13.14 正式地點／區域／路程 OSM 流程接線
+### 13.14 正式地點／地圖／路程 OSM 流程接線
 
-延續 13.13，本批將正式頁面的「新增／編輯地點、區域中心設定、路程試算」接上 OSM 路徑，不再停留在 Google-only 交互。範圍仍遵守既有資料邊界：地圖供應商由 [provider-preference](../../src/geo/provider-preference.ts) 決定，功能都經由 module service/controller 與 database facade，不直接在 UI 存取資料表。
+延續 13.13，本批將正式頁面的「新增／編輯地點、地圖中心設定、路程試算」接上 OSM 路徑，不再停留在 Google-only 交互。範圍仍遵守既有資料邊界：地圖供應商由 [provider-preference](../../src/geo/provider-preference.ts) 決定，功能都經由 module service/controller 與 database facade，不直接在 UI 存取資料表。
 
 #### 共用 OSM 服務
 
@@ -607,11 +607,11 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 - OSM search 會把 `osm-node-123`/`osm-way-456` 正規化為 `node/123`/`way/456` reference，保留 datasetVersion。Google 連結不會被拿來擷取座標；可另存為導覽網址，但定位必須由 OSM 搜尋或使用者自行確認座標。
 - Vite 增加 `/local-map` proxy；正式環境需 `VITE_OSM_SERVICE_URL`，未設定會明確失敗。
 
-#### 地點與區域
+#### 地點與地圖
 
 - [PlaceModule](../../src/modules/place/PlaceModule.tsx) 與 [RegionModule](../../src/modules/region/RegionModule.tsx) 改為 provider-aware：
   - Google 模式保留原 autocomplete/summary。
-  - OSM 模式啟用共用 autocomplete，選取結果寫入 `location`（地點）或 `center + centerMetadata`（區域）。
+  - OSM 模式啟用共用 autocomplete，選取結果寫入 `location`（地點）或 `center + centerMetadata`（地圖）。
   - 建立/編輯表單依 provider 切換提示與必填邏輯（OSM 不強制 Google URL）。
   - OSM 模式顯示已選座標與來源；詳情區提供 OSM 開啟連結。
 - 新增 [OsmSearchHeading](../../src/geo/OsmSearchHeading.tsx) 的說明對話框，將設計稿中的搜尋說明帶入正式 UI。
@@ -628,7 +628,7 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 #### 寫入發布狀態
 
 - [database/index.ts](../../src/database/index.ts) 的新格式發布 gate 調整為：
-  - `indexeddb`：允許 OSM 新格式寫入（地點 location、區域 centerMetadata、route endpoints/markers）。
+  - `indexeddb`：允許 OSM 新格式寫入（地點 location、地圖 centerMetadata、route endpoints/markers）。
   - `supabase` / `hybrid`：仍阻擋，並回傳明確錯誤「雲端與混合模式整合尚未完成」。
 - [MapProviderSettings](../../src/modules/data-management/MapProviderSettings.tsx) 的整合範圍文案同步更新，不再宣稱 OSM 流程完全未接線；改為標示「雲端/混合新格式同步仍在整合」。
 
@@ -652,7 +652,7 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 - [osm-dev-assets](../../scripts/osm-dev-assets.ts) 現在先檢查 `127.0.0.1:3000/api/health` 是否為沖繩 maps 服務；未就緒時才啟動同機 maps 專案的 `server.py`，等待健康檢查成功後再代理 `/local-map/*`。服務啟動失敗、回應逾時或非 JSON 錯誤會明確回傳 503 JSON，不再讓無服務的代理只呈現難辨識的 502。
 - [maps server.py](../../../maps/server.py) 將沖繩 `okinawa.mbtiles` 改為可選啟動資源。搜尋、靜態路線與網址解析使用的本地 OSM 資料存在時可獨立啟動；未安裝 mbtiles 時，只有 vector tile API 明確回應 503。
 - [osm-service](../../src/geo/osm-service.ts) 將 Google Maps URL 傳給 maps 專案既有的 allowlist／解析器，不在瀏覽器以單一座標 regex 猜測。解析涵蓋精確 pin、query 座標、embed 座標、視窗中心與短網址；短網址仍須能連線完成安全轉址。前端檢查回傳座標、範圍、解析後網址 host 與位置類型；範圍外會拒絕，視窗中心會提示使用者確認。
-- 地點／區域表單在搜尋文字變更時清除舊位置、Google place ID 與地點的舊導覽網址；選取 Google Maps URL 後保存解析器回傳的安全網址，Google Places autocomplete 與既有 Google loader 未更動。
+- 地點／地圖表單在搜尋文字變更時清除舊位置、Google place ID 與地點的舊導覽網址；選取 Google Maps URL 後保存解析器回傳的安全網址，Google Places autocomplete 與既有 Google loader 未更動。
 - OSM／自主位置的外部導航一律開啟 Google Maps：保留使用者提供且已解析的 Google Maps URL，沒有既存網址時依已確認座標建立 Google Maps directions URL。OSM 是底圖與位置來源，不是外部導航目的地網址。
 
 #### 驗證結果
@@ -668,14 +668,14 @@ Vitest 使用現有 `NODE_OPTIONS=--experimental-websocket`，未安裝依賴。
 
 短網址的外網轉址未做 live 驗證；其格式已在 service 單元測試確認會傳至既有 parser。未跑 build、lint、瀏覽器或 Google API。雲端／Hybrid 新格式寫入 gate 仍保留，OSM 新格式資料仍只開放 standalone IndexedDB，不能據此宣稱跨裝置同步已完成。
 
-### 13.16 IndexedDB 區域依地圖供應商隔離
+### 13.16 IndexedDB 地圖依地圖供應商隔離
 
-使用者要求 OSM 區域與 Google 區域分開；現有 OSM 圖資與可儲存位置目前限沖繩。已實作：
+使用者要求 OSM 地圖與 Google 地圖分開；現有 OSM 圖資與可儲存位置目前限沖繩。已實作：
 
 - [Region](../../src/database/models.ts) 增加可選 `mapProvider` 歸屬；舊資料未標記時一律視為 Google，既有 Google Region／地點／行程不改寫供應商。
 - IndexedDB v12 只在 standalone `travel-planner` 資料庫首次升級時建立獨立的預設「沖繩」OSM Region。遷移將沖繩範圍內、原先掛在 Google Region 的 OSM locations 移至 OSM Region；只有全部行程地點皆為可用沖繩 OSM location 的行程才一起改掛 OSM Region。混合行程維持原 Google Region，避免遷移改變混合行程的既有語意。
-- Region／Place／Itinerary 的區域列表依目前 provider 過濾，不會在 OSM 模式顯示 Google Regions 或 Google-region trips。新建 OSM place 與選取 OSM location 時預設關聯目前列表第一個 OSM Region。
+- Region／Place／Itinerary 的地圖列表依目前 provider 過濾，不會在 OSM 模式顯示 Google Regions 或 Google-region trips。新建 OSM place 與選取 OSM location 時預設關聯目前列表第一個 OSM Region。
 - IndexedDB repository 與 backup validation 防止 OSM location 關聯 Google Region、Google Place ID 關聯 OSM Region；OSM Region 中心與 OSM 儲存位置都驗證在目前沖繩資料 bounds 內。
 - OSM Region/location 仍只允許 standalone IndexedDB 寫入；Supabase／Hybrid gate 未放寬。Account-scoped Hybrid 資料庫不會自行注入未排入 outbox 的 OSM Region。
 
-驗證：區域遷移／provider 隔離、備份、database facade、route-map repository、place、itinerary 相關共 7 檔 49 項測試通過；app 與 node TypeScript 檢查通過。未執行 build、lint、瀏覽器或 live Supabase。
+驗證：地圖遷移／provider 隔離、備份、database facade、route-map repository、place、itinerary 相關共 7 檔 49 項測試通過；app 與 node TypeScript 檢查通過。未執行 build、lint、瀏覽器或 live Supabase。

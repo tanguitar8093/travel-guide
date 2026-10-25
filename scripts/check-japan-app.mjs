@@ -95,7 +95,7 @@ try{
  await page.locator('.itinerary-map-overlay').waitFor({state:'hidden',timeout:60000});
  await page.locator('.maplibregl-marker').first().waitFor({state:'visible',timeout:60000});
  const canvas=await page.locator('.maplibregl-canvas').first().boundingBox();assert(canvas&&canvas.height>100&&canvas.width>100);
- assert.equal(await page.getByText('無法顯示區域地圖',{exact:true}).count(),0);
+ assert.equal(await page.getByText('無法顯示地圖',{exact:true}).count(),0);
  if(!full)assert.equal(mapRouteRequests.length,0,'Pin-only workflow must not calculate routes');
  if(full){
   await page.locator('.itinerary-items-actions summary').click();

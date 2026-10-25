@@ -10,7 +10,7 @@ export function isOsmDatasetId(value: unknown): value is OsmDatasetId {
 }
 export function regionOsmDataset(region: Pick<Region, 'osmDataset'>): OsmDatasetId {
   const id = region.osmDataset ?? 'okinawa'
-  if (!isOsmDatasetId(id)) throw new Error('不支援此 OSM 區域圖資。')
+  if (!isOsmDatasetId(id)) throw new Error('不支援此 OSM 地圖圖資。')
   return id
 }
 function insideRing(longitude: number, latitude: number, ring: number[][]): boolean {
@@ -52,7 +52,7 @@ export function datasetForCoordinate(coordinate: Coordinate): OsmDatasetId | und
   return osmDatasetIds.find(id => isInsideOsmCoverage(coordinate, id))
 }
 export function requireOsmCoverage(coordinate: Coordinate, dataset: OsmDatasetId): void {
-  if (!isInsideOsmCoverage(coordinate, dataset)) throw new Error(`此位置超出${definitions[dataset].name}圖資範圍，請切換區域或選擇範圍內的地點。`)
+  if (!isInsideOsmCoverage(coordinate, dataset)) throw new Error(`此位置超出${definitions[dataset].name}圖資範圍，請切換地圖或選擇範圍內的地點。`)
 }
 export function osmRegion(dataset: OsmDatasetId): Omit<Region, 'id'> {
   const definition = definitions[dataset]

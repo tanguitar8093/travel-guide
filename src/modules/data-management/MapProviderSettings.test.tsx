@@ -16,7 +16,7 @@ it('uses the designed provider card, select and illustration without loading any
   expect(html).toContain('地圖供應商')
   expect(html).toContain('<option value="google" selected="">Google Maps</option>')
   expect(html).toContain('此處為介面風格示意')
-  expect(html).toContain('請至「區域」頁面選擇沖繩或台灣')
+  expect(html).toContain('請至「地圖」頁面選擇沖繩或台灣')
   expect(html).toContain('混合模式先儲存於本機')
   expect(html).toContain('既有背景同步上傳位置與路線端點')
   expect(html).not.toContain('<iframe')

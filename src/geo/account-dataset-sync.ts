@@ -55,7 +55,7 @@ export class AccountDatasetSync {
         this.options.report()
       } catch (cause) {
         if (this.stopped) return
-        this.options.report(cause instanceof Error ? cause.message : '區域設定同步失敗，將自動重試。')
+        this.options.report(cause instanceof Error ? cause.message : '地圖設定同步失敗，將自動重試。')
       }
     } while (!this.stopped && this.rerun)
   }

@@ -145,7 +145,7 @@ function validateReferences(backup: NormalizedTravelBackup, allowSharedEndpoints
   for (const place of backup.data.places) {
     for (const regionId of place.regionIds) {
       if (!regionIds.has(regionId)) {
-        throw new ValidationError(`地點「${place.id}」使用的區域「${regionId}」不存在。`)
+        throw new ValidationError(`地點「${place.id}」使用的地圖「${regionId}」不存在。`)
       }
     }
     for (const labelId of place.labelIds) {
@@ -172,7 +172,7 @@ function validateReferences(backup: NormalizedTravelBackup, allowSharedEndpoints
 
   for (const trip of backup.data.trips) {
     if (!regionIds.has(trip.regionId)) {
-      throw new ValidationError(`行程「${trip.id}」使用的區域「${trip.regionId}」不存在。`)
+      throw new ValidationError(`行程「${trip.id}」使用的地圖「${trip.regionId}」不存在。`)
     }
   }
 
@@ -186,7 +186,7 @@ function validateReferences(backup: NormalizedTravelBackup, allowSharedEndpoints
       throw new ValidationError(`行程項目「${item.id}」使用的地點「${item.placeId}」不存在。`)
     }
     const linkedPlace = backup.data.places.find(place => place.id === item.placeId)
-    if (linkedPlace?.location && !linkedPlace.regionIds.includes(trip.regionId)) throw new ValidationError('行程地點不屬於行程區域。')
+    if (linkedPlace?.location && !linkedPlace.regionIds.includes(trip.regionId)) throw new ValidationError('行程地點不屬於行程地圖。')
     if (item.date < trip.startDate || item.date > trip.endDate) {
       throw new ValidationError(`行程項目「${item.id}」的日期超出行程起訖日期。`)
     }
@@ -220,14 +220,14 @@ function validateBackup(value: unknown, allowSharedEndpoints = false): Normalize
   }
 
   const regions = (data.regions as unknown[]).map((record) => {
-    const regionRecord = requireRecord(record, '區域')
+    const regionRecord = requireRecord(record, '地圖')
     if (Object.hasOwn(regionRecord, 'center')) {
-      const center = requireRecord(regionRecord.center, '區域中心')
+      const center = requireRecord(regionRecord.center, '地圖中心')
       requireExactKeys(center, ['latitude', 'longitude'])
     }
     return validateRecord<Region>(
       regionRecord,
-      '區域',
+      '地圖',
       ['name', 'zoom'],
       ['center', 'googlePlaceId', ...(geo ? ['centerMetadata', 'mapProvider', 'osmDataset'] : [])],
       validateRegion,
@@ -264,7 +264,7 @@ function validateBackup(value: unknown, allowSharedEndpoints = false): Normalize
     validateRecord<RouteMapPlace>(record, '試算地圖地點',
       geo ? ['routeMapId'] : ['routeMapId', 'googlePlaceId'],
       geo ? ['name', 'googlePlaceId', 'location'] : ['name'], validateRouteMapPlace))
-  validateUniqueIds(regions, '區域')
+  validateUniqueIds(regions, '地圖')
   validateUniqueIds(places, '地點')
   validateUniqueIds(labels, '標籤')
   validateUniqueIds(trips, '行程')

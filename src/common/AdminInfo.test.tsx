@@ -13,7 +13,7 @@ it('omits the entire supplied row when admin info is hidden', () => {
   const html = renderToStaticMarkup(
     <AdminInfo>
       <header>
-        <span>工作區 / 區域</span>
+        <span>工作區 / 地圖</span>
         <span>混合模式（本機優先）</span>
         <button title="資料儲存在混合模式">說明</button>
       </header>

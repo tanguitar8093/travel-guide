@@ -56,12 +56,12 @@ Travel 現有頁面／controller／行程邏輯
 - 地圖 provider 配置集中選擇，業務層與多個頁面不散布 `if google / if osm`。
 - MapView 處理生命週期、標記及視野；圖釘點選回傳專案 ID，開編輯、加行程等動作由 Travel 決定。
 - 行程排序、日期、協作、收藏與同步只維護一份邏輯；不搬 maps 的十站 UI 限制、localStorage 或行程 state。
-- 區域／交通能力透過中立 metadata 判斷。OSM 範圍外的舊資料保留，只提示目前底圖／路線不支援；不清空或強迫改成沖繩。
+- 地圖／交通能力透過中立 metadata 判斷。OSM 範圍外的舊資料保留，只提示目前底圖／路線不支援；不清空或強迫改成沖繩。
 - 使用者選用 OSM 時不偷偷載入 Google。顯示底圖、搜尋、路線與網址短連結的能力應明確分開。
 
 ## maybedo 想法的具體調整
 
-1. **策略模式與依賴注入可用，但保持輕量。** TS interface 加 factory／物件已足夠，先不做大量 class、enum 或 plugin registry。Google／OSM 是 provider 策略；沖繩是 dataset 配置。兩者不要綁成同一個 enum。未來换區域需同时匹配圖層 schema、catalog、routing 覆蓋，不是換檔名而已。
+1. **策略模式與依賴注入可用，但保持輕量。** TS interface 加 factory／物件已足夠，先不做大量 class、enum 或 plugin registry。Google／OSM 是 provider 策略；沖繩是 dataset 配置。兩者不要綁成同一個 enum。未來换地圖需同时匹配圖層 schema、catalog、routing 覆蓋，不是換檔名而已。
 2. **套用地圖回傳 handle。** 非同步 mount 成功後取得可 setMarkers、focus、showOverview、fitMarkers、destroy 的物件；失敗帶明確錯誤。只回 true／false 無法管理地圖生命週期或處理失敗。
 3. **搜尋採輸入分類後派送。** 先判斷支援的長網址、短網址、座標文字或一般關鍵字，再呼叫對應 resolver。這比為三四類輸入建立責任鏈更容易追蹤。未來來源真的很多再擴充 handler registry；某個已識別的網址失敗，不應當作關鍵字繼續搜尋。
 4. **搜尋回傳結果集合與狀態。** 同名多筆、無名稱座標、網址中心點、超出範圍、找不到或服務失敗是不同結果。回傳 candidates，保存 coordinate、name（可空）、reference、source、locationKind／warning；不以單一 false 隱藏差異。
@@ -97,6 +97,6 @@ Travel 現有頁面／controller／行程邏輯
 
 **繼續單一專案的條件：** provider 差異留在 adapter／配置；頁面只處理中立能力；同一份行程資料可以工作；圖資服務可部署；不搬第二套行程 state；沒有為共用增加大量特例。
 
-**改採獨立 OSM 版本的條件：** 兩套產品的搜尋／路線與資料流程需要长期不同分支；頁面普遍需要 provider 判斷；OSM 的部署、區域限制与操作方式要求全面改應用流程；或確定永遠不要 Google 並接受独立維護。
+**改採獨立 OSM 版本的條件：** 兩套產品的搜尋／路線與資料流程需要长期不同分支；頁面普遍需要 provider 判斷；OSM 的部署、地圖限制与操作方式要求全面改應用流程；或確定永遠不要 Google 並接受独立維護。
 
 目前靜態評估尚未看到需要推翻 Travel 框架的證據，但也尚未完成上述垂直驗證。因此推薦的是有退出條件的整合路徑，不是無條件共用或開始全面改寫。

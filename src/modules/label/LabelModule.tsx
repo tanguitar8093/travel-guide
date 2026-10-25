@@ -983,7 +983,7 @@ function LabelModule() {
                         <div className="place-copy">
                           <strong>{place.name}</strong>
                           <span>
-                            {provider !== 'osm' && <>{place.regionIds.length} 個區域 · </>}
+                            {provider !== 'osm' && <>{place.regionIds.length} 張地圖 · </>}
                             {provider === 'osm' ? (place.location ? '地圖座標' : '尚無地圖座標') : place.googlePlaceId ? "Google Maps 地點" : "自訂地圖連結"}
                           </span>
                         </div>

@@ -8,12 +8,12 @@ vi.mock('../database/runtime', () => ({ getDatabaseModeLabel: () => '混合模�
 
 import { WorkspaceInfoBar } from './WorkspaceInfoBar'
 
-it.each(['區域', '地點', '標籤', '行程', '資料'])('removes the entire %s row without leaving a wrapper', (section) => {
+it.each(['地圖', '地點', '標籤', '行程', '資料'])('removes the entire %s row without leaving a wrapper', (section) => {
   state.visible = false
   expect(renderToStaticMarkup(<WorkspaceInfoBar section={section} />)).toBe('')
 })
 
-it.each(['區域', '地點', '標籤', '行程', '資料'])('renders the same shared structure for %s when allowed', (section) => {
+it.each(['地圖', '地點', '標籤', '行程', '資料'])('renders the same shared structure for %s when allowed', (section) => {
   state.visible = true
   const html = renderToStaticMarkup(<WorkspaceInfoBar section={section} />)
   expect(html).toContain('class="workspace-info-bar"')

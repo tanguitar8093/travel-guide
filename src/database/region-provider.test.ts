@@ -98,7 +98,7 @@ describe('provider-specific regions', () => {
     })).rejects.toThrow('沖繩圖資範圍')
     await expect(places.create({
       name: '京都 Google', googlePlaceId: 'google-place', regionIds: [osmRegionId], labelIds: [],
-    })).rejects.toThrow('Google 區域')
+    })).rejects.toThrow('Google 地圖')
 
     const id = await places.create({
       name: '海中道路', location, regionIds: [osmRegionId], labelIds: [],
