@@ -48,3 +48,19 @@ it('loads Taiwan tile indexes and versioned tiles from the selected dataset', as
   expect(String(fetchTiles.mock.calls[0][0])).toBe('https://travel.example.test/local-map/datasets/taiwan/tiles.json')
   expect(style.sources.basemap.tiles[0]).toBe('https://travel.example.test/local-map/datasets/taiwan/tiles/version/{z}/{x}/{y}.pbf')
 })
+
+it('enables Okinawa zoom labels only when the tile index advertises their data', async () => {
+  const withLabels = { ...tilejson, vector_layers: [...tilejson.vector_layers, { id: 'road_labels' }, { id: 'place_labels' }] }
+  fetchTiles.mockResolvedValue({ ok: true, json: async () => withLabels })
+  const style = await createOsmStyle('')
+  expect(style.layers.find(layer => layer.id === 'road-labels-main')).toMatchObject({ minzoom: 12 })
+  expect(style.layers.find(layer => layer.id === 'road-labels-local')).toMatchObject({ minzoom: 15 })
+  expect(style.layers.find(layer => layer.id === 'place-labels')).toBeDefined()
+  const taiwan = await createOsmStyle('', 'taiwan')
+  expect(taiwan.layers.some(layer => layer.type === 'symbol')).toBe(false)
+})
+
+it('keeps older Okinawa tiles usable without requesting absent label layers', async () => {
+  const style = await createOsmStyle('')
+  expect(style.layers.some(layer => layer.type === 'symbol')).toBe(false)
+})

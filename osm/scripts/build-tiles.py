@@ -21,6 +21,8 @@ def build(dataset='okinawa', layers=None):
         raise SystemExit('Missing tippecanoe. Install it first: sudo apt-get install tippecanoe (Ubuntu 24.04) or brew install tippecanoe.')
     destination = ROOT / f'data/{dataset}.mbtiles'
     destination.parent.mkdir(parents=True, exist_ok=True)
+    if dataset == 'okinawa':
+        subprocess.run([sys.executable, str(ROOT / 'scripts/prepare-okinawa-labels.py')], check=True)
     # Build beside the destination so publishing is an atomic rename.
     with tempfile.TemporaryDirectory(prefix='atlas-tiles-', dir=destination.parent) as directory:
         temporary = Path(directory)
@@ -39,20 +41,36 @@ def build(dataset='okinawa', layers=None):
             return Path(layers) / f'{dataset}-{name}.geojsonl' if layers else ROOT / f'data/{dataset}-{name}.geojson'
         output = temporary / f'{dataset}.mbtiles'
         environment = dict(os.environ, TIPPECANOE_MAX_THREADS='2')
+        filters = {
+            'roads': (['any', ['>=', '$zoom', 12], ['all', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link'})]], ['in', 'class', *sorted(MAIN_ROADS)]] if dataset == 'japan' else ['any', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS)]])
+        }
+        label_arguments = []
+        if dataset == 'okinawa':
+            filters.update({
+                'road_labels': ['any', ['>=', '$zoom', 14], ['all', ['>=', '$zoom', 12], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary'})]]],
+                # Keep neighbourhoods at source zoom 14 for display zoom 15+.
+                'place_labels': ['any', ['>=', '$zoom', 14],
+                                 ['all', ['>=', '$zoom', 12], ['in', 'class', 'suburb', 'quarter']],
+                                 ['all', ['>=', '$zoom', 10], ['in', 'class', 'town', 'village']],
+                                 ['all', ['>=', '$zoom', 7], ['==', 'class', 'city']]],
+            })
+            label_arguments = ['-L', f'road_labels:{ROOT / "data/okinawa-road-labels.geojsonl"}',
+                               '-L', f'place_labels:{ROOT / "data/okinawa-place-labels.geojsonl"}']
         subprocess.run([
             executable, '--output', str(output),
             '--minimum-zoom=5', '--maximum-zoom=14',
             '--base-zoom=0', '--drop-rate=1',
             '--no-feature-limit', '--no-tile-size-limit',
-            '--include=class', f'--name={dataset}',
+            '--include=class',
+            *(['--include=name', '--include=name:ja', '--include=name:zh-Hant', '--include=name:zh', '--include=ref', '--include=label_minzoom'] if dataset == 'okinawa' else []),
+            f'--name={dataset}',
             '--attribution=© OpenStreetMap contributors · ODbL',
-            '--feature-filter=' + json.dumps({
-                'roads': (['any', ['>=', '$zoom', 12], ['all', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link'})]], ['in', 'class', *sorted(MAIN_ROADS)]] if dataset == 'japan' else ['any', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS)]])
-            }),
+            '--feature-filter=' + json.dumps(filters),
             '-L', f'land:{layer("land")}',
             '-L', f'water:{layer("water")}',
             '-L', f'coastline:{coast}',
             '-L', f'roads:{layer("roads")}',
+            *label_arguments,
         ], check=True, env=environment)
         with output.open('rb') as stream:
             digest = hashlib.file_digest(stream,'sha256').hexdigest()

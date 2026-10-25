@@ -70,7 +70,7 @@ function googleHarness(autoReady = true) {
   return { sdk, renderer: createGoogleRenderer(async () => sdk), fit, focus, zoom, clear, removeListener, markerRecords }
 }
 
-function osmHarness(autoReady = true) {
+function osmHarness(autoReady = true, layers: { id: string; type: string }[] = []) {
   const setData = vi.fn()
   const addLayer = vi.fn()
   const addSource = vi.fn()
@@ -94,6 +94,7 @@ function osmHarness(autoReady = true) {
           if (type === 'error') errors.delete(listener)
         }
         getSource() { return sourceExists ? { setData } : undefined }
+        getStyle() { return { layers } }
         addSource(...args: unknown[]) { sourceExists = true; addSource(...args) }
         addLayer = addLayer
         jumpTo = focus
@@ -320,5 +321,21 @@ it('draws road geometry in a native line layer and clears it without duplicating
   handle.setRoute?.([])
   expect(harness.setData).toHaveBeenLastCalledWith({ type: 'FeatureCollection', features: [] })
   expect(harness.addLayer).toHaveBeenCalledTimes(1)
+  expect(harness.addLayer.mock.calls[0][1]).toBeUndefined()
+  handle.destroy()
+})
+
+it('inserts itinerary tracks below city and road labels while keeping them above road geometry', async () => {
+  const harness = osmHarness(true, [
+    { id: 'roads', type: 'line' },
+    { id: 'place-labels', type: 'symbol' },
+    { id: 'road-labels-main', type: 'symbol' },
+    { id: 'road-labels-local', type: 'symbol' },
+  ])
+  const handle = await harness.renderer.mount(document.createElement('div'), { center, zoom: 16 })
+  handle.setRoute?.([[center, { latitude: 27, longitude: 128 }]])
+  expect(harness.addLayer).toHaveBeenCalledWith(
+    expect.objectContaining({ id: 'tripmap-itinerary-route', type: 'line' }), 'place-labels',
+  )
   handle.destroy()
 })

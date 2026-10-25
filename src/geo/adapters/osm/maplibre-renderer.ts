@@ -7,7 +7,8 @@ type RouteData = { type: 'FeatureCollection'; features: { type: 'Feature'; prope
 interface MapLibreMap {
   getSource(id: string): { setData(data: RouteData): void } | undefined
   addSource(id: string, source: { type: 'geojson'; data: RouteData }): void
-  addLayer(layer: object): void
+  addLayer(layer: object, beforeId?: string): void
+  getStyle(): { layers?: { id: string; type: string }[] }
   on(type: 'load', listener: () => void): void
   on(type: 'error', listener: (event: { error: Error }) => void): void
   off(type: 'load', listener: () => void): void
@@ -156,7 +157,9 @@ export function createMapLibreRenderer(config: {
               currentMap.addSource('tripmap-itinerary-route', { type: 'geojson', data })
               currentMap.addLayer({ id: 'tripmap-itinerary-route', type: 'line', source: 'tripmap-itinerary-route',
                 layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: { 'line-color': '#2275ca', 'line-width': 5, 'line-opacity': 0.85 } })
+                // Keep the route above the basemap geometry and below its labels.
+                paint: { 'line-color': '#2275ca', 'line-width': 5, 'line-opacity': 0.85 } },
+              currentMap.getStyle().layers?.find(layer => layer.type === 'symbol')?.id)
             }
           },
           focus(coordinate, zoom) {

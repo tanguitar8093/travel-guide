@@ -18,3 +18,6 @@ data/japan*
 data/.places-build-*/
 data/.routing-build-*/
 data/.tiles-cache/
+
+# Rebuilt from the bundled Okinawa source and place catalog.
+data/okinawa-*-labels.geojsonl

@@ -186,6 +186,19 @@ class TileVersionCacheTests(unittest.TestCase):
             self.assertEqual(second.version,version)
             second.close()
 
+    def test_optional_labels_are_allowed_but_required_basemap_layers_remain_required(self):
+        path = self.copy_fixture('labels.mbtiles')
+        with sqlite3.connect(path) as db:
+            layers = [{'id': name} for name in ('land', 'water', 'coastline', 'roads', 'road_labels', 'place_labels')]
+            db.execute('update metadata set value=? where name="json"', (json.dumps({'vector_layers': layers}),))
+        labeled = VectorTiles(path)
+        self.assertEqual(len(labeled.layers), 6)
+        labeled.close()
+        with sqlite3.connect(path) as db:
+            db.execute('update metadata set value=? where name="json"', (json.dumps({'vector_layers': layers[1:]}),))
+        with self.assertRaisesRegex(ValueError, 'required display layers'):
+            VectorTiles(path)
+
     def test_same_size_content_changes_invalidate_version(self):
         path=self.copy_fixture('changed.mbtiles')
         before=VectorTiles(path);version=before.version;before.close();size=path.stat().st_size

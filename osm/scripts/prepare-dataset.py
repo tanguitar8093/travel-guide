@@ -45,7 +45,10 @@ class Extract(osmium.SimpleHandler):
             self.ways.append({'type':'way','id':way.id,'nodes':[node.ref for node in way.nodes],
                               'tags':{key:value for key,value in tags.items() if key in ROUTE_TAGS}})
             self.nodes.update((node.ref,[node.lon,node.lat]) for node in way.nodes)
-            self.roads.append({'type':'Feature','properties':{'class':tags['highway']},'geometry':{'type':'LineString','coordinates':points}})
+            display = {'class': tags['highway']}
+            if self.dataset == 'okinawa':
+                display.update({key: tags[key] for key in ('name','name:ja','name:zh-Hant','name:zh','ref') if tags.get(key)})
+            self.roads.append({'type':'Feature','properties':display,'geometry':{'type':'LineString','coordinates':points}})
 
 
 def publish(path, value):

@@ -72,6 +72,40 @@ export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'o
     if (!['http:', 'https:'].includes(resolved.protocol)) throw geoError('SERVICE_UNAVAILABLE', '圖磚網址必須使用 HTTP 或 HTTPS。')
     return resolved.href.replace(/%7B/gi, '{').replace(/%7D/gi, '}')
   })
+  const vectorLayers = tiles.vector_layers as unknown[]
+  const hasLayer = (id: string) => vectorLayers.some(layer => typeof layer === 'object' && layer !== null && 'id' in layer && layer.id === id)
+  const labels = dataset === 'okinawa' ? [
+    ...(hasLayer('place_labels') ? [{
+      id: 'place-labels', type: 'symbol', source: 'basemap', 'source-layer': 'place_labels', minzoom: 7,
+      // Neighbourhood data is retained in z14 tiles and only becomes visible at z15.
+      filter: ['<=', ['get', 'label_minzoom'], ['zoom']],
+      layout: {
+        'text-field': ['get', 'name'], 'text-font': ['sans-serif'],
+        'text-size': ['match', ['get', 'class'], 'city', 16, ['town', 'village'], 14, 12],
+        'symbol-sort-key': ['get', 'label_minzoom'], 'text-padding': 8,
+      },
+      paint: { 'text-color': '#526057', 'text-halo-color': '#fffdf9', 'text-halo-width': 1.5 },
+    }] : []),
+    ...(hasLayer('road_labels') ? [{
+      id: 'road-labels-main', type: 'symbol', source: 'basemap', 'source-layer': 'road_labels', minzoom: 12,
+      filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary']]],
+      layout: {
+        'symbol-placement': 'line', 'symbol-spacing': 320,
+        'text-field': ['coalesce', ['get', 'name:ja'], ['get', 'name'], ['get', 'ref']],
+        'text-font': ['sans-serif'], 'text-size': 12, 'text-padding': 5,
+      },
+      paint: { 'text-color': '#6b604c', 'text-halo-color': '#fffdf9', 'text-halo-width': 1.5 },
+    }, {
+      id: 'road-labels-local', type: 'symbol', source: 'basemap', 'source-layer': 'road_labels', minzoom: 15,
+      filter: ['!', ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary']]]],
+      layout: {
+        'symbol-placement': 'line', 'symbol-spacing': 240,
+        'text-field': ['coalesce', ['get', 'name:ja'], ['get', 'name'], ['get', 'ref']],
+        'text-font': ['sans-serif'], 'text-size': 11, 'text-padding': 5,
+      },
+      paint: { 'text-color': '#68736b', 'text-halo-color': '#fffdf9', 'text-halo-width': 1.5 },
+    }] : []),
+  ] : []
   return {
   version: 8,
   sources: {
@@ -85,6 +119,7 @@ export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'o
     { id: 'water', type: 'fill', source: 'basemap', 'source-layer': 'water', paint: { 'fill-color': '#bcdde1' } },
     { id: 'roads', type: 'line', source: 'basemap', 'source-layer': 'roads', minzoom: 10, paint: { 'line-color': '#fffdf9', 'line-width': ['interpolate', ['linear'], ['zoom'], 10, .4, 14, 2, 17, 7] } },
     { id: 'main-roads', type: 'line', source: 'basemap', 'source-layer': 'roads', filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary']]], paint: { 'line-color': '#e4bb7a', 'line-width': ['interpolate', ['linear'], ['zoom'], 8, .6, 12, 2, 17, 9] } },
+    ...labels,
   ],
   }
 }

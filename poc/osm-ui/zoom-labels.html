@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>沖繩地圖標籤試作</title>
+  <style>
+    * { box-sizing: border-box; } body { margin: 0; font: 14px system-ui, sans-serif; color: #36483d; }
+    header { position: absolute; z-index: 2; top: 16px; left: 16px; right: 60px; max-width: 540px; background: #fffffff2; padding: 16px; border-radius: 12px; box-shadow: 0 2px 16px #0002; }
+    h1 { margin: 0 0 8px; font-size: 18px; } p { margin: 8px 0 0; line-height: 1.5; } button { padding: 8px 12px; margin: 4px 4px 0 0; cursor: pointer; border: 1px solid #ccd7cf; border-radius: 6px; background: white; color: inherit; }
+    button.active { background: #e5eee8; border-color: #759481; } #map { height: 100dvh; } #status { font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+<header>
+  <h1>沖繩 · 依縮放顯示地圖標籤</h1>
+  <nav><button data-zoom="10">遠景 · 城市</button><button data-zoom="13">中景 · 街區與幹道</button><button data-zoom="16">近景 · 一般街名</button></nav>
+  <p id="status">載入中…</p>
+  <p>可拖曳地圖、滾輪縮放。城市／街區優先繁中，道路保留日文原名；無路名時使用既有道路編號。</p>
+</header>
+<div id="map"></div>
+<script type="module">
+  import { createOsmStyle, loadOsmMapLibre } from '/src/geo/adapters/osm/osm-resources.ts';
+  const sdk = await loadOsmMapLibre('/local-map');
+  const style = await createOsmStyle('/local-map', 'okinawa');
+  const map = new sdk.Map({ container: 'map', style, center: [127.687, 26.217], zoom: 13,
+    minZoom: 5, maxZoom: 19, pitchWithRotate: false, dragRotate: false });
+  map.addControl(new sdk.NavigationControl({ showCompass: false }), 'top-right');
+  const update = () => {
+    const zoom = map.getZoom();
+    document.querySelector('#status').textContent = `Zoom ${zoom.toFixed(1)} · ${zoom >= 15 ? '城市、街區、主要道路與一般街名' : zoom >= 12 ? '城市、街區與主要道路名稱' : '城市／町村名稱'} · © OpenStreetMap contributors`;
+    document.querySelectorAll('[data-zoom]').forEach(button => button.classList.toggle('active', Math.abs(zoom - Number(button.dataset.zoom)) < 0.5));
+  };
+  document.querySelectorAll('[data-zoom]').forEach(button => button.onclick = () => map.jumpTo({ center: [127.687, 26.217], zoom: Number(button.dataset.zoom) }));
+  map.on('zoom', update); map.on('load', update);
+  map.on('error', event => { document.querySelector('#status').textContent = event.error.message; });
+  window.labelPreview = map;
+</script>
+</body>
+</html>

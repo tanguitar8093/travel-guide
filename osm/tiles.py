@@ -71,7 +71,7 @@ class VectorTiles:
         self.maxzoom = int(metadata['maxzoom'])
         self.bounds = [float(value) for value in metadata['bounds'].split(',')]
         self.layers = json.loads(metadata['json'])['vector_layers']
-        if {layer['id'] for layer in self.layers} != {'land', 'water', 'coastline', 'roads'}:
+        if not {'land', 'water', 'coastline', 'roads'}.issubset({layer['id'] for layer in self.layers}):
             raise ValueError('Map tiles are missing required display layers.')
 
     def tilejson(self, dataset='okinawa'):
