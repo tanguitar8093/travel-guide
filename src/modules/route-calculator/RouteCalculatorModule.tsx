@@ -1064,6 +1064,7 @@ export default function RouteCalculatorModule() {
                   </div>
                 </dl>
                 <small>
+                  {result.approximate && '道路估算，未保證最快或最短路線。'}
                   {result.provider === 'osm' ? 'OSM' : 'Google Maps'}
                   路線估算，非保證抵達時間；實際時間受路況與班次影響。修改條件後需重新計算。
                 </small>

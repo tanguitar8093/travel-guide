@@ -10,6 +10,13 @@ MODES = ('car', 'walk', 'bike')
 BOUNDS = [127.58, 25.98, 128.36, 26.9]
 
 
+class RouteSearchLimit(ValueError):
+    """A temporary computation limit, not a distance or connectivity verdict."""
+    def __init__(self, reason='time'):
+        self.reason = reason
+        super().__init__('路線搜尋已達計算資源上限，尚未完成。請稍後重試。')
+
+
 def distance(a, b):
     lon1, lat1, lon2, lat2 = map(math.radians, (*a, *b))
     h = math.sin((lat2-lat1)/2)**2 + math.cos(lat1)*math.cos(lat2)*math.sin((lon2-lon1)/2)**2
@@ -56,12 +63,50 @@ def speed(tags, mode):
     return value
 
 
+class RegionalGraph(dict):
+    """Keep legacy adjacency lists; reject impossible snaps before A* work."""
+    def prepare_components(self):
+        parent = {node:node for node in self}
+        rank = {}
+        def find(node):
+            while parent[node] != node:
+                parent[node] = parent[parent[node]]
+                node = parent[node]
+            return node
+        for node, edges in self.items():
+            for neighbor, _seconds, _meters in edges:
+                a, b = find(node), find(neighbor)
+                if a == b:
+                    continue
+                if rank.get(a,0) < rank.get(b,0):
+                    a, b = b, a
+                parent[b] = a
+                if rank.get(a,0) == rank.get(b,0):
+                    rank[a] = rank.get(a,0)+1
+        for node in parent:
+            parent[node] = find(node)
+        self.node_components = parent
+
+    def connected_candidates(self, starts, ends):
+        common = {self.node_components[node] for _,node in starts} & {self.node_components[node] for _,node in ends}
+        return ([row for row in starts if self.node_components[row[1]] in common],
+                [row for row in ends if self.node_components[row[1]] in common])
+
+
 class Router:
     search_seconds = 2
+    search_nodes = 50000
+    search_states = 100000
 
     def __init__(self, data, dataset='okinawa'):
         self.dataset = dataset
         definition(dataset)
+        # This legacy graph retains every shape vertex. SQLite graphs instead
+        # count compressed junctions and keep their separate, smaller budgets.
+        if dataset == 'okinawa':
+            self.search_seconds = 4
+            self.search_nodes = 500000
+            self.search_states = 500000
         self.nodes = {row[0]: (row[1],row[2]) for row in data['nodes']} if 'nodes' in data else {e['id']: (e['lon'],e['lat']) for e in data['elements'] if e['type']=='node'}
         self.ways = data['ways'] if 'ways' in data else [e for e in data['elements'] if e['type']=='way' and 'highway' in e.get('tags', {})]
         self.lock = RLock()
@@ -71,7 +116,7 @@ class Router:
 
     @lru_cache(maxsize=3)
     def graph(self, mode):
-        graph = {}
+        graph = RegionalGraph()
         for way in self.ways:
             tags = way.get('tags', {})
             if not allowed(tags, mode):
@@ -94,6 +139,7 @@ class Router:
                     graph[a].append((b, seconds, meters))
                 if one not in {'yes','1','true'}:
                     graph[b].append((a, seconds, meters))
+        graph.prepare_components()
         # Spatial cells bound snapping work and retain small island road networks.
         cells = {}
         for node, edges in graph.items():
@@ -126,6 +172,8 @@ class Router:
 
     @lru_cache(maxsize=128)
     def cached_leg(self, start, end, mode, expanded=False):
+        # A mode's one-time graph construction is not route-search work.
+        self.graph(mode)
         return self.search_leg(start, end, mode, expanded, time.monotonic() + self.search_seconds)
 
     def search_leg(self, start, end, mode, expanded, deadline):
@@ -134,7 +182,7 @@ class Router:
         if hasattr(graph, 'connected_candidates'):
             starts, ends = graph.connected_candidates(starts, ends)
             if not starts or not ends:
-                if mode == 'walk' and not expanded:
+                if not expanded and (mode == 'walk' or self.dataset == 'okinawa'):
                     return self.search_leg(start, end, mode, True, deadline)
                 raise ValueError('這兩個地點找不到交通方式的連通道路。')
         if hasattr(graph, 'reverse_neighbors'):
@@ -158,8 +206,8 @@ class Router:
         visited = 0
         while heap:
             visited += 1
-            if visited % 128 == 0 and (visited > 50000 or time.monotonic() > deadline):
-                raise ValueError('此路段搜尋範圍過大或計算超過時限，請分段計算後重試。')
+            if visited % 128 == 0 and (visited > self.search_nodes or len(costs) > self.search_states or time.monotonic() > deadline):
+                raise RouteSearchLimit('work' if visited > self.search_nodes or len(costs) > self.search_states else 'time')
             priority, cost, node = heapq.heappop(heap)
             if cost != costs.get(node):
                 continue
@@ -175,7 +223,7 @@ class Router:
                     source_for[neighbor] = source_for[node]
                     heapq.heappush(heap, (total+heuristic(neighbor), total, neighbor))
         if target is None:
-            if mode == 'walk' and not expanded:
+            if not expanded and (mode == 'walk' or self.dataset == 'okinawa'):
                 return self.search_leg(start,end,mode,True,deadline)
             raise ValueError('這兩個地點找不到交通方式的連通道路。')
         source = source_for[target]

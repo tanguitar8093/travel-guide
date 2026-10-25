@@ -8,7 +8,7 @@ import zlib
 from functools import lru_cache
 from pathlib import Path
 from threading import RLock
-from routing import Router, distance
+from routing import Router, RouteSearchLimit, distance
 from routing_index import ensure_routing_index, MODES
 
 
@@ -62,8 +62,8 @@ class DiskGraph:
 class CompactRouter(Router):
     def __init__(self, path, dataset):
         self.dataset = dataset
-        # Nationwide disk reads need more cold-page time; state/work caps stay fixed.
-        self.search_seconds = 8 if dataset == 'japan' else 2
+        self.search_seconds = 2
+        self.route_deadline = None
         path = Path(path).resolve()
         index_path = ensure_routing_index(path)
         self.connection = sqlite3.connect(path.as_uri()+'?mode=ro&immutable=1', uri=True, check_same_thread=False)
@@ -76,6 +76,41 @@ class CompactRouter(Router):
         self.components = {}
         self.graphs = {}
         self.failed_legs = {}
+
+    def route(self, points, mode):
+        # One budget for all legs, below the frontend/proxy's 30s timeout.
+        with self.lock:
+            previous = self.route_deadline
+            self.route_deadline = min(previous or math.inf, time.monotonic()+22)
+            try:
+                result = super().route(points, mode)
+                result['optimal'] = all(leg.get('optimal', True) for leg in result['legs'])
+                result['heuristicWeight'] = max(leg.get('heuristicWeight', 1) for leg in result['legs'])
+                return result
+            finally:
+                self.route_deadline = previous
+
+    @lru_cache(maxsize=128)
+    def cached_leg(self, start, end, mode, expanded=False):
+        started = time.monotonic()
+        deadline = min(self.route_deadline or math.inf, started+22)
+        if started >= deadline:
+            raise RouteSearchLimit()
+        try:
+            result = self.search_leg(start, end, mode, expanded, min(deadline, started+2))
+            result.update(optimal=True, heuristicWeight=1)
+            return result
+        except RouteSearchLimit:
+            pass
+        for weight, seconds in ((1.5, 6), (2.0, 12)):
+            now = time.monotonic()
+            if now >= deadline:
+                break
+            try:
+                return self.weighted_leg(start, end, mode, weight, min(deadline, now+seconds), expanded)
+            except RouteSearchLimit:
+                pass
+        raise RouteSearchLimit()
 
     def graph(self, mode):
         if mode not in MODES:
@@ -119,6 +154,8 @@ class CompactRouter(Router):
         try:
             return super().leg(start, end, mode)
         except ValueError as error:
+            if isinstance(error, RouteSearchLimit):
+                raise
             if len(self.failed_legs) >= 128:
                 self.failed_legs.clear()
             self.failed_legs[key] = (time.monotonic(), str(error))
@@ -154,7 +191,7 @@ class CompactRouter(Router):
                 break
             visited += 1
             if visited % 128 == 0 and (visited > 50000 or time.monotonic() > deadline or len(costs[0])+len(costs[1]) > 100000):
-                raise ValueError('此路段搜尋範圍過大或計算超過時限，請分段計算後重試。')
+                raise RouteSearchLimit('work' if visited > 50000 or len(costs[0])+len(costs[1]) > 100000 else 'time')
             side = 0 if heaps[0][0][0] <= heaps[1][0][0] else 1
             other, sign = 1-side, 1 if side == 0 else -1
             _, cost, node = heapq.heappop(heaps[side])
@@ -189,6 +226,68 @@ class CompactRouter(Router):
             meters += edge_meters
         access_seconds = (distance(start,self.nodes[source])+distance(end,self.nodes[target]))/(4.5/3.6)
         return self.finish_leg(start,end,mode,path,source,target,max(0,best_cost-access_seconds),meters)
+
+    def weighted_leg(self, start, end, mode, weight, deadline, expanded=False):
+        """Bounded suboptimal A*: every returned edge still obeys its mode/direction.
+
+        Great-circle time is an admissible lower bound including walking access.
+        Selecting the best reached virtual goal once OPEN's weighted bound reaches
+        its actual cost gives a weight-bounded travel-time estimate, not an exact
+        fastest-route claim. A failed attempt never returns its partial path.
+        """
+        graph = self.graph(mode)
+        starts, ends = self.snap(start, graph, expanded), self.snap(end, graph, expanded)
+        starts, ends = graph.connected_candidates(starts, ends)
+        if not starts or not ends:
+            if mode == 'walk' and not expanded:
+                return self.weighted_leg(start,end,mode,weight,deadline,True)
+            raise ValueError('這兩個地點找不到交通方式的連通道路。')
+        max_speed = {'car':75,'walk':4.5,'bike':15}[mode]/3.6
+        @lru_cache(maxsize=100000)
+        def heuristic(node):
+            return distance(self.nodes[node],end)/max_speed
+        goals = {node:meters/1.25 for meters,node in ends}
+        costs = {node:meters/1.25 for meters,node in starts}
+        parents, heap = {}, []
+        for node,cost in costs.items():
+            heapq.heappush(heap,(cost+weight*heuristic(node),cost,node))
+        best, target, visited = math.inf, None, 0
+        for node in costs.keys() & goals.keys():
+            candidate = costs[node]+goals[node]
+            if candidate < best:
+                best, target = candidate, node
+        while heap:
+            priority,cost,node = heapq.heappop(heap)
+            if cost != costs.get(node):
+                continue
+            if priority >= best:
+                break
+            visited += 1
+            if visited % 128 == 0 and (visited > 50000 or len(costs) > 100000 or time.monotonic() > deadline):
+                raise RouteSearchLimit('work' if visited > 50000 or len(costs) > 100000 else 'time')
+            if node in goals and cost+goals[node] < best:
+                best, target = cost+goals[node], node
+            for neighbor,seconds,meters in graph[node]:
+                total = cost+seconds
+                if total < costs.get(neighbor,math.inf):
+                    costs[neighbor] = total
+                    parents[neighbor] = (node,seconds,meters)
+                    heapq.heappush(heap,(total+weight*heuristic(neighbor),total,neighbor))
+        if target is None:
+            if mode == 'walk' and not expanded:
+                return self.weighted_leg(start,end,mode,weight,deadline,True)
+            raise ValueError('這兩個地點找不到交通方式的連通道路。')
+        path, meters, road_seconds = [target], 0, 0
+        while path[-1] in parents:
+            node,edge_seconds,edge_meters = parents[path[-1]]
+            path.append(node)
+            meters += edge_meters
+            road_seconds += edge_seconds
+        path.reverse()
+        source = path[0]
+        result = self.finish_leg(start,end,mode,path,source,target,road_seconds,meters)
+        result.update(optimal=False, heuristicWeight=weight)
+        return result
 
     def path_geometry(self, path, mode):
         result=[]

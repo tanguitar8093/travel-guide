@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import unquote, urlsplit, parse_qs
-from routing import Router, BOUNDS
+from routing import Router, RouteSearchLimit, BOUNDS
 from compact_routing import CompactRouter
 from datasets import definition, DEFINITIONS
 from search import PlaceSearch
@@ -257,6 +257,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.json(result)
             finally:
                 ROUTING_SLOTS.release()
+        except RouteSearchLimit as error:
+            self.json({'error':str(error),'code':'ROUTE_SEARCH_LIMIT','retryable':True},503)
         except (ValueError,TypeError) as error:
             self.json({'error':str(error)},400)
         except (OSError, sqlite3.Error) as error:

@@ -103,7 +103,7 @@ outside `osm/data`, with measured memory, disk and time limits. See the
 
 ### 日本全國（正式整合）
 
-切換「區域 → OSM → 日本」使用全國底圖、磁碟地點搜尋與汽車／步行／單車路由。沖繩既有資料身分保留；日本行程內的沖繩地點仍使用日本資料。只有座標的快速匯入維持沖繩優先。不加入輪渡／鐵路。目前城市／小島的 27 組三模式案例通過；東京–橫濱及東京–大阪仍會達到搜尋上限，**不能當作可靠的一次長途導航**，需要縮短或分段。日本搜尋上限為每段約 8 秒，節點／狀態上限不增加；台灣／沖繩維持原預算。
+切換「區域 → OSM → 日本」使用全國底圖、磁碟地點搜尋與汽車／步行／單車路由。既有沖繩身分與座標快速匯入的沖繩優先政策保留，不加入輪渡／鐵路。台灣／日本 SQLite 共用跨區策略：精確搜尋達限後，使用有界道路估算，標示未保證最快／最短；不按地名特例或任意 200km 硬拒絕。台灣約 209km、東京–橫濱／靜岡等已實測，詳 C7。每階段仍限 5 萬展開／10 萬 states，整筆多路段搜尋共用 22 秒；資源不足回可重試 503，不再誤稱距離過大或快取 30 秒。沖繩原圖沿用 C6 的 4 秒／50 萬界限及連通接路修正。
 
 重建需要原生 `osmium`（osmium-tool）、`tippecanoe`、Python venv，並預留至少 20 GiB 工作磁碟：
 
@@ -127,3 +127,19 @@ JAPAN_FULL_CHECK=1 node --env-file=.env.local --env-file=.env.e2e.local scripts/
 需 `.env.e2e.local` 的 `E2E_A_EMAIL`／`E2E_A_PASSWORD`；工具不輸出憑證，封鎖雲端資料 mutation。完整版須三份日本資產及索引全部準備完成，包含真實名稱搜尋、行程路線繪製、三種路由模式及路程試算 UI。結果預設在 `/tmp/travel-japan-app/`；這是目前工作區的手動驗收工具，並非在缺圖資環境會通過的假測試。
 
 圖磚內容版本會在建置／啟動前準備 `.tiles-cache`，避免第一次日本請求重新掃描整份 MBTiles；該目錄同樣可刪除重建。來源檔案大小、mtime 或 ctime 變更會使版本快取失效。不要只複製 Vite dist 而遺漏 OSM 資產。
+
+沖繩實際行程回歸（需要既有 `okinawa-osm.json`）：
+
+```bash
+python3 -B osm/scripts/benchmark-okinawa.py --output /tmp/okinawa-routing-check.json
+```
+
+包含機場／租車行、奧武島、Oodomari／PARCO 等路段與正反向，以及既有三模式控制；不需要變更使用者行程或重建圖資。接路重試維持原 800m 限制，成本計入回傳距離／時間。模式圖首次初始化另計，避免初始化耗盡路由搜尋時間。`scripts/check-okinawa-routing.mjs` 可用本機私密同步副本在獨立 IndexedDB 重現兩天的軌跡與批次路程計算，封鎖雲端資料寫入。修正紀錄見上述文件 C6。
+
+跨區共同回歸：
+
+```bash
+python3 -B osm/scripts/benchmark-regional-routing.py --output /tmp/regional-routing-check.json
+```
+
+可用 `--trip /path/to/private-synced-fixture.json` 納入實際前兩項；報告不輸出私人座標。`scripts/check-itinerary-routing.mjs` 支援三區的獨立 IndexedDB 頁面驗收，原沖繩工具入口繼續相容。

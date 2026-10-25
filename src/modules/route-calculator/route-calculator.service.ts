@@ -81,6 +81,7 @@ export interface RouteCalculationInput {
 }
 
 export interface RouteCalculationResult extends GoogleRouteEstimate {
+  approximate?: boolean
   origin: ResolvedRouteEndpoint
   destination: ResolvedRouteEndpoint
   transport: GoogleTravelMode

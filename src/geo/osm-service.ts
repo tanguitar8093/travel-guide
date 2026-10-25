@@ -306,7 +306,7 @@ export async function routeOsmLocations(
   signal?: AbortSignal,
   includeGeometry = false,
   dataset?: OsmDatasetId,
-): Promise<{ durationMinutes: number; distanceMeters: number; geometry?: Coordinate[][] }> {
+): Promise<{ durationMinutes: number; distanceMeters: number; geometry?: Coordinate[][]; approximate?: boolean }> {
   validateCoordinatePair(origin.latitude, origin.longitude);
   validateCoordinatePair(destination.latitude, destination.longitude);
   const mode =
@@ -363,6 +363,7 @@ export async function routeOsmLocations(
   }
   return {
     ...(geometry ? { geometry } : {}),
+    ...(data.optimal === false ? { approximate: true } : {}),
     durationMinutes: Math.ceil(data.duration / 60),
     distanceMeters: Math.round(data.distance),
   };

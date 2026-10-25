@@ -7,6 +7,7 @@ import random
 import sqlite3
 import sys
 import tempfile
+import time
 import zlib
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from compact_routing import CompactRouter
@@ -72,7 +73,25 @@ for seed in range(5):
                     elif mode != 'walk':
                         raise AssertionError('Accepted a disconnected directed route')
                     assert result['distance'] > 0
+                for weight in (1.5,2.0):
+                    try: weighted=router.weighted_leg(start,end,mode,weight,time.monotonic()+5)
+                    except ValueError:
+                        if math.isfinite(best): raise
+                    else:
+                        if math.isfinite(best):
+                            assert math.floor(best)-1 <= weighted['duration'] <= math.ceil(weight*best)+1, (seed,mode,weight,best,weighted['duration'])
+                        assert weighted['optimal'] is False and weighted['heuristicWeight']==weight
+                        # Every internal geometry segment must follow an allowed directed edge.
+                        by_coordinate={tuple(coordinate):node for node,coordinate in nodes.items()}
+                        points=weighted['geometry']['coordinates']
+                        # Walking access connectors are not driven road edges.
+                        if tuple(points[0])!=tuple(weighted['snapped'][0]): points=points[1:]
+                        if tuple(points[-1])!=tuple(weighted['snapped'][1]): points=points[:-1]
+                        for a,b in zip(points,points[1:]):
+                            a,b=by_coordinate.get(tuple(a)),by_coordinate.get(tuple(b))
+                            if a is not None and b is not None and a!=b:
+                                assert any(neighbor==b for neighbor,_ in graphs[mode][a]), (mode,a,b)
                 checked += 1
         router.connection.close()
         router.index.close()
-print(f'PASS: {checked} directed/multi-candidate cases agree with independent Dijkstra')
+print(f'PASS: {checked} directed/multi-candidate cases agree with independent Dijkstra; 120 weighted cases satisfy bounds and direction')

@@ -3,6 +3,7 @@ import io
 import json
 from pathlib import Path
 import sys
+import threading
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -46,6 +47,21 @@ class ServerTests(unittest.TestCase):
         connection = RequestSocket(request, error, fail_at)
         handler = server.Handler(connection, ('127.0.0.1', 12345), None)
         return handler, connection
+
+    def test_route_budget_is_retryable_503_not_a_distance_rejection(self):
+        from routing import RouteSearchLimit
+        from unittest.mock import Mock
+        router=SimpleNamespace(lock=threading.RLock(),route=Mock(side_effect=RouteSearchLimit()))
+        body=json.dumps({'points':[[127.68,26.21],[127.70,26.21]],'mode':'car'}).encode()
+        request=b'POST /api/route HTTP/1.0\r\nContent-Type: application/json\r\nContent-Length: '+str(len(body)).encode()+b'\r\n\r\n'+body
+        with patch.object(server,'dataset_router',return_value=router):
+            _,connection=self.handle(request)
+        headers,response=b''.join(connection.writes).split(b'\r\n\r\n',1)
+        self.assertIn(b'503 Service Unavailable',headers)
+        result=json.loads(response)
+        self.assertEqual(result['code'],'ROUTE_SEARCH_LIMIT')
+        self.assertTrue(result['retryable'])
+        self.assertNotIn('過大',result['error'])
 
     def test_health_response(self):
         _, connection = self.handle(b'GET /api/health HTTP/1.0\r\n\r\n')

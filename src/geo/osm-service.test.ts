@@ -205,3 +205,9 @@ it.each([
   request.mockResolvedValue(new Response(JSON.stringify(estimate)))
   await expect(routeOsmLocations(origin, destination, 'WALKING')).rejects.toThrow('非零路線')
 })
+
+
+it('preserves the bounded road estimate quality flag from the router', async () => {
+  request.mockResolvedValue(new Response(JSON.stringify({ duration: 120, distance: 2000, optimal: false })))
+  expect(await routeOsmLocations(origin,destination,'DRIVING')).toMatchObject({ durationMinutes: 2, distanceMeters: 2000, approximate: true })
+})

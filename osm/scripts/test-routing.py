@@ -54,7 +54,7 @@ bounded.graph = lambda _mode: graph
 bounded.snap = lambda coordinate, _graph, _expanded: [(0, 0 if coordinate[0] == 127.68 else 1101)]
 with patch('routing.time.monotonic', side_effect=[0,100]):
     try: bounded.leg((127.68,26.21),(127.7,26.21),'walk')
-    except ValueError as error: assert '搜尋範圍過大' in str(error)
+    except ValueError as error: assert '資源上限' in str(error)
     else: raise AssertionError('An exhausted walking search must stop')
 print('PASS: expensive disconnected walking searches stop within their budget')
 
@@ -72,3 +72,59 @@ for mode in ('car','walk','bike'):
     assert tuple(result['geometry']['coordinates'][0]) == start
     assert tuple(result['geometry']['coordinates'][-1]) == end
 print('PASS: shared snapped vertices retain access distance, duration and complete geometry')
+
+# A public road can sit beyond the closest isolated parking/service nodes.
+# Car/bike retry is still limited to the existing 800m walking access policy.
+for mode in ('car','bike'):
+    parking=Router({'nodes':[[1,127.68,26.21],[2,127.70,26.21],
+        [3,127.68,26.211],[4,127.70,26.211],[5,127.68001,26.21],[6,127.70001,26.21]],
+        'ways':[{'nodes':pair,'tags':{'highway':'residential'}} for pair in [[1,5],[2,6],[3,4]]]})
+    result=parking.route([[127.68,26.21],[127.70,26.21]],mode)
+    assert 0<max(result['legs'][0]['snapDistances'])<800
+    assert result['distance']>1000
+print('PASS: car/bike can escape isolated nearest parking nodes within the access bound')
+
+# A curved road with many raw shape vertices is not a nationwide search.
+count=60002
+shapes=Router({'nodes':[[i,127.68+i*.00000001,26.21] for i in range(count)],
+    'ways':[{'nodes':list(range(count)),'tags':{'highway':'residential'}}]})
+result=shapes.route([list(shapes.nodes[0]),list(shapes.nodes[count-1])],'car')
+assert len(result['legs'][0]['geometry']['coordinates'])==count
+assert result['distance']>0 and result['duration']>0
+print('PASS: a connected Okinawa road with over 50,000 shape vertices completes')
+
+# Cold graph creation must not use up the route-search deadline.
+cold=Router({'nodes':[[i,127.68+i*.000001,26.21] for i in range(202)],'ways':[]})
+graph={i:[(i+1,1,1)] for i in range(201)};graph[201]=[]
+clock=[0]
+def prepare(_mode):
+    clock[0]=10
+    return graph
+cold.graph=prepare
+cold.snap=lambda coordinate,graph,expanded:[(0,0 if coordinate[0]==127.68 else 201)]
+with patch('routing.time.monotonic',side_effect=lambda:clock[0]):
+    assert cold.leg((127.68,26.21),(127.7,26.21),'car')['distance']>0
+print('PASS: one-time cold mode initialization leaves the search budget available')
+
+# Even the calibrated raw graph stops on excessive states.
+limited=Router({'nodes':[[i,127.68+i*.000001,26.21] for i in range(152)],'ways':[]})
+graph={i:[] for i in range(152)};graph[0]=[(i,1,1) for i in range(1,150)]
+limited.graph=lambda mode:graph
+limited.snap=lambda coordinate,graph,expanded:[(0,0 if coordinate[0]==127.68 else 151)]
+limited.search_states=64
+try:limited.leg((127.68,26.21),(127.7,26.21),'car')
+except ValueError as error:assert '資源上限' in str(error)
+else:raise AssertionError('The raw graph state limit was not enforced')
+print('PASS: legacy raw search retains a hard state bound')
+
+# Opposite sides of a disconnected network should be rejected before A* scans
+# the entire public-road component, so the snap retry can run in either direction.
+separate=Router({'nodes':[[1,127.68,26.21],[2,127.681,26.21],[3,127.70,26.21],[4,127.701,26.21]],
+    'ways':[{'nodes':pair,'tags':{'highway':'residential'}} for pair in [[1,2],[3,4]]]})
+separate.graph('car')
+for start,end in [((127.68,26.21),(127.70,26.21)),((127.70,26.21),(127.68,26.21))]:
+    with patch('routing.heapq.heappop',side_effect=AssertionError('A* must not scan disconnected components')):
+        try:separate.leg(start,end,'car')
+        except ValueError as error:assert '連通道路' in str(error)
+        else:raise AssertionError('A disconnected route was accepted')
+print('PASS: weak components reject both directions before costly searching')

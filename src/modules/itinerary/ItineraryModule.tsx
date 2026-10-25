@@ -832,8 +832,8 @@ function ItineraryModule({
         if (abort.signal.aborted) return;
         handle.setRoute?.(result.lines);
         setNotice(result.total === 0 ? "當天至少需要兩個地點才能繪製交通軌跡。"
-          : result.skipped ? (result.lines.length ? `已顯示可繪製的交通軌跡，略過 ${result.skipped} 段無可用路線。` : `沒有可繪製的交通軌跡，請先確認交通方式`)
-          : result.lines.length ? "已顯示當天行程的交通軌跡" : "當天行程地點座標相同，沒有可繪製的路段。");
+          : result.skipped ? (result.lines.length ? `已顯示可繪製的交通軌跡，略過 ${result.skipped} 段：${result.errors[0]}` : `沒有可繪製的交通軌跡：${result.errors[0]}`)
+          : result.lines.length ? `已顯示當天行程的交通軌跡${result.approximate ? '（道路估算，未保證最快路線）' : ''}` : "當天行程地點座標相同，沒有可繪製的路段。");
       } catch (cause) {
         if (!abort.signal.aborted) setNotice(cause instanceof Error ? cause.message : "交通軌跡繪製失敗。", "error");
       }
