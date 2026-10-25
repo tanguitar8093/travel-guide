@@ -12,13 +12,13 @@ import { WorkspaceInfoBar } from './WorkspaceInfoBar';
 import { useAdminLayoutDebug } from './useAdminLayoutDebug';
 import { startLayoutDebug } from './layout-debug';
 import { useMapProvider } from '../geo/provider-preference';
+import { useWorkspaceCounts } from './useWorkspaceCounts';
 
 type WorkspaceSection = "regions" | "places" | "labels" | "itinerary" | "public-itinerary" | "route-calculator" | "data";
 
 interface WorkspaceLayoutProps {
   active: WorkspaceSection;
   children: ReactNode;
-  counts?: Partial<Record<WorkspaceSection, number>>;
   sidebarToggleTarget?: HTMLElement | null;
   mainClassName?: string;
   shellClassName?: string;
@@ -61,7 +61,6 @@ function isDesktopPointer(): boolean {
 export function WorkspaceLayout({
   active,
   children,
-  counts,
   sidebarToggleTarget,
   mainClassName = "",
   shellClassName = "",
@@ -79,6 +78,7 @@ export function WorkspaceLayout({
   const sidebarRef = useRef<HTMLElement>(null);
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sidebarOpen = sidebarPinned || sidebarHovered;
+  const counts = useWorkspaceCounts(user?.id, provider, dataset, active, sidebarOpen);
 
   useEffect(() => {
     if (!layoutDebug.enabled) return;
@@ -247,8 +247,8 @@ export function WorkspaceLayout({
                 {item.icon}
               </span>
               <span>{item.label}</span>
-              {counts?.[item.id] !== undefined && (
-                <span className="workspace-nav-count">{counts[item.id]}</span>
+              {item.id in counts && (
+                <span className="workspace-nav-count">{counts[item.id as keyof typeof counts] ?? '—'}</span>
               )}
             </RouterLink>
           ))}

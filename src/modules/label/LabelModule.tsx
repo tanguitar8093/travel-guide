@@ -554,7 +554,6 @@ function LabelModule() {
   return (
     <WorkspaceLayout
       active="labels"
-      counts={{ labels: flatLabels.length }}
       shellClassName="app-shell"
       mainClassName="main-content"
     >

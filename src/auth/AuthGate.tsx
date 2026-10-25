@@ -2,13 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useAuth } from "./useAuth";
 import { TourGuideAnimation } from "../common/TourGuideAnimation";
-import { TaiwanLoginScene } from "./TaiwanLoginScene";
-import { JapanLoginScene } from "./JapanLoginScene";
 import { useOsmDataset } from "../geo/osm-dataset-preference";
-import { OkinawaLoginScene } from "./OkinawaLoginScene";
-import okinawaLoginSoundUrl from "../../media/okiniwa-login.wav";
-import taiwanLoginSoundUrl from "../../media/taiwan-login.mp3";
-import japanLoginSoundUrl from "../../media/japan-login.mp3";
+import { DestinationWelcomePanel } from '../common/destination-welcome/DestinationWelcomePanel';
+import { destinationWelcomeSound } from '../common/destination-welcome/sounds';
 import "./AuthGate.css";
 
 interface AuthGateProps {
@@ -29,7 +25,7 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
     clearError,
   } = useAuth();
   const dataset = useOsmDataset();
-  const loginSoundUrl = dataset === "japan" ? japanLoginSoundUrl : dataset === "taiwan" ? taiwanLoginSoundUrl : okinawaLoginSoundUrl;
+  const loginSoundUrl = destinationWelcomeSound(dataset);
   const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [welcomeSound, setWelcomeSound] = useState<
@@ -251,53 +247,8 @@ export function AuthGate({ children, pending = false }: AuthGateProps) {
   );
 }
 
-// Shared presentation only. AuthGate retains all welcome audio and session behavior.
-export function AuthLoadingPanel({ welcome = false, ready = false, message = "載入中" }: { welcome?: boolean; ready?: boolean; message?: string }) {
+// Authentication owns login timing; the shared panel only renders the destination.
+export function AuthLoadingPanel({ welcome = false, ready = false, message = '載入中' }: { welcome?: boolean; ready?: boolean; message?: string }) {
   const dataset = useOsmDataset();
-  const taiwan = dataset === "taiwan";
-  const japan = dataset === "japan";
-  return (
-      <div className="auth-shell">
-        <section
-          className="auth-panel auth-panel-loading"
-          role="status"
-          aria-label="正在確認登入狀態"
-          aria-live="polite"
-        >
-          {welcome ? (
-            <div className="auth-island-heading">
-              <p className="auth-eyebrow">旅圖 · TripMap</p>
-              <p className="auth-island-destination">
-                <span>{japan ? "日本" : taiwan ? "台灣" : "沖繩"}</span>
-                <span className="auth-island-separator">·</span>
-                <span className="auth-island-english" lang="en">{japan ? "Japan" : taiwan ? "Taiwan" : "Okinawa"}</span>
-              </p>
-            </div>
-          ) : (
-            <p className="auth-eyebrow">旅圖 · TripMap</p>
-          )}
-          {welcome ? (
-            japan ? <JapanLoginScene /> : taiwan ? <TaiwanLoginScene /> : <OkinawaLoginScene />
-          ) : (
-            <TourGuideAnimation />
-          )}
-          <p className="auth-loading-caption">
-            {welcome && ready
-              ? "準備出發"
-              : message}
-            <span className="auth-loading-dots" aria-hidden="true">
-              <span>.</span>
-              <span>.</span>
-              <span>.</span>
-            </span>
-          </p>
-          {welcome && (
-            <p className="auth-tagline" lang="en">
-              Your Journey, Your Map.
-            </p>
-          )}
-
-        </section>
-      </div>
-  );
+  return <DestinationWelcomePanel dataset={dataset} welcome={welcome} ready={ready} message={message} />;
 }

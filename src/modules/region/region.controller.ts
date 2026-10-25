@@ -13,6 +13,10 @@ export class RegionController {
     return this.service.loadWorkspace()
   }
 
+  loadSharing(ownerId: string) {
+    return this.service.loadSharing(ownerId)
+  }
+
   isGooglePlacesConfigured() {
     return this.service.isGooglePlacesConfigured()
   }

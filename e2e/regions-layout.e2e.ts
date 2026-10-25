@@ -31,6 +31,13 @@ test('map switching stays mounted and fits portrait, landscape, tablet and deskt
     ];
     export class RegionController {}
     export const regionController = {
+      async loadSharing() {
+        window.regionSharingLoads = (window.regionSharingLoads || 0) + 1;
+        return {
+          publications: [{ sourceTripId: 'published', snapshot: { region: { id: 'snapshot-japan', mapProvider: 'osm', osmDataset: 'japan' } } }],
+          collaborations: [{ id: 'collaborative', document: { region: { id: 'collaborator-japan', mapProvider: 'osm', osmDataset: 'japan' } } }]
+        };
+      },
       async loadWorkspace() {
         await new Promise(resolve => setTimeout(resolve, 400));
         return { regions, trips: [{ id: 'trip', regionId: 'taiwan' }], places: [{ id: 'place', regionIds: ['japan'] }] };
@@ -38,6 +45,13 @@ test('map switching stays mounted and fits portrait, landscape, tablet and deskt
     };
   `)
   await page.addInitScript(() => {
+    HTMLMediaElement.prototype.play = function () {
+      Object.assign(window, { regionWelcomeAudio: this })
+      this.dispatchEvent(new Event('playing'))
+      return Promise.resolve()
+    }
+    HTMLMediaElement.prototype.pause = function () {}
+
     localStorage.setItem('travel-planner:map-provider', 'osm')
     localStorage.setItem('travel-planner:osm-dataset', 'okinawa')
   })
@@ -55,9 +69,21 @@ test('map switching stays mounted and fits portrait, landscape, tablet and deskt
       if (document.querySelector('.region-empty-detail')) failures.push('empty detail flashed')
     }).observe(document.querySelector('#root')!, { childList: true, subtree: true })
   })
+  // Selecting the current map is a no-op; only a real selection change celebrates.
+  await page.getByRole('button', { name: /沖繩.*個行程/ }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   for (const name of ['台灣', '日本', '沖繩', '日本', '台灣']) {
     await page.getByRole('button', { name: new RegExp(`${name}.*個行程`) }).click()
     await expect(page.locator('.region-detail-heading h2')).toHaveText(name)
+    const dialog = page.getByRole('dialog', { name: '旅行範圍迎賓動畫' })
+    await expect(dialog).toBeVisible()
+    const id = { '台灣': 'taiwan', '日本': 'japan', '沖繩': 'okinawa' }[name]!
+    await expect(dialog.locator(`.${id}-login-scene`)).toBeVisible()
+    await expect(dialog).toContainText('準備出發')
+    const sound = await page.evaluate(() => (window as unknown as { regionWelcomeAudio: HTMLAudioElement }).regionWelcomeAudio.src)
+    expect(sound).toContain(id === 'okinawa' ? 'okiniwa-login.wav' : `${id}-login.mp3`)
+    await page.evaluate(() => (window as unknown as { regionWelcomeAudio: HTMLAudioElement }).regionWelcomeAudio.dispatchEvent(new Event('ended')))
+    await expect(dialog).toHaveCount(0)
     await expect(page.getByRole('button', { pressed: true })).toContainText(name)
   }
   await expect(page.locator('.region-stat').first()).toContainText('1 個')
@@ -67,7 +93,11 @@ test('map switching stays mounted and fits portrait, landscape, tablet and deskt
     window.dispatchEvent(new StorageEvent('storage', { key: 'travel-planner:osm-dataset' }))
   })
   await expect(page.locator('.region-detail-heading h2')).toHaveText('日本')
-  await expect(page.locator('.region-stat').last()).toContainText('1 個')
+  await expect(page.locator('.region-stat').nth(1)).toContainText('1 個')
+  await expect(page.locator('.region-stat').nth(2)).toContainText('1 個')
+  await expect(page.locator('.region-stat').nth(3)).toContainText('1 個')
+  expect(await page.evaluate(() => (window as unknown as { regionSharingLoads: number }).regionSharingLoads)).toBe(1)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(await page.evaluate(() => (window as unknown as { regionRenderFailures: string[] }).regionRenderFailures)).toEqual([])
 
   for (const [width, height] of [[320, 568], [375, 667], [390, 844], [768, 1024], [1024, 768], [1440, 900], [568, 320], [844, 390]]) {
@@ -77,18 +107,28 @@ test('map switching stays mounted and fits portrait, landscape, tablet and deskt
       const detail = document.querySelector('.region-detail-card')!.getBoundingClientRect()
       const list = document.querySelector('.region-list-card')!.getBoundingClientRect()
       const overflow = [...document.querySelectorAll('.region-content, .region-list-card, .region-detail-card')].filter(el => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1).length
-      return { width: root.scrollWidth, height: root.scrollHeight, bottom: detail.bottom, gap: detail.top - list.bottom, overflow }
+      return { width: root.scrollWidth, height: root.scrollHeight, bottom: detail.bottom, gap: detail.top - list.bottom, detailHeight: detail.height, listHeight: list.height, overflow }
     })
     expect(bounds.width, `${width}x${height} page width`).toBeLessThanOrEqual(width)
     expect(bounds.height, `${width}x${height} page height`).toBeLessThanOrEqual(height)
     expect(bounds.bottom, `${width}x${height} visible detail`).toBeLessThanOrEqual(height)
     expect(bounds.overflow, `${width}x${height} inner overflow`).toBe(0)
+    if (width > 650 || width > height) expect(Math.abs(bounds.detailHeight - bounds.listHeight)).toBeLessThanOrEqual(1)
     if (width <= 480) expect(bounds.gap).toBeLessThanOrEqual(10)
     const icons = page.locator('.region-stat-icon')
-    await expect(icons).toHaveCount(2)
+    await expect(icons).toHaveCount(4)
     await expect(icons.first()).toBeVisible()
     await expect(icons.last()).toBeVisible()
     if (width === 390 || width === 1440) await page.screenshot({ path: testInfo.outputPath(`regions-${width}.png`) })
   }
+  await page.evaluate(() => { HTMLMediaElement.prototype.play = () => Promise.reject(new DOMException('blocked', 'NotAllowedError')) })
+  await page.getByRole('button', { name: /台灣.*個行程/ }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(page.locator('.region-detail-heading h2')).toHaveText('台灣')
+  await page.evaluate(() => { HTMLMediaElement.prototype.play = () => Promise.resolve() })
+  await page.getByRole('button', { name: /日本.*個行程/ }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   expect(errors).toEqual([])
 })

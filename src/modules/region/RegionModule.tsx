@@ -13,6 +13,12 @@ import "./RegionModule.css";
 import { useHybridDataRevision } from "../../database/useHybridDataRevision";
 import { useMapProvider } from "../../geo/provider-preference";
 import { regionsForMapProvider } from "../../geo/region-provider";
+import { useAuth } from '../../auth/useAuth';
+import { useDestinationWelcomeEffect } from '../../common/destination-welcome/useDestinationWelcomeEffect';
+import { DestinationWelcomeEffect } from '../../common/destination-welcome/DestinationWelcomeEffect';
+import { regionSharingCounts } from './region-sharing';
+import type { PublicItinerary } from '../public-itinerary/models';
+import type { SharedTripSnapshot } from '../../database/shared-trip.types';
 
 interface RegionDraft {
   name: string;
@@ -38,6 +44,10 @@ function toDraft(region: Region): RegionDraft {
 }
 
 function RegionModule() {
+  const { user } = useAuth();
+  const welcome = useDestinationWelcomeEffect();
+  const [sharing, setSharing] = useState<{ publications: PublicItinerary[]; collaborations: SharedTripSnapshot[] }>();
+  const [sharingError, setSharingError] = useState('');
   const { provider, error: providerError } = useMapProvider();
   const readonly = provider === 'osm';
   const dataset = useOsmDataset();
@@ -75,6 +85,18 @@ function RegionModule() {
   const linkedTrips =
     selectedRegion && trips.filter((trip) => trip.regionId === selectedRegion.id);
   const selectedGooglePlaceId = selectedRegion?.googlePlaceId;
+  const sharingCounts = sharing && regionSharingCounts(providerRegions, trips, sharing.publications, sharing.collaborations);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let active = true;
+    regionController.loadSharing(user.id).then(result => {
+      if (active) { setSharing(result); setSharingError(''); }
+    }).catch(() => {
+      if (active) { setSharing(undefined); setSharingError('分享與協作數量暫時無法讀取。'); }
+    });
+    return () => { active = false; };
+  }, [user?.id, dataRevision]);
 
   async function refresh(preferredId = selectedId) {
     const workspace = await regionController.loadWorkspace();
@@ -241,7 +263,13 @@ function RegionModule() {
   }
 
   function selectRegion(region: Region) {
-    if (provider === 'osm') setOsmDataset(regionOsmDataset(region));
+    if (provider === 'osm') {
+      const next = regionOsmDataset(region);
+      if (next !== dataset) {
+        setOsmDataset(next);
+        welcome.play(next);
+      }
+    }
     setSelectedId(region.id);
     setDraft(toDraft(region));
     setCreating(false);
@@ -409,7 +437,9 @@ function RegionModule() {
                   aria-pressed={selectedRegion?.id === region.id && !creating}
                   onClick={() => selectRegion(region)}
                 >
-                  <span className="region-list-icon">◎</span>
+                  <span className="region-list-icon" aria-hidden="true">{region.mapProvider === 'osm'
+                    ? { okinawa: '🌺', taiwan: '🧋', japan: '🗻' }[regionOsmDataset(region)]
+                    : '🌍'}</span>
                   <span>
                     <strong>{region.name}</strong>
                     <small>
@@ -553,7 +583,26 @@ function RegionModule() {
                     <dt>收藏地點</dt>
                     <dd>{usage.places.get(selectedRegion.id) ?? 0} 個</dd>
                   </div>
+                  <div className="region-stat">
+                    <svg className="region-stat-icon region-stat-shared" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                      <rect x="5" y="14" width="24" height="21" rx="6" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" />
+                      <path d="M18 23V12a5 5 0 0 1 5-5h10m-6-5 6 5-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <path d="M11 28h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                    </svg>
+                    <dt>分享行程</dt>
+                    <dd>{sharingCounts ? `${sharingCounts.get(selectedRegion.id)?.published ?? 0} 個` : '—'}</dd>
+                  </div>
+                  <div className="region-stat">
+                    <svg className="region-stat-icon region-stat-collaboration" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+                      <circle cx="14" cy="13" r="6" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" />
+                      <circle cx="28" cy="16" r="5" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" />
+                      <path d="M3 34v-3a11 11 0 0 1 22 0v3ZM25 25a9 9 0 0 1 12 9h-8" fill="currentColor" fillOpacity=".14" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" />
+                    </svg>
+                    <dt>協作行程</dt>
+                    <dd>{sharingCounts ? `${sharingCounts.get(selectedRegion.id)?.collaborative ?? 0} 個` : '—'}</dd>
+                  </div>
                 </dl>
+                {sharingError && <p className="region-sharing-error" role="status">{sharingError}</p>}
               </div>
             ) : loading ? (
               <div className="region-empty-detail" role="status" aria-live="polite">
@@ -577,6 +626,7 @@ function RegionModule() {
           </section>
         </section>
       </div>
+      {welcome.dataset && <DestinationWelcomeEffect dataset={welcome.dataset} onClose={welcome.close} />}
       {!readonly && deleteDialogOpen && selectedRegion && (
         <div
           className="region-dialog-backdrop"

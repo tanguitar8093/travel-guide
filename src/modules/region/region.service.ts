@@ -7,6 +7,8 @@ import {
 } from '../place/google-places.service'
 import type { GooglePlaceDetails } from '../place/google-places.service'
 import { mountOsmAutocomplete } from '../../geo/osm-service'
+import { publicCatalog } from '../public-itinerary/catalog-instance'
+import { sharedTrips } from '../../database/shared-trip.repository'
 
 export interface RegionWorkspace {
   regions: Region[]
@@ -15,6 +17,14 @@ export interface RegionWorkspace {
 }
 
 export class RegionService {
+  async loadSharing(ownerId: string) {
+    const [publications, collaborations] = await Promise.all([
+      publicCatalog.publicItineraries.where('ownerId').equals(ownerId).toArray(),
+      sharedTrips.list(),
+    ])
+    return { publications, collaborations }
+  }
+
   mountOsmAutocomplete(...args: Parameters<typeof mountOsmAutocomplete>) {
     return mountOsmAutocomplete(...args)
   }

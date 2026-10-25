@@ -634,7 +634,6 @@ function PlaceModule() {
   return (
     <WorkspaceLayout
       active="places"
-      counts={{ places: places.length }}
       shellClassName="app-shell place-app-shell"
       mainClassName="main-content"
     >
