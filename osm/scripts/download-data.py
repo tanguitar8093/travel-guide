@@ -57,7 +57,7 @@ def main():
         subprocess.run([str(python),str(ROOT/'scripts'/script),str(pbf),'--dataset',args.dataset],check=True)
     if args.dataset == 'taiwan':
         subprocess.run([str(python),str(ROOT/'scripts/prepare-search-index.py'),str(ROOT/'data/taiwan-places.json')],check=True)
-    subprocess.run([str(python),str(ROOT/'scripts/build-tiles.py'),'--dataset',args.dataset],check=True)
+    subprocess.run([str(python),str(ROOT/'scripts/build-tiles.py'),'--dataset',args.dataset,'--pbf',str(pbf)],check=True)
     subprocess.run([str(python),str(ROOT/'scripts/write-manifest.py'),'--dataset',args.dataset],check=True)
     print(f'{args.dataset} ready. Restart npm run dev / npm run osm:start to publish the new dataset.',flush=True)
 

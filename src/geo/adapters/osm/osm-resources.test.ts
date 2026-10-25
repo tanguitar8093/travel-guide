@@ -56,11 +56,26 @@ it('enables Okinawa zoom labels only when the tile index advertises their data',
   expect(style.layers.find(layer => layer.id === 'road-labels-main')).toMatchObject({ minzoom: 12 })
   expect(style.layers.find(layer => layer.id === 'road-labels-local')).toMatchObject({ minzoom: 15 })
   expect(style.layers.find(layer => layer.id === 'place-labels')).toBeDefined()
-  const taiwan = await createOsmStyle('', 'taiwan')
-  expect(taiwan.layers.some(layer => layer.type === 'symbol')).toBe(false)
+  const japan = await createOsmStyle('', 'japan')
+  expect(japan.layers.some(layer => layer.type === 'symbol')).toBe(false)
 })
 
 it('keeps older Okinawa tiles usable without requesting absent label layers', async () => {
   const style = await createOsmStyle('')
   expect(style.layers.some(layer => layer.type === 'symbol')).toBe(false)
+})
+
+it('uses traditional Chinese road labels for Taiwan with the same zoom thresholds', async () => {
+  fetchTiles.mockResolvedValue({ ok: true, json: async () => ({
+    ...tilejson, vector_layers: [...tilejson.vector_layers, { id: 'road_labels' }, { id: 'place_labels' }],
+  }) })
+  const style = await createOsmStyle('', 'taiwan')
+  expect(style.layers.find(layer => layer.id === 'road-labels-main')).toMatchObject({
+    minzoom: 12, layout: { 'text-field': ['coalesce', ['get', 'name:zh-Hant'], ['get', 'name:zh'], ['get', 'name'], ['get', 'ref']] },
+  })
+  expect(style.layers.find(layer => layer.id === 'road-labels-local')).toMatchObject({ minzoom: 15 })
+})
+
+it('keeps older Taiwan tiles usable without absent label layers', async () => {
+  expect((await createOsmStyle('', 'taiwan')).layers.some(layer => layer.type === 'symbol')).toBe(false)
 })

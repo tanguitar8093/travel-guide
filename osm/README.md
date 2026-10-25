@@ -48,6 +48,16 @@ Okinawa. Map tiles load independently of the large catalog and road graph.
 The runtime requires only Python's standard library; pinned osmium/shapely
 packages are build dependencies in `osm/.venv`.
 
+Taiwan display tiles include city/district and road labels, with the same zoom
+thresholds as Okinawa. Road names prefer Traditional Chinese and stay above
+itinerary tracks. Rebuild only the map with `npm run osm:build:tiles -- --dataset taiwan`
+(requires the source `data/taiwan.osm.pbf` and build dependencies), then restart
+the OSM service. An external PBF can be supplied with `--pbf /path/to/taiwan.osm.pbf`.
+The label builder streams the PBF with a disposable disk location index and
+leaves search/routing artifacts untouched. Preview with
+`/poc/osm-ui/zoom-labels.html?dataset=taiwan` under the Vite dev server, and verify
+with `OSM_LABEL_DATASET=taiwan node scripts/check-okinawa-labels.mjs`.
+
 Run all Python fixtures with `npm run osm:test`. The browser regression script is
 `node scripts/check-osm-datasets.mjs`; it uses `.env.e2e.local`, a separate browser
 context and local-only mutations. `OSM_CHECK_HYBRID=1` checks real account sync;

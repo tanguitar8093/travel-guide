@@ -74,7 +74,10 @@ export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'o
   })
   const vectorLayers = tiles.vector_layers as unknown[]
   const hasLayer = (id: string) => vectorLayers.some(layer => typeof layer === 'object' && layer !== null && 'id' in layer && layer.id === id)
-  const labels = dataset === 'okinawa' ? [
+  const roadName = dataset === 'taiwan'
+    ? ['coalesce', ['get', 'name:zh-Hant'], ['get', 'name:zh'], ['get', 'name'], ['get', 'ref']]
+    : ['coalesce', ['get', 'name:ja'], ['get', 'name'], ['get', 'ref']]
+  const labels = dataset === 'okinawa' || dataset === 'taiwan' ? [
     ...(hasLayer('place_labels') ? [{
       id: 'place-labels', type: 'symbol', source: 'basemap', 'source-layer': 'place_labels', minzoom: 7,
       // Neighbourhood data is retained in z14 tiles and only becomes visible at z15.
@@ -91,7 +94,7 @@ export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'o
       filter: ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary']]],
       layout: {
         'symbol-placement': 'line', 'symbol-spacing': 320,
-        'text-field': ['coalesce', ['get', 'name:ja'], ['get', 'name'], ['get', 'ref']],
+        'text-field': roadName,
         'text-font': ['sans-serif'], 'text-size': 12, 'text-padding': 5,
       },
       paint: { 'text-color': '#6b604c', 'text-halo-color': '#fffdf9', 'text-halo-width': 1.5 },
@@ -100,7 +103,7 @@ export async function createOsmStyle(baseUrl: string, dataset: OsmDatasetId = 'o
       filter: ['!', ['in', ['get', 'class'], ['literal', ['motorway', 'trunk', 'primary', 'secondary', 'tertiary']]]],
       layout: {
         'symbol-placement': 'line', 'symbol-spacing': 240,
-        'text-field': ['coalesce', ['get', 'name:ja'], ['get', 'name'], ['get', 'ref']],
+        'text-field': roadName,
         'text-font': ['sans-serif'], 'text-size': 11, 'text-padding': 5,
       },
       paint: { 'text-color': '#68736b', 'text-halo-color': '#fffdf9', 'text-halo-width': 1.5 },

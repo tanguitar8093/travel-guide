@@ -8,6 +8,7 @@
     header { position: absolute; z-index: 2; top: 16px; left: 16px; right: 60px; max-width: 540px; background: #fffffff2; padding: 16px; border-radius: 12px; box-shadow: 0 2px 16px #0002; }
     h1 { margin: 0 0 8px; font-size: 18px; } p { margin: 8px 0 0; line-height: 1.5; } button { padding: 8px 12px; margin: 4px 4px 0 0; cursor: pointer; border: 1px solid #ccd7cf; border-radius: 6px; background: white; color: inherit; }
     button.active { background: #e5eee8; border-color: #759481; } #map { height: 100dvh; } #status { font-variant-numeric: tabular-nums; }
+    .geo-renderer-host { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
@@ -20,9 +21,16 @@
 <div id="map"></div>
 <script type="module">
   import { createOsmStyle, loadOsmMapLibre } from '/src/geo/adapters/osm/osm-resources.ts';
+  const dataset = new URLSearchParams(location.search).get('dataset') === 'taiwan' ? 'taiwan' : 'okinawa';
+  const center = dataset === 'taiwan' ? [121.517, 25.047] : [127.687, 26.217];
+  if (dataset === 'taiwan') {
+    document.title = '台灣地圖標籤試作';
+    document.querySelector('h1').textContent = '台灣 · 依縮放顯示地圖標籤';
+    document.querySelector('header p:last-child').textContent = '可拖曳地圖、滾輪縮放。城市、行政區與道路優先繁中；無路名時使用既有道路編號。';
+  }
   const sdk = await loadOsmMapLibre('/local-map');
-  const style = await createOsmStyle('/local-map', 'okinawa');
-  const map = new sdk.Map({ container: 'map', style, center: [127.687, 26.217], zoom: 13,
+  const style = await createOsmStyle('/local-map', dataset);
+  const map = new sdk.Map({ container: 'map', style, center, zoom: 13,
     minZoom: 5, maxZoom: 19, pitchWithRotate: false, dragRotate: false });
   map.addControl(new sdk.NavigationControl({ showCompass: false }), 'top-right');
   const update = () => {
@@ -30,7 +38,7 @@
     document.querySelector('#status').textContent = `Zoom ${zoom.toFixed(1)} · ${zoom >= 15 ? '城市、街區、主要道路與一般街名' : zoom >= 12 ? '城市、街區與主要道路名稱' : '城市／町村名稱'} · © OpenStreetMap contributors`;
     document.querySelectorAll('[data-zoom]').forEach(button => button.classList.toggle('active', Math.abs(zoom - Number(button.dataset.zoom)) < 0.5));
   };
-  document.querySelectorAll('[data-zoom]').forEach(button => button.onclick = () => map.jumpTo({ center: [127.687, 26.217], zoom: Number(button.dataset.zoom) }));
+  document.querySelectorAll('[data-zoom]').forEach(button => button.onclick = () => map.jumpTo({ center, zoom: Number(button.dataset.zoom) }));
   map.on('zoom', update); map.on('load', update);
   map.on('error', event => { document.querySelector('#status').textContent = event.error.message; });
   window.labelPreview = map;

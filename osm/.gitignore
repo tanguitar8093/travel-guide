@@ -21,3 +21,4 @@ data/.tiles-cache/
 
 # Rebuilt from the bundled Okinawa source and place catalog.
 data/okinawa-*-labels.geojsonl
+data/atlas-labels-*/
