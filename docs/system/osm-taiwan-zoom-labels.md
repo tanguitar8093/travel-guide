@@ -6,7 +6,7 @@
 - 台灣名稱優先 `name:zh-Hant` → `name:zh` → `name`，道路無名稱時使用 `ref`。未命名道路不虛構名稱。
 - 行政區使用 OSM `place` 節點標籤，沒有新增行政區界線。圖磚最高維持 z14，近景文字依畫面倍率顯示。
 - 軌跡插在第一個 symbol 圖層之前，順序為底圖／道路 → 行程軌跡 → 城市及路名；景點 DOM markers 仍可點擊。
-- 舊台灣圖磚缺少 label 圖層時仍可顯示原底圖。日本標籤未啟用，沖繩樣式維持原設定。
+- 舊台灣圖磚缺少 label 圖層時仍可顯示原底圖。日本標籤已另行擴充，見 [日本縮放標籤](osm-japan-zoom-labels.md)；沖繩樣式維持原設定。
 
 `prepare-taiwan-labels.py` 從台灣 PBF 串流擷取名稱及道路幾何，用暫存磁碟 location index，不載入整份地點目錄或變更路由／搜尋資料。依共用 coverage 篩選，保留全道路幾何。本次共 304,375 段 named/ref 道路 ways、2,746 個 place 節點，無無效道路幾何。
 

@@ -23,11 +23,11 @@ def build(dataset='okinawa', layers=None, pbf=None):
     destination.parent.mkdir(parents=True, exist_ok=True)
     if dataset == 'okinawa':
         subprocess.run([sys.executable, str(ROOT / 'scripts/prepare-okinawa-labels.py')], check=True)
-    elif dataset == 'taiwan':
+    elif dataset in ('taiwan', 'japan'):
         python = ROOT / '.venv/bin/python'
         subprocess.run([str(python) if python.is_file() else sys.executable,
-                        str(ROOT / 'scripts/prepare-taiwan-labels.py'), '--pbf',
-                        str(pbf or ROOT / 'data/taiwan.osm.pbf')], check=True)
+                        str(ROOT / 'scripts/prepare-region-labels.py'), '--dataset', dataset, '--pbf',
+                        str(pbf or ROOT / f'data/{dataset}.osm.pbf')], check=True)
     # Build beside the destination so publishing is an atomic rename.
     with tempfile.TemporaryDirectory(prefix='atlas-tiles-', dir=destination.parent) as directory:
         temporary = Path(directory)
@@ -50,7 +50,7 @@ def build(dataset='okinawa', layers=None, pbf=None):
             'roads': (['any', ['>=', '$zoom', 12], ['all', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary','motorway_link','trunk_link','primary_link','secondary_link','tertiary_link'})]], ['in', 'class', *sorted(MAIN_ROADS)]] if dataset == 'japan' else ['any', ['>=', '$zoom', 10], ['in', 'class', *sorted(MAIN_ROADS)]])
         }
         label_arguments = []
-        if dataset in ('okinawa', 'taiwan'):
+        if dataset in ('okinawa', 'taiwan', 'japan'):
             filters.update({
                 'road_labels': ['any', ['>=', '$zoom', 14], ['all', ['>=', '$zoom', 12], ['in', 'class', *sorted(MAIN_ROADS | {'tertiary'})]]],
                 # Keep neighbourhoods at source zoom 14 for display zoom 15+.
@@ -67,7 +67,7 @@ def build(dataset='okinawa', layers=None, pbf=None):
             '--base-zoom=0', '--drop-rate=1',
             '--no-feature-limit', '--no-tile-size-limit',
             '--include=class',
-            *(['--include=name', '--include=name:ja', '--include=name:zh-Hant', '--include=name:zh', '--include=ref', '--include=label_minzoom'] if dataset in ('okinawa', 'taiwan') else []),
+            '--include=name', '--include=name:ja', '--include=name:zh-Hant', '--include=name:zh', '--include=ref', '--include=label_minzoom',
             f'--name={dataset}',
             '--attribution=© OpenStreetMap contributors · ODbL',
             '--feature-filter=' + json.dumps(filters),
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=("okinawa","taiwan","japan"), default="okinawa")
     parser.add_argument('--layers',type=Path,help='Streamed GeoJSONL layer directory (required for Japan)')
-    parser.add_argument('--pbf', type=Path, help='Taiwan label source; defaults to data/taiwan.osm.pbf')
+    parser.add_argument('--pbf', type=Path, help='Regional label source; defaults to data/<dataset>.osm.pbf')
     args=parser.parse_args()
     if args.dataset=='japan' and not args.layers:parser.error('Japan requires --layers from prepare-display-stream.py')
     build(args.dataset,args.layers,args.pbf)

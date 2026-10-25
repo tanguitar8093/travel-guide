@@ -5,14 +5,14 @@ import { mkdir, writeFile } from 'node:fs/promises'
 import { chromium } from '@playwright/test'
 const base = process.env.OSM_CHECK_URL || 'http://127.0.0.1:5173'
 const dataset = process.env.OSM_LABEL_DATASET || 'okinawa'
-assert.ok(['okinawa', 'taiwan'].includes(dataset))
+assert.ok(['okinawa', 'taiwan', 'japan'].includes(dataset))
 const output = process.env.OSM_LABEL_OUTPUT || `/tmp/travel-${dataset}-labels`
 const baseline = process.env.OSM_LABEL_BASELINE_URL
 await mkdir(output, { recursive: true })
 const browser = await chromium.launch({ headless: true })
 try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } })
-  if (baseline) await page.route(/\/local-map\/(?:datasets\/taiwan\/)?tiles/, async route => {
+  if (baseline) await page.route(/\/local-map\/(?:datasets\/(?:taiwan|japan)\/)?tiles/, async route => {
     const url = new URL(route.request().url())
     const response = await route.fetch({ url: `${baseline}${url.pathname.replace('/local-map', '')}` })
     await route.fulfill({ response })

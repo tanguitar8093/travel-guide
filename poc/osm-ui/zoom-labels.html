@@ -21,8 +21,13 @@
 <div id="map"></div>
 <script type="module">
   import { createOsmStyle, loadOsmMapLibre } from '/src/geo/adapters/osm/osm-resources.ts';
-  const dataset = new URLSearchParams(location.search).get('dataset') === 'taiwan' ? 'taiwan' : 'okinawa';
-  const center = dataset === 'taiwan' ? [121.517, 25.047] : [127.687, 26.217];
+  const requested = new URLSearchParams(location.search).get('dataset');
+  const dataset = ['taiwan', 'japan'].includes(requested) ? requested : 'okinawa';
+  const center = dataset === 'taiwan' ? [121.517, 25.047] : dataset === 'japan' ? [139.77, 35.68] : [127.687, 26.217];
+  if (dataset === 'japan') {
+    document.title = '日本地圖標籤試作';
+    document.querySelector('h1').textContent = '日本 · 依縮放顯示地圖標籤';
+  }
   if (dataset === 'taiwan') {
     document.title = '台灣地圖標籤試作';
     document.querySelector('h1').textContent = '台灣 · 依縮放顯示地圖標籤';

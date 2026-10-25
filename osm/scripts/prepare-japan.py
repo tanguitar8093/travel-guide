@@ -37,7 +37,7 @@ def main():
     run(python,ROOT/'scripts/extract-places-disk.py',named,'--dataset','japan')
     run(python,ROOT/'scripts/prepare-search-index.py',ROOT/'data/japan-places.json')
     run(python,ROOT/'scripts/build-routing-disk.py',display,'--dataset','japan')
-    run(python,ROOT/'scripts/build-tiles.py','--dataset','japan','--layers',layers)
+    run(python,ROOT/'scripts/build-tiles.py','--dataset','japan','--layers',layers,'--pbf',args.pbf)
     run(python,ROOT/'scripts/write-manifest.py','--dataset','japan')
     print('Japan artifacts ready. Restart the OSM service to publish.',flush=True)
 if __name__=='__main__':main()

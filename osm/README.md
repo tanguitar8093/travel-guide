@@ -58,6 +58,24 @@ leaves search/routing artifacts untouched. Preview with
 `/poc/osm-ui/zoom-labels.html?dataset=taiwan` under the Vite dev server, and verify
 with `OSM_LABEL_DATASET=taiwan node scripts/check-okinawa-labels.mjs`.
 
+Japan uses the same zoom labels, with Japanese road names and labels above
+itinerary tracks. `prepare-region-labels.py` is the shared streaming PBF label
+builder for Taiwan/Japan; the Taiwan-specific command remains a compatibility
+entry point. The full Japan setup supplies its source PBF automatically. To
+rebuild only Japan display tiles using already prepared layers:
+
+```sh
+npm run osm:build:tiles -- --dataset japan --layers /path/to/japan-layers --pbf /path/to/japan.osm.pbf
+python3 -B osm/scripts/write-manifest.py --dataset japan
+# Restart OSM after completing the build.
+OSM_LABEL_DATASET=japan node scripts/check-okinawa-labels.mjs
+```
+
+Preview Japan at `/poc/osm-ui/zoom-labels.html?dataset=japan`. The PBF and display
+layers should come from the same snapshot as the installed dataset.
+See [Japan label measurements and validation](../docs/system/osm-japan-zoom-labels.md)
+for build costs, browser heap measurements and the limits of these measurements.
+
 Run all Python fixtures with `npm run osm:test`. The browser regression script is
 `node scripts/check-osm-datasets.mjs`; it uses `.env.e2e.local`, a separate browser
 context and local-only mutations. `OSM_CHECK_HYBRID=1` checks real account sync;

@@ -6,7 +6,7 @@ import tempfile
 
 import osmium
 
-spec = importlib.util.spec_from_file_location('taiwan_labels', Path(__file__).with_name('prepare-taiwan-labels.py'))
+spec = importlib.util.spec_from_file_location('taiwan_labels', Path(__file__).with_name('prepare-region-labels.py'))
 labels = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(labels)
 
